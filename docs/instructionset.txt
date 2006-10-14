@@ -1,0 +1,101 @@
+MEOW Instruction Set
+--------------------
+
+B		000c ccca aaaa aaaa	- branch to signed-9 bit offet from current PC, if condition codes match
+
+ADD		0011 dddd iiii iiii     - register d = register d + signed 8 bit constant
+		0010 dddd iiii ssss     - register d = register s + unsigned 4 bit constant
+
+SUB		0101 dddd iiii iiii     - same as above, except subtract.
+		0100 dddd iiii ssss
+
+CMP		0110 aaaa iiii iiii	- compare register to 8 bit signed int
+CMP		0111 aaaa 0-wx bbbb	- compare two registers, w and x are dest/source banks to read from
+TST		0111 aaaa 1-wt tttt	- test a single bit is set, w is bank to read from
+
+MOV		1000 dddd yzwx ssss	- d = s
+					- w = destination bank
+					- x = source bank
+					- y = byte swap
+					- z = half word swap
+
+IRQRTN		1000 1111 1111 1111	- Return from interrupt handler (yes, it's a MOV, but an insane useless one.)
+
+LDI		1001 iiii iiii iiii	- reg_imm = 12 bit signed constant
+
+LSH		101A rrrr dR0i iiii	- shift r by i bits in direction d, roll if R
+		101A rrrr dR1- ssss	- shift r by value of register s bits in direction d, roll if R
+					- arithmetic shifts if A bit set.
+
+BIT		110N dddd oo0- ssss	- register d = register d OP register s
+		110N dddd oo1i iiii	- register d = register d OP 1<<immediate		
+
+		If N is set, second operand is bitwise inverted.
+
+		oo is:	00	NOT	- (ignores current value of reg d)
+			01	AND
+			10	ORR
+			11	EOR
+
+MEM		111L dddd SHWD ssss	- L = load/store, S = 8bit/16bit, H = hi/low half, W = writeback, D = direction
+
+Program counter layout:
+
+	1098765 43210987 65432109 87654321
+	NZCVaaa aaaaaaaa aaaaaaaa aaaaaaaB
+
+Memory layout:
+
+	0	System call entry point / OS inititialisation / CPU initial PC
+	...
+	32	Interrupt handler
+	...
+	n	End of ROM
+
+
+The top nibble of the address is the peripheral selector.
+  0 => ROM (Thus rom starts at 0)
+  1 => RAM (Thus ram starts at 0x10000000 I.E. 256M in)
+  
+  f => SYS (system controller including interrupts, MCU ID etc)
+
+When the CPU is interrupted, if it is in interrupt mode it resets. Otherwise it enters interrupt mode.
+Entering interrupt mode causes the active bank of registers to switch to the interrupt bank and causes
+PC to be loaded with the address of the interrupt handler. To return from interrupt, you execute 
+MOVWB alt_pc, alt_pc (also known as IRQRTN).
+
+On reset, all registers in both banks are set to zero, the cpu enters interrupt mode and the SYS has interrupts masked.
+
+If the address part of PC is altered in any way the MCU supresses the automatic increment.
+
+To syscall:
+		-- syscall(5)
+		ldi(5)
+		and(reg_lr, 0)         -- clear reg_lr 
+		add(reg_lr, reg_pc, 4) -- reg_lr = (0 +) reg_pc + 4
+		and(reg_pc, 0)         -- clear reg_pc
+
+Condition codes
+cccc	suffix	What it means			What it is implemented as?
+
+0000	EQ 	Equal 				Z=1
+0001	NE 	Not equal			Z=0
+0010	CS 	Carry set 			C=1
+0010	HS 	Higher/same (unsigned)		Same as CS
+0011	CC 	Carry clear 			C=0
+0011	LO 	Lower (unsigned)		Same as CC
+0100	MI 	Negative			N=1
+0101	PL 	Positive			N=0
+0110	VS 	Overflow set			V=1
+0111	VC 	Overflow clear			V=0
+1000	HI 	Higher (unsigned) 		C=1 and Z=0
+1001	LS 	Lower or same (unsigned) 	C=0 or Z=1
+1010	GE 	Greater than or equal 		N=V
+1011	LT 	Less than			N<>V
+1100	GT 	Greater than 			N=V and Z=0
+1101	LE 	Less than or equal 		N<>V or Z=1
+1110	AL	Always				This is the default
+1111	NV 	Never				** Do not use **
+
+
+
