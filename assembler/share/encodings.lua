@@ -16,18 +16,23 @@ function _encode_branch(info, condition, jump_by)
    condwhinge(jump_by < -512 or jump_by > 510, info, "Branch can only jump forward or backward by by 256 instructions")
    condwhinge(math.mod(jump_by, 2) ~= 0, info, "Branch must jump to an instruction boundary, thus jumping by an odd number cannot happen.")
    
-   local targ = jump_by / 2
+   local targ = to_bitfield(jump_by / 2, 9)
 
    -- Jump is 000c ccca aaaa aaaa so the upper byte is
    -- condition << 1 (*2) and 1 if targ is negative
-   local upper_byte = condition * 2 + ((targ < 0) and 1 or 0)
-   -- The lower byte is harder because it's the bottom eight bits of jump_by
-   local lower_byte
-   if targ >=0 and targ <= 255 then lower_byte = targ end
-   if targ > 255 then lower_byte = targ - 256 end
-   if targ < 0 then
-      lower_byte = targ + 256
-   end
-   _queue_bytes(info, lower_byte, upper_byte)
+   -- The lower byte is the bottom eight bits of jump_by
+   local upper_bits = "000" .. to_bitfield(condition, 4) .. string.sub(targ,1,1)
+   local lower_bits = string.sub(targ,2)
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
+
+function _encode_ldi(info, value)
+   condwhinge(value < -2048 or value > 2047, 
+	      info, "ldi can only take constants between -2048 and 2047")
+   local instr = "1001" .. to_bitfield(value, 12)
+   local lower_bits = string.sub(instr,9)
+   local upper_bits = string.sub(instr,1,8)
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end

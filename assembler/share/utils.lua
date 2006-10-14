@@ -148,3 +148,28 @@ function dump_stats()
       verbose(2, "  %s: %d", stat_names[k], v)
    end
 end
+
+local function bit0(v)
+   return (math.floor(v/2)*2) ~= math.floor(v)
+end
+
+function to_bitfield(value, bits)
+   local ret = ""
+   while bits > 0 do
+      ret = (bit0(value) and "1" or "0") .. ret
+      value = value / 2
+      bits = bits - 1
+   end
+   return ret
+end
+
+function from_bitfield(bits)
+   local ret = 0
+   while bits ~= "" do
+      local bit = string.sub(bits,1,1)
+      bits = string.sub(bits,2)
+      ret = ret * 2
+      if bit == "1" then ret = ret + 1 end
+   end
+   return ret
+end

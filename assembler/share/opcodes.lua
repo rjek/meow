@@ -160,3 +160,10 @@ function meow_op_branch(info, condition, target)
    -- Nothing we can do for now except defer...
    _queue_callback(info, _branch_callback, condition, target)
 end
+
+function meow_op_ldi(info, imm)
+   local target = parse_positional(info, imm)
+   condwhinge(target.type ~= "constant", info, "ldi expects a constant")
+   -- Simple (yay)
+   _encode_ldi(info, target.value)
+end
