@@ -46,7 +46,9 @@ MEM		111L dddd SHWD ssss	- L = load/store (1 to store)
 Program counter layout:
 
 	1098765 43210987 65432109 87654321
-	NZCVaaa aaaaaaaa aaaaaaaa aaaaaaaB
+	NZCVaaa aaaaaaaa aaaaaaaa aaaaaaaI
+	
+	I == set if in interrupt mode
 
 Memory layout:
 
