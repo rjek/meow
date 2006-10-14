@@ -188,4 +188,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
 bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
 void msim_print_state(struct msim_ctx *ctx);
 
+void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename);
+void msim_del_rom(struct msim_ctx *ctx, int area);
+
 #endif /* __MSIM_H__ */

@@ -83,7 +83,7 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 		return;
 	}
 
-	ctx->areas[area].write(ptr, t, d, ctx->areas[area].ctx);
+	ctx->areas[area].write(ptr & ~(15<<28), t, d, ctx->areas[area].ctx);
 }
 
 u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
@@ -96,7 +96,7 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 		return 0;
 	}
 	
-	return ctx->areas[area].read(ptr, t, ctx->areas[area].ctx);
+	return ctx->areas[area].read(ptr & ~(15<<28), t, ctx->areas[area].ctx);
 }
 
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
@@ -106,13 +106,13 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 
 	memset(instr, 0, sizeof(struct msim_instr));
 
-	switch (instrword >> 29) {
+	switch (instrword >> 13) {
 		case 0:
 			instr->opcode = MSIM_OPCODE_B;
 			instr->condition = (instrword >> 9) & 15;
 			instr->immediate =
 				MSIM_SIGN_EXTEND(
-					(instrword & (~(127<<10))) << 1, 16, 9);
+					(instrword & (~(127<<10))), 16, 9) * 2;
 			
 			break;
 		
@@ -182,7 +182,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 	switch (instr->opcode) {
 		case MSIM_OPCODE_B:
 			if (msim_cond_match(ctx->r[15], instr->condition)) {
-				MSIM_SET_PC(ctx->r[15], instr->immediate);
+				MSIM_SET_PC(ctx->r[15], ctx->r[15] + instr->immediate);
 				ctx->nopcincrement = true;
 			}
 			break;
@@ -258,6 +258,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				}
 			} else {
 				/* ldi rather than mov */
+				printf("LDI #%d\n", instr->immediate);
 				ctx->r[MSIM_REG_IR] = instr->immediate;
 			}
 			break;
@@ -273,7 +274,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 	}
 	
 	if (ctx->nopcincrement == true)
-		ctx->nopcincrement == false;
+		ctx->nopcincrement = false;
 	else
 		MSIM_SET_PC(ctx->r[15], (ctx->r[15] & MSIM_PC_ADDR_MASK) + 2);
 }
@@ -336,12 +337,59 @@ void msim_print_state(struct msim_ctx *ctx)
 	printf("\n\n");
 }
 
+static u_int16_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access, void *ctx)
+{
+	unsigned char *rom = (unsigned char *)ctx;
+	
+	if (access = MSIM_ACCESS_BYTE) {
+		return rom[ptr];
+	} else {
+		return rom[ptr] | (rom[ptr + 1] << 8);
+	}
+	
+}
+
+static void msim_rom_write(const u_int32_t ptr, const msim_mem_access_type access, const u_int16_t d, void *ctx)
+{
+	fprintf(stderr, "warning: attempt to write value %x into ROM at %x\n", d, ptr);
+}
+
+void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
+{
+	FILE *fh = fopen(filename, "r");
+	unsigned char *rom;
+	int fs;
+
+	if (fh == NULL) {
+		fprintf(stderr, "warning: unable to open ROM file %s\n", filename);
+		return;
+	}
+	
+	fseek(fh, 0, SEEK_END);
+	fs = ftell(fh);
+	fseek(fh, 0, SEEK_SET);
+	
+	rom = malloc(fs);
+	fread(rom, fs, 1, fh);
+	fclose(fh);
+	
+	msim_device_add(ctx, area, msim_rom_read, msim_rom_write, NULL, rom);
+}
+
+void msim_del_rom(struct msim_ctx *ctx, int area)
+{
+	free(ctx->areas[area].ctx);
+	msim_device_remove(ctx, area);
+}
+
 #ifdef TEST_RIG
 
 int main(int argc, char *argv[])
 {
 	struct msim_ctx *ctx = msim_init();
 	int i;
+	
+	msim_add_rom_from_file(ctx, 0, "masm.out");
 	
 	for (i = 5; i > 0; i--) {
 		msim_run(ctx, 1);
