@@ -110,7 +110,10 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 		case 0:
 			instr->opcode = MSIM_OPCODE_B;
 			instr->condition = (instrword >> 9) & 15;
-			instr->immediate = (instrword & (~(127<<10))) << 1;
+			instr->immediate =
+				MSIM_SIGN_EXTEND(
+					(instrword & (~(127<<10))) << 1, 16, 9);
+			
 			break;
 		
 		case 1:
@@ -127,6 +130,20 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 		case 4:
 			instr->opcode = MSIM_OPCODE_MOV;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			if (instr->subop == 0) {
+				instr->destination = MSIM_GET_DREG(instrword);
+				instr->source = MSIM_GET_SREG(instrword);
+				instr->destinationbank =
+						(instrword & (1<<5)) != 0;
+				instr->sourcebank = (instrword & (1<<4)) != 0;
+				instr->byteswap = (instrword & (1<<6)) != 0;
+				instr->halfwordswap = (instrword & (1<<7)) != 0;
+			} else {
+				instr->destination = MSIM_REG_IR;
+				instr->immediate = MSIM_SIGN_EXTEND(
+					instrword & (~(15<<12)), 16, 12);
+			}
 			break;
 			
 		case 5:
@@ -152,6 +169,70 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				MSIM_SET_PC(ctx->r[15], instr->immediate);
 				ctx->nopcincrement = true;
 			}
+			break;
+		
+		case MSIM_OPCODE_ADD:
+			break;
+			
+		case MSIM_OPCODE_SUB:
+			break;
+			
+		case MSIM_OPCODE_CMP:
+			break;
+			
+		case MSIM_OPCODE_MOV:
+			if (instr->subop == 0) {
+				/* mov rather than ldi */
+				if (instr->destination == 15 &&
+				    instr->source == 15 &&
+				    instr->destinationbank == MSIM_OTHER_BANK &&
+				    instr->sourcebank == MSIM_OTHER_BANK &&
+				    instr->byteswap &&
+				    instr->halfwordswap) {
+					/* TODO: OMG IT BURNS MY EYES.
+					 * This is the magical instruction for
+					 * returning from the interrupt handler.
+					 */
+					fprintf(stderr,
+						"warning: intrtn (at %x) is unimplemented.\n",
+						ctx->r[15] & MSIM_PC_ADDR_MASK);
+				} else {
+					u_int32_t s;
+					s = (instr->sourcebank == MSIM_THIS_BANK) ?
+						ctx->r[instr->source] :
+						ctx->ar[instr->source];
+					
+					if (instr->byteswap)
+						s = (s & 0xff00ff00) >> 8 |
+							(s & 0x00ff00ff) << 8;
+					
+					if (instr->halfwordswap)
+						s = (s << 16) |	(s >> 16);
+					
+					if (instr->destinationbank == MSIM_THIS_BANK)
+						if (instr->destination == 15)
+							MSIM_SET_PC(ctx->r[15], s & MSIM_PC_ADDR_MASK);	
+						else
+							ctx->r[instr->destination] = s;
+					else
+						if (instr->destination == 15)
+							MSIM_SET_PC(ctx->ar[15], s & MSIM_PC_ADDR_MASK);
+						else
+							ctx->ar[instr->destination] = s;
+				}
+			} else {
+				/* ldi rather than mov */
+				ctx->r[MSIM_REG_IR] = instr->immediate;
+			}
+			break;
+			
+		case MSIM_OPCODE_LSH:
+			break;
+			
+		case MSIM_OPCODE_BIT:
+			break;
+			
+		case MSIM_OPCODE_MEM:
 			break;
 	}
 	

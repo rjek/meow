@@ -81,6 +81,18 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 #define MSIM_PC_CFLAG(i) (((i) & 1<<29) != 0)
 #define MSIM_PC_VFLAG(i) (((i) & 1<<28) != 0)
 
+#define MSIM_SIGN_EXTEND(v, t, s) ((v) | (((v) & (1 << ((s)-1)))?(((1<<((t)-(s)))-1)<<(s)):(0)))
+
+#define MSIM_GET_SUBOP(i) (((i) >> 12) & 1)
+#define MSIM_GET_DREG(i) (((i) >> 8) & 15)
+#define MSIM_GET_SREG(i) ((i) & 15)
+
+#define MSIM_REG_PC	15
+#define MSIM_REG_LR	14
+#define MSIM_REG_SP	13
+#define MSIM_REG_IR	12
+#define MSIM_REG_AT	11
+
 typedef enum {
 	MSIM_OPCODE_B	= 0,
 	MSIM_OPCODE_ADD	= 1,
@@ -147,7 +159,7 @@ struct msim_instr {
 	int			source;
 	msim_bank_type		destinationbank;
 	msim_bank_type		sourcebank;
-	u_int16_t		immediate;
+	int16_t			immediate;
 	bool			subop;		/* fourth bit.  used to
 						distinguish between the
 						different versions of ADD, etc
