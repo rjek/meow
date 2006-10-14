@@ -218,3 +218,30 @@ function meow_op_shift(info, ...)
    condwhinge(is_left == nil, info, "shift needs to be told left vs. right")
    _encode_shift(info, is_left, is_roll, is_arith, dest.value, value.type=="register", value.value)
 end
+
+function meow_op_bit(info, ...)
+   local op, inverted, dest, value = nil, false
+   for i, v in ipairs({...}) do
+      if v == "not" then op = 0
+      elseif v == "and" then op = 1
+      elseif v == "orr" then op = 2
+      elseif v == "eor" then op = 3
+      elseif v == "inverted" then inverted = true
+      else
+	 if not dest then
+	    dest = parse_positional(info, v)
+	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
+		       "bit ops can only be performed on the current register bank.")
+	 else
+	    condwhinge(value ~= nil, info, "bit ops can only have two arguments")
+	    value = parse_positional(info, v)
+	    condwhinge(value.type ~= "constant" and value.type ~= "register", info,
+		       "bit ops second argument must be a register or a constant")
+	 end
+      end
+   end
+   condwhinge(dest == nil, info, "No destination register supplied")
+   condwhinge(value == nil, info, "No value/reg supplied")
+   _encode_bit(info, op, inverted, dest.value, value.type=="register", value.value)
+end
+

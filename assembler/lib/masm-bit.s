@@ -27,7 +27,7 @@
 	ENDMACRO
 
 	MACRO	bic	$0	$1
-	bit	and	not	$0	$1
+	bit	and	inverted	$0	$1
 	ENDMACRO
 
 	MACRO	tog	$0	$1

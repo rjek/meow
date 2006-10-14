@@ -66,3 +66,18 @@ function _encode_shift(info, is_left, is_roll, is_arith, destreg, amount_is_reg,
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end
+
+function _encode_bit(info, op, inverted, destreg, val_is_reg, val)
+   local upper_bits = "110"..(inverted and "1" or "0")..to_bitfield(destreg, 4)
+   local lower_bits = to_bitfield(op,2) .. (val_is_reg and "00" or "1")
+   if val_is_reg then
+      lower_bits = lower_bits .. to_bitfield(val, 4)
+   else
+      condwhinge(val<0 or val>31, info, "bit operations can only work on bits 0 to 31")
+      lower_bits = lower_bits .. to_bitfield(val, 5)
+   end
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
+
+
