@@ -29,9 +29,9 @@
 #include <sys/types.h>
 #include <stdbool.h>
  
-enum {
-	MSIM_ACCESS_BYTE,
- 	MSIM_ACCESS_HALFWORD
+typedef enum {
+	MSIM_ACCESS_BYTE = 0,
+ 	MSIM_ACCESS_HALFWORD = 1
 } msim_mem_access_type;
 
 typedef u_int16_t (*msim_read_mem)(const u_int32_t /* ptr */, 
@@ -52,6 +52,7 @@ struct msim_ctx {
 		 msim_read_mem	*read;
 		 msim_write_mem	*write;
 		 msim_reset_mem *reset;
+		 void		*ctx;
 	}		areas[16];
 };
 
@@ -62,5 +63,84 @@ void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem *read,
  			void *fctx);
 void msim_device_remove(struct msim_ctx *ctx, const int area);
 void msim_run(struct msim_ctx *ctx, unsigned int instructions);
+
+/* below are internal definitions - most users of msim won't need to touch
+ * them unless they're doing some extremely freaky.
+ */
+
+typedef enum {
+	MSIM_OPCODE_B	= 0,
+	MSIM_OPCODE_ADD	= 1,
+	MSIM_OPCODE_SUB	= 2,
+	MSIM_OPCODE_CMP = 3,
+	MSIM_OPCODE_MOV = 4,
+	MSIM_OPCODE_LSH = 5,
+	MSIM_OPCODE_BIT = 6,
+	MSIM_OPCODE_MEM = 7
+} msim_opcode_type;
+
+typedef enum {
+	MSIM_THIS_BANK 	= 0,
+	MSIM_OTHER_BANK = 1
+} msim_bank_type;
+
+typedef enum {
+	MSIM_SHIFT_LEFT = 0,
+	MSIM_SHIFT_RIGHT = 1
+} msim_shift_direction;
+
+typedef enum {
+	MSIM_BITOP_NOT	= 0,
+	MSIM_BITOP_AND	= 1,
+	MSIM_BITOP_ORR	= 2,
+	MSIM_BITOP_EOR	= 3
+} msim_bit_op_type;
+
+typedef enum {
+	MSIM_MEM_LOAD = 0,
+	MSIM_MEM_STORE = 1
+} msim_mem_op_type;
+
+typedef enum {
+	MSIM_MEM_DECREASE = 0,
+	MSIM_MEM_INCREASE = 1
+} msim_mem_direction;
+
+struct msim_instr {
+	/* general to most instructions */
+	msim_opcode_type	opcode;
+	int			destination;
+	int			source;
+	msim_bank_type		destinationbank;
+	msim_bank_type		sourcebank;
+	u_int16_t		immediate;
+	bool			subop;		/* fourth bit.  used to
+						distinguish between the
+						different versions of ADD, etc
+						*/	
+	/* specifics for branch */
+	bool			nflag, zflag, cflag, vflag;
+	
+	/* specifics for move */
+	bool			byteswap, halfwordswap;
+	
+	/* specifics for logical shift */
+	msim_shift_direction	shiftdirection;
+	bool			roll, arithmetic;
+	
+	/* specifics for bit */
+	msim_bit_op_type	bitop;
+	bool			inverted;
+	
+	/* specifics for mem */
+	msim_mem_op_type	memop;
+	msim_mem_access_type	memsize;
+	msim_mem_direction	memdirection;
+	bool			writeback;
+
+};
+
+void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
+void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
 
 #endif /* __MSIM_H__ */
