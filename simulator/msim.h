@@ -28,51 +28,6 @@
  
 #include <sys/types.h>
 #include <stdbool.h>
- 
-typedef enum {
-	MSIM_ACCESS_BYTE = 0,
- 	MSIM_ACCESS_HALFWORD = 1
-} msim_mem_access_type;
-
-typedef u_int16_t (*msim_read_mem)(const u_int32_t /* ptr */, 
-					const msim_mem_access_type,
-					void *ctx);
-typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
-				const msim_mem_access_type,
-				const u_int16_t d,
-				void *ctx);
-
-typedef void (*msim_reset_mem)(void *ctx);
-
-struct msim_ctx {
-	bool		irqmode;
-	bool		nopcincrement;
-	u_int32_t	r[16];
-	u_int32_t	ar[16];
-	struct {
-		 msim_read_mem	read;
-		 msim_write_mem	write;
-		 msim_reset_mem reset;
-		 void		*ctx;
-	}		areas[16];
-};
-
-struct msim_ctx *msim_init(void);
-void msim_destroy(struct msim_ctx *ctx);
-void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
- 			msim_write_mem write, msim_reset_mem reset, 
- 			void *fctx);
-void msim_device_remove(struct msim_ctx *ctx, const int area);
-void msim_run(struct msim_ctx *ctx, unsigned int instructions);
-
-void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
-			msim_mem_access_type t,	u_int16_t d);
-u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
-			msim_mem_access_type t);
-
-/* below are internal definitions - most users of msim won't need to touch
- * them unless they're doing some extremely freaky.
- */
 
 #define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
 #define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | (y) & MSIM_PC_ADDR_MASK)
@@ -92,6 +47,11 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 #define MSIM_REG_SP	13
 #define MSIM_REG_IR	12
 #define MSIM_REG_AT	11
+
+typedef enum {
+	MSIM_ACCESS_BYTE = 0,
+ 	MSIM_ACCESS_HALFWORD = 1
+} msim_mem_access_type;
 
 typedef enum {
 	MSIM_OPCODE_B	= 0,
@@ -185,6 +145,43 @@ struct msim_instr {
 	bool			writeback;
 
 };
+
+typedef u_int16_t (*msim_read_mem)(const u_int32_t /* ptr */, 
+					const msim_mem_access_type,
+					void *ctx);
+typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
+				const msim_mem_access_type,
+				const u_int16_t d,
+				void *ctx);
+
+typedef void (*msim_reset_mem)(void *ctx);
+
+struct msim_ctx {
+	bool		irqmode;
+	bool		nopcincrement;
+	u_int32_t	r[16];
+	u_int32_t	ar[16];
+	struct {
+		 msim_read_mem	read;
+		 msim_write_mem	write;
+		 msim_reset_mem reset;
+		 void		*ctx;
+	}		areas[16];
+	struct msim_instr instr;
+};
+
+struct msim_ctx *msim_init(void);
+void msim_destroy(struct msim_ctx *ctx);
+void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
+ 			msim_write_mem write, msim_reset_mem reset, 
+ 			void *fctx);
+void msim_device_remove(struct msim_ctx *ctx, const int area);
+void msim_run(struct msim_ctx *ctx, unsigned int instructions);
+
+void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t,	u_int16_t d);
+u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t);
 
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);

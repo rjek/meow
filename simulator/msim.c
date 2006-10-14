@@ -68,8 +68,8 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions)
 {
 	for (; instructions > 0; instructions--) {
 		struct msim_instr instr;
-		msim_fetch_decode(ctx, &instr);
-		msim_execute(ctx, &instr);
+		msim_fetch_decode(ctx, &(ctx->instr));
+		msim_execute(ctx, &(ctx->instr));
 	}
 }
 
