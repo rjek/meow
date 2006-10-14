@@ -194,3 +194,27 @@ end
 function meow_op_sub(info, dest, source, value)
    _mathop(info, false, dest, source, value)
 end
+
+function meow_op_shift(info, ...)
+   local is_left, is_roll, is_arith, dest, value = nil, false, false
+   for i, v in ipairs({...}) do
+      if v == "left" then is_left = true
+      elseif v == "right" then is_left = false
+      elseif v == "roll" then is_roll = true
+      elseif v == "arithmetic" then is_arith = true
+      else
+	 if not dest then
+	    dest = parse_positional(info, v)
+	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
+		       "shift must be given a non-alternate register as its first argument")
+	 else
+	    condwhinge(value ~= nil, info, "shift can only take two arguments")
+	    value = parse_positional(info, v)
+	    condwhinge(value.type ~= "constant" and value.type ~= "register", info,
+		       "shift's second argument must be either a register or a constant")
+	 end
+      end
+   end
+   condwhinge(is_left == nil, info, "shift needs to be told left vs. right")
+   _encode_shift(info, is_left, is_roll, is_arith, dest.value, value.type=="register", value.value)
+end

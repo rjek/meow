@@ -53,3 +53,16 @@ function _encode_mathop(info, is_add, destreg, source, value)
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end
+
+function _encode_shift(info, is_left, is_roll, is_arith, destreg, amount_is_reg, amount)
+   local upper_bits = "101" .. (is_arith and "1" or "0") .. to_bitfield(destreg, 4)
+   local lower_bits = (is_left and "1" or "0") .. (is_roll and "1" or "0") .. (amount_is_reg and "10" or "0")
+   if amount_is_reg == false then
+      condwhinge(amount<0 or amount>31, info, "shifts can only be by 0-31 bits")
+      lower_bits = lower_bits .. to_bitfield(amount,5)
+   else
+      lower_bits = lower_bits .. to_bitfield(amount,4)
+   end
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
