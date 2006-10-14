@@ -3,7 +3,7 @@ MEOW Instruction Set
 
 B		000c ccca aaaa aaaa	- branch to signed-9 bit offet from current PC, if condition codes match
 
-ADD		0011 dddd iiii iiii     - register d = register d + signed 8 bit constant
+ADD		0011 dddd iiii iiii     - register d = register d + unsigned 8 bit constant
 		0010 dddd iiii ssss     - register d = register s + unsigned 4 bit constant
 
 SUB		0101 dddd iiii iiii     - same as above, except subtract.
