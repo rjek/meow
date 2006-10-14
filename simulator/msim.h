@@ -48,6 +48,8 @@
 #define MSIM_REG_IR	12
 #define MSIM_REG_AT	11
 
+#define MSIM_LOG printf
+
 typedef enum {
 	MSIM_ACCESS_BYTE = 0,
  	MSIM_ACCESS_HALFWORD = 1

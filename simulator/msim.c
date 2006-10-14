@@ -120,7 +120,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			instr->opcode = MSIM_OPCODE_ADD;
 			instr->subop = MSIM_GET_SUBOP(instrword);
 			instr->destination = MSIM_GET_DREG(instrword);
-			if (instr->subop == 0) {
+			if (instr->subop == false) {
 				instr->source = MSIM_GET_SREG(instrword);
 				instr->immediate = (instrword >> 4) & 15;
 			} else {
@@ -132,7 +132,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			instr->opcode = MSIM_OPCODE_SUB;
 			instr->subop = MSIM_GET_SUBOP(instrword);
 			instr->destination = MSIM_GET_DREG(instrword);
-			if (instr->subop == 0) {
+			if (instr->subop == false) {
 				instr->source = MSIM_GET_SREG(instrword);
 				instr->immediate = (instrword >> 4) & 15;
 			} else {
@@ -147,7 +147,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 		case 4:
 			instr->opcode = MSIM_OPCODE_MOV;
 			instr->subop = MSIM_GET_SUBOP(instrword);
-			if (instr->subop == 0) {
+			if (instr->subop == false) {
 				instr->destination = MSIM_GET_DREG(instrword);
 				instr->source = MSIM_GET_SREG(instrword);
 				instr->destinationbank =
@@ -188,25 +188,26 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 		
 		case MSIM_OPCODE_ADD:
-			if (instr->subop == 0)
-				ctx->r[instr->destination] == 
+			MSIM_LOG("Executing an ADD at %08x...\n", ctx->r[15]);
+			if (instr->subop == false)
+				ctx->r[instr->destination] = 
 					ctx->r[instr->destination] +
 					ctx->r[instr->source] +
 					instr->immediate;
 			else
-				ctx->r[instr->destination] == 
+				ctx->r[instr->destination] = 
 					ctx->r[instr->destination] +
 					instr->immediate;
 			break;
 			
 		case MSIM_OPCODE_SUB:
-			if (instr->subop == 0)
-				ctx->r[instr->destination] == 
+			if (instr->subop == false)
+				ctx->r[instr->destination] = 
 					ctx->r[instr->destination] -
 					ctx->r[instr->source] -
 					instr->immediate;
 			else
-				ctx->r[instr->destination] == 
+				ctx->r[instr->destination] = 
 					ctx->r[instr->destination] -
 					instr->immediate;
 			break;
@@ -215,7 +216,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 			
 		case MSIM_OPCODE_MOV:
-			if (instr->subop == 0) {
+			if (instr->subop == false) {
 				/* mov rather than ldi */
 				if (instr->destination == 15 &&
 				    instr->source == 15 &&
@@ -258,7 +259,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				}
 			} else {
 				/* ldi rather than mov */
-				printf("LDI #%d\n", instr->immediate);
+				MSIM_LOG("LDI #%d\n", instr->immediate);
 				ctx->r[MSIM_REG_IR] = instr->immediate;
 			}
 			break;
