@@ -242,6 +242,42 @@ function meow_op_bit(info, ...)
    end
    condwhinge(dest == nil, info, "No destination register supplied")
    condwhinge(value == nil, info, "No value/reg supplied")
+   condwhinge(op == nil, info, "No operation supplied")
    _encode_bit(info, op, inverted, dest.value, value.type=="register", value.value)
+end
+
+function meow_op_mem(info, ...)
+   local is_load, is_half, is_low, is_writeback, is_increase = nil, nil, true, false, nil
+   local dest, src
+   for i, v in ipairs({...}) do
+      if v == "load" then is_load = true
+      elseif v == "store" then is_load = false
+      elseif v == "half" then is_half = true
+      elseif v == "byte" then is_half = false
+      elseif v == "low" then is_low = true
+      elseif v == "high" then is_low = false
+      elseif v == "writeback" then is_writeback = true
+      elseif v == "incrementing" then is_increase = true
+      elseif v == "decrementing" then is_increase = false
+      else
+	 if not dest then
+	    dest = parse_positional(info, v)
+	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
+		       "mem ops can only be performed on the current register bank.")
+	 else
+	    condwhinge(src ~= nil, info, "mem ops take only two registers")
+	    src = parse_positional(info, v)
+	    condwhinge(src.type ~= "register" or src.alt == true, info,
+		       "mem ops can only be performed from the current register bank.")
+	 end
+      end
+   end
+   condwhinge(dest == nil, info, "No value register supplied")
+   condwhinge(src == nil, info, "No address register supplied")
+   condwhinge(is_load == nil, info, "Direction not supplied")
+   condwhinge(is_half == nil, info, "Size of transfer not supplied")
+   condwhinge(is_writeback and is_increase == nil, info, 
+	      "Writeback requested but direction not provided")
+   _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, dest.value, src.value)
 end
 
