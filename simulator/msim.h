@@ -49,24 +49,31 @@ struct msim_ctx {
 	u_int32_t	r[16];
 	u_int32_t	ar[16];
 	struct {
-		 msim_read_mem	*read;
-		 msim_write_mem	*write;
-		 msim_reset_mem *reset;
+		 msim_read_mem	read;
+		 msim_write_mem	write;
+		 msim_reset_mem reset;
 		 void		*ctx;
 	}		areas[16];
 };
 
 struct msim_ctx *msim_init(void);
 void msim_destroy(struct msim_ctx *ctx);
-void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem *read,
- 			msim_write_mem *write, msim_reset_mem *reset, 
+void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
+ 			msim_write_mem write, msim_reset_mem reset, 
  			void *fctx);
 void msim_device_remove(struct msim_ctx *ctx, const int area);
 void msim_run(struct msim_ctx *ctx, unsigned int instructions);
 
+void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t,	u_int16_t d);
+u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t);
+
 /* below are internal definitions - most users of msim won't need to touch
  * them unless they're doing some extremely freaky.
  */
+
+#define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
 
 typedef enum {
 	MSIM_OPCODE_B	= 0,

@@ -24,6 +24,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <assert.h>
 
 #include "msim.h"
@@ -43,8 +44,8 @@ void msim_destroy(struct msim_ctx *ctx)
 }
 
 
-void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem *read,
- 			msim_write_mem *write, msim_reset_mem *reset, 
+void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
+ 			msim_write_mem write, msim_reset_mem reset, 
  			void *fctx)
 {
 	ctx->areas[area].read = read;
@@ -63,19 +64,57 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 
 void msim_run(struct msim_ctx *ctx, unsigned int instructions)
 {
-	for (; instructions >= 0; instructions--) {
+	for (; instructions > 0; instructions--) {
 		struct msim_instr instr;
 		msim_fetch_decode(ctx, &instr);
 		msim_execute(ctx, &instr);
 	}
 }
 
+void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t,	u_int16_t d)
+{
+	int area = ptr >> 28;
+	
+	if (ctx->areas[area].write == NULL) {
+		fprintf(stderr, "warning: attempt to write to %z, but no device is attached there.\n", ptr);
+		return;
+	}
+
+	ctx->areas[area].write(ptr, t, d, ctx->areas[area].ctx);
+}
+
+u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t)
+{
+	int area = ptr >> 28;
+	
+	if (ctx->areas[area].read == NULL) {
+		fprintf(stderr, "warning: attempt to read from %x, but no device is attached there.\n", ptr);
+		return 0;
+	}
+	
+	return ctx->areas[area].read(ptr, t, ctx->areas[area].ctx);
+}
+
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 {
-
+	u_int16_t instrword = msim_memget(ctx, ctx->r[15] & MSIM_PC_ADDR_MASK,
+						MSIM_ACCESS_HALFWORD);
 }
 
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 {
 
 }
+
+#ifdef TEST_RIG
+
+int main(int argc, char *argv[])
+{
+	struct msim_ctx *ctx = msim_init();
+	
+	msim_run(ctx, 1);
+}
+
+#endif
