@@ -167,3 +167,29 @@ function meow_op_ldi(info, imm)
    -- Simple (yay)
    _encode_ldi(info, target.value)
 end
+
+local function _mathop(info, is_add, dest, source, value)
+   dest = parse_positional(info, dest)
+   source = parse_positional(info, source)
+   condwhinge(dest.type ~= "register", info, "ADD/SUB require a register as their first argument")
+   condwhinge(dest.alt == true, info, "ADD/SUB cannot use the alternate register bank")
+   if not value and source.type == "register" then value = "#0" end
+   if value then
+      condwhinge(source.type ~= "register", info, "ADD/SUB require a register as their source argument")
+      condwhinge(source.alt == true, info, "ADD/SUB cannot use the alternate register bank")
+      value = parse_positional(info, value)
+      condwhinge(value.type ~= "constant", info, "ADD/SUB require a constant as their third argument")
+   else
+      condwhinge(source.type ~= "constant", info, "ADD/SUB requires a register or constant as the second argument")
+   end
+   -- Simple again, encode it
+   _encode_mathop(is_add, dest.value, source.value, value and value.value)
+end
+
+function meow_op_add(info, dest, source, value)
+   _mathop(info, true, dest, source, value)
+end
+
+function meow_op_sub(info, dest, source, value)
+   _mathop(info, false, dest, source, value)
+end

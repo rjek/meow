@@ -36,3 +36,20 @@ function _encode_ldi(info, value)
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end
+
+function _encode_mathop(info, is_add, destreg, source, value)
+   local upper_bits = is_add and "001" or "010"
+   local lower_bits
+   if not value then
+      -- encoding a two arg form, which is destreg +-= #source
+      condwhinge(source < 0 or source > 255, info, "ADD/SUB can only use immediates in the range 0-255")
+      upper_bits = upper_bits .. "1" .. to_bitfield(destreg, 4)
+      lower_bits = to_bitfield(source, 8)
+   else
+      condwhinge(value < 0 or value > 15, info, "ADD/SUB can only use immediates in the range 0-15 when in three-argument form.")
+      upper_bits = upper_bits .. "0"  .. to_bitfield(destreg, 4)
+      lower_bits = to_bitfield(value, 4) .. to_bitfield(source, 4)
+   end
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
