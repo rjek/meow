@@ -109,10 +109,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 	switch (instrword >> 29) {
 		case 0:
 			instr->opcode = MSIM_OPCODE_B;
-			instr->nflag = (instrword & 1<<13) != 0;
-			instr->zflag = (instrword & 1<<14) != 0;
-			instr->cflag = (instrword & 1<<15) != 0;
-			instr->vflag = (instrword & 1<<16) != 0;
+			instr->condition = (instrword >> 9) & 15;
 			instr->immediate = (instrword & (~(127<<10))) << 1;
 			break;
 		
@@ -151,8 +148,10 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 {
 	switch (instr->opcode) {
 		case MSIM_OPCODE_B:
-			MSIM_SET_PC(ctx->r[15], instr->immediate);
-			ctx->nopcincrement = true;
+			if (msim_cond_match(ctx->r[15], instr->condition)) {
+				MSIM_SET_PC(ctx->r[15], instr->immediate);
+				ctx->nopcincrement = true;
+			}
 			break;
 	}
 	
@@ -160,6 +159,35 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 		ctx->nopcincrement == false;
 	else
 		MSIM_SET_PC(ctx->r[15], (ctx->r[15] & MSIM_PC_ADDR_MASK) + 2);
+}
+
+bool msim_cond_match(u_int32_t pc, msim_condition_type condition)
+{
+	bool nflag = MSIM_PC_NFLAG(pc);
+	bool zflag = MSIM_PC_ZFLAG(pc);
+	bool cflag = MSIM_PC_CFLAG(pc);
+	bool vflag = MSIM_PC_VFLAG(pc);
+	
+	switch (condition) {
+		case MSIM_COND_EQ: return zflag == true;
+		case MSIM_COND_NE: return zflag == false;
+		case MSIM_COND_CS: return cflag == true;
+		case MSIM_COND_CC: return cflag == false;
+		case MSIM_COND_MI: return nflag == true;
+		case MSIM_COND_PL: return nflag == false;
+		case MSIM_COND_VS: return vflag == true;
+		case MSIM_COND_VC: return vflag == false;
+		case MSIM_COND_HI: return (cflag == true) && (zflag == false);
+		case MSIM_COND_LS: return (cflag == false) && (zflag == true);
+		case MSIM_COND_GE: return nflag == vflag;
+		case MSIM_COND_LT: return nflag != vflag;
+		case MSIM_COND_GT: return (nflag == vflag) && (zflag == false);
+		case MSIM_COND_LE: return (nflag != vflag) || (zflag == true);
+		case MSIM_COND_AL: return true;
+		case MSIM_COND_NV: return false;
+	}
+	
+	return false;
 }
 
 #ifdef TEST_RIG

@@ -76,6 +76,10 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 
 #define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
 #define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | (y) & MSIM_PC_ADDR_MASK)
+#define MSIM_PC_NFLAG(i) (((i) & 1<<31) != 0)
+#define MSIM_PC_ZFLAG(i) (((i) & 1<<30) != 0)
+#define MSIM_PC_CFLAG(i) (((i) & 1<<29) != 0)
+#define MSIM_PC_VFLAG(i) (((i) & 1<<28) != 0)
 
 typedef enum {
 	MSIM_OPCODE_B	= 0,
@@ -115,6 +119,27 @@ typedef enum {
 	MSIM_MEM_INCREASE = 1
 } msim_mem_direction;
 
+typedef enum {
+	MSIM_COND_EQ	= 0,
+	MSIM_COND_NE	= 1,
+	MSIM_COND_CS	= 2,
+	MSIM_COND_HS	= 2,
+	MSIM_COND_CC	= 3,
+	MSIM_COND_LO	= 3,
+	MSIM_COND_MI	= 4,
+	MSIM_COND_PL	= 5,
+	MSIM_COND_VS	= 6,
+	MSIM_COND_VC	= 7,
+	MSIM_COND_HI	= 8,
+	MSIM_COND_LS	= 9,
+	MSIM_COND_GE	= 10,
+	MSIM_COND_LT	= 11,
+	MSIM_COND_GT	= 12,
+	MSIM_COND_LE	= 13,
+	MSIM_COND_AL	= 14,
+	MSIM_COND_NV	= 15
+} msim_condition_type;
+
 struct msim_instr {
 	/* general to most instructions */
 	msim_opcode_type	opcode;
@@ -128,7 +153,7 @@ struct msim_instr {
 						different versions of ADD, etc
 						*/	
 	/* specifics for branch */
-	bool			nflag, zflag, cflag, vflag;
+	msim_condition_type	condition;
 	
 	/* specifics for move */
 	bool			byteswap, halfwordswap;
@@ -151,5 +176,6 @@ struct msim_instr {
 
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
+bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
 
 #endif /* __MSIM_H__ */
