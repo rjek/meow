@@ -210,14 +210,16 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 						s = (s << 16) |	(s >> 16);
 					
 					if (instr->destinationbank == MSIM_THIS_BANK)
-						if (instr->destination == 15)
-							MSIM_SET_PC(ctx->r[15], s & MSIM_PC_ADDR_MASK);	
-						else
+						if (instr->destination == 15) {
+							MSIM_SET_PC(ctx->r[15], s & MSIM_PC_ADDR_MASK);
+							ctx->nopcincrement = true;
+						} else
 							ctx->r[instr->destination] = s;
 					else
-						if (instr->destination == 15)
+						if (instr->destination == 15) {
 							MSIM_SET_PC(ctx->ar[15], s & MSIM_PC_ADDR_MASK);
-						else
+							ctx->nopcincrement = true;
+						} else
 							ctx->ar[instr->destination] = s;
 				}
 			} else {
