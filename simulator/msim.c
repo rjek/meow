@@ -24,7 +24,9 @@
  */
 
 #include <stdlib.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
 
 #include "msim.h"
@@ -101,11 +103,63 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 {
 	u_int16_t instrword = msim_memget(ctx, ctx->r[15] & MSIM_PC_ADDR_MASK,
 						MSIM_ACCESS_HALFWORD);
+
+	memset(instr, 0, sizeof(struct msim_instr));
+
+	switch (instrword >> 29) {
+		case 0:
+			instr->opcode = MSIM_OPCODE_B;
+			instr->nflag = (instrword & 1<<13) != 0;
+			instr->zflag = (instrword & 1<<14) != 0;
+			instr->cflag = (instrword & 1<<15) != 0;
+			instr->vflag = (instrword & 1<<16) != 0;
+			instr->immediate = (instrword & (~(127<<10))) << 1;
+			break;
+		
+		case 1:
+			instr->opcode = MSIM_OPCODE_ADD;
+			break;
+			
+		case 2:
+			instr->opcode = MSIM_OPCODE_SUB;
+			break;
+			
+		case 3:
+			instr->opcode = MSIM_OPCODE_CMP;
+			break;
+			
+		case 4:
+			instr->opcode = MSIM_OPCODE_MOV;
+			break;
+			
+		case 5:
+			instr->opcode = MSIM_OPCODE_LSH;
+			break;
+		
+		case 6:
+			instr->opcode = MSIM_OPCODE_BIT;
+			break;
+			
+		case 7:
+			instr->opcode = MSIM_OPCODE_MEM;
+			break;
+	}
+						
 }
 
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 {
-
+	switch (instr->opcode) {
+		case MSIM_OPCODE_B:
+			MSIM_SET_PC(ctx->r[15], instr->immediate);
+			ctx->nopcincrement = true;
+			break;
+	}
+	
+	if (ctx->nopcincrement == true)
+		ctx->nopcincrement == false;
+	else
+		MSIM_SET_PC(ctx->r[15], (ctx->r[15] & MSIM_PC_ADDR_MASK) + 2);
 }
 
 #ifdef TEST_RIG
@@ -114,7 +168,7 @@ int main(int argc, char *argv[])
 {
 	struct msim_ctx *ctx = msim_init();
 	
-	msim_run(ctx, 1);
+	msim_run(ctx, 5);
 }
 
 #endif

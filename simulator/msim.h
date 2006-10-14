@@ -46,6 +46,7 @@ typedef void (*msim_reset_mem)(void *ctx);
 
 struct msim_ctx {
 	bool		irqmode;
+	bool		nopcincrement;
 	u_int32_t	r[16];
 	u_int32_t	ar[16];
 	struct {
@@ -74,6 +75,7 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
  */
 
 #define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
+#define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | (y) & MSIM_PC_ADDR_MASK)
 
 typedef enum {
 	MSIM_OPCODE_B	= 0,
