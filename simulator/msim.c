@@ -118,10 +118,26 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 		
 		case 1:
 			instr->opcode = MSIM_OPCODE_ADD;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->destination = MSIM_GET_DREG(instrword);
+			if (instr->subop == 0) {
+				instr->source = MSIM_GET_SREG(instrword);
+				instr->immediate = (instrword >> 4) & 15;
+			} else {
+				instr->immediate = (instrword & 0xff);
+			}		
 			break;
 			
 		case 2:
 			instr->opcode = MSIM_OPCODE_SUB;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->destination = MSIM_GET_DREG(instrword);
+			if (instr->subop == 0) {
+				instr->source = MSIM_GET_SREG(instrword);
+				instr->immediate = (instrword >> 4) & 15;
+			} else {
+				instr->immediate = (instrword & 0xff);
+			}
 			break;
 			
 		case 3:
@@ -172,9 +188,27 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 		
 		case MSIM_OPCODE_ADD:
+			if (instr->subop == 0)
+				ctx->r[instr->destination] == 
+					ctx->r[instr->destination] +
+					ctx->r[instr->source] +
+					instr->immediate;
+			else
+				ctx->r[instr->destination] == 
+					ctx->r[instr->destination] +
+					instr->immediate;
 			break;
 			
 		case MSIM_OPCODE_SUB:
+			if (instr->subop == 0)
+				ctx->r[instr->destination] == 
+					ctx->r[instr->destination] -
+					ctx->r[instr->source] -
+					instr->immediate;
+			else
+				ctx->r[instr->destination] == 
+					ctx->r[instr->destination] -
+					instr->immediate;
 			break;
 			
 		case MSIM_OPCODE_CMP:
