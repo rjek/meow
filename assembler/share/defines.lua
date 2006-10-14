@@ -5,6 +5,8 @@
 local defines = {}
 local define_info = {}
 
+register_stat("defines", "Number of defines")
+
 function resolve_defines(str)
    local ret = str
    local seen = { [ret] = true }
@@ -25,5 +27,6 @@ function meow_op_define(info, what, is)
    end
    defines[what] = is
    define_info[what] = info
+   stat_increment "defines"
 end
 

@@ -10,7 +10,9 @@ local masm_modules = {
    "macros",
    "defines",
    "opcodes",
-   "driver"
+   "driver",
+   "accumulator",
+   "encodings",
 }
 
 for _, v in ipairs(masm_modules) do

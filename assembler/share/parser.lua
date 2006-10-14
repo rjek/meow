@@ -39,10 +39,6 @@ local function memoize_string(str)
    return unique_name
 end
 
-local function define_label(label)
-   -- TODO: Insert a label into the instruction stream here
-end
-
 local function dispatch(info, op, args)
    op = resolve_defines(op)
    if is_macro(op) then
@@ -51,7 +47,11 @@ local function dispatch(info, op, args)
    else
       local f = _G["meow_op_"..op]
       if f then 
-	 f(info, unpack(args))
+	 local newparts = {}
+	 for i, v in ipairs(args) do
+	    newparts[i] = resolve_defines(v)
+	 end
+	 f(info, unpack(newparts))
 	 return true
       end
    end
@@ -59,14 +59,14 @@ local function dispatch(info, op, args)
 end
 
 local function deal_with_line(parts, orig_line, linenumber, filename)
+   local info = {line=orig_line,num=linenumber,file=filename}
    if parts[1] ~= "" then
-      define_label(parts[1])
+      define_label(info, parts[1])
    end
    table.remove(parts, 1)
    if table.getn(parts) > 0 then
       local op = parts[1]
       table.remove(parts, 1)
-      local info = {line=orig_line,num=linenumber,file=filename}
       if not dispatch(info, op, parts) then
 	 whinge(info, "Unable to find op `%s`.", op)
       end
@@ -74,19 +74,22 @@ local function deal_with_line(parts, orig_line, linenumber, filename)
 end
 
 local parser_files = {}
+local parser_lines = {}
 function parser_steal_line()
-   return parser_files[1]:read("*l")
+   parser_lines[1] = parser_lines[1] + 1
+   return parser_files[1]:read("*l"), parser_lines[1]
 end
 
 function parse(f, filename)
    -- parse the file-like object f which comes from file 'filename'
    -- into the assembler's internal state.
-   verbose(2, "Parse file %s", filename)
+   verbose(3, "  read %s", filename)
    table.insert(parser_files, 1, f)
-   local linenumber = 1
-   local line = f:read("*l")
+   table.insert(parser_lines, 1, 0)
+   local line, linenumber = parser_steal_line();
    while line do
       local orig_line = line
+      stat_increment "parsed_lines"
       line = string.gsub(line, '"([^"]+)"', memoize_string)
       line = string.gsub(line, ';.-$', "")
       line = string.gsub(line, '[ \t,]+', ' ')
@@ -96,7 +99,7 @@ function parse(f, filename)
 	 elements = strsplit(" ", line)
 	 deal_with_line(elements, orig_line, linenumber, filename)
       end
-      linenumber, line = linenumber + 1, f:read("*l")
+      line, linenumber = parser_steal_line()
    end
    table.remove(parser_files, 1)
 end

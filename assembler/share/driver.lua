@@ -40,6 +40,13 @@ function masm_main(...)
 	 elseif v == "-I" then
 	    ignore[i+1] = true
 	    masm.include_path = masm.include_path .. ":" .. argv[i+1]
+	 elseif v == "-o" then
+	    ignore[i+1] = true
+	    if masm.output_file then
+	       verbose(0, "More than one -o supplied, ARGH, *waves arms and wibbles*")
+	       os.exit(1)
+	    end
+	    masm.output_file = argv[i+1]
 	 elseif string.sub(v,1,1) == "-" then
 	    verbose(0, "Unknown argument `%s` at position %d", v, i)
 	    os.exit(1)
@@ -48,12 +55,29 @@ function masm_main(...)
 	 end
       end
    end
+   if not masm.output_file then masm.output_file = "masm.out" end
    verbose(1, "MEOW Assembler version %s", masm.version)
    if masm.do_stdinc then
       table.insert(masm.source_files, 1, masm.stdlib_path .. "/masm-stdlib.s")
    end
-   verbose(2, "Include path = %s", masm.include_path)
+   verbose(3, "Include path = %s", masm.include_path)
+   verbose(3, "Invoke parser...")
    for i,v in ipairs(masm.source_files) do
       parse(find_source_file(v))
    end
+   -- All the input is now parsed, we have to resolve the instruction stream
+   verbose(3, "Resolve instruction stream...")
+   resolve_stream()
+   -- The stream is resolved, dump it to disk (yay!)
+   verbose(3, "Write stream to disk...")
+   f = io.open(masm.output_file, "wb")
+   if not f then
+      verbose(0, "Unable to open output file %s. STOP", masm.output_file)
+      os.exit(1)
+   end
+   dump_stream(f)
+   f:close()
+   dump_stats()
+   verbose(1, "MEOW Assembler finished.")
+   os.exit(0)
 end

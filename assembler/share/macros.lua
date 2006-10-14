@@ -9,6 +9,9 @@ function is_macro(str)
    return macro_bodies[str] ~= nil
 end
 
+register_stat("macros", "Number of macros defined")
+register_stat("macrolines", "Number of lines of macro definitions")
+
 function meow_op_macro(info, macroname, ...)
    -- Macros are a bit odd because we consume from underneath the parser...
    local macro = {args = {...}}
@@ -18,9 +21,11 @@ function meow_op_macro(info, macroname, ...)
    while line do
       if string.find(string.lower(line), "^[^;]+endmacro") then
 	 macro_bodies[macroname] = macro
+	 stat_increment "macros"
 	 return
       end
       table.insert(macro, line)
+      stat_increment("macrolines")
       line = parser_steal_line()
    end
    whinge(info, "Macro `%s` does not terminate before the end of input", macroname)
@@ -36,8 +41,11 @@ local function macro_playback_read(f, arg)
       local fixed_k = string.gsub(k, "([^a-z0-9])", function(s)return "%"..s end)
       ret = string.gsub(ret, fixed_k, v)
    end
+   f.line = f.line + 1
    return ret
 end
+
+register_stat("macrorun", "Number of macro invocations", true)
 
 function run_macro(info, macroname, ...)
    local passed_args = {...}
@@ -60,6 +68,8 @@ function run_macro(info, macroname, ...)
    end
    -- substtable now contains a bunch of substitutions...
    local filename = string.format("MACRO:%s (%s:%d)", macroname, macro.info.file, macro.info.num)
+   filename = filename .. " invoked from " .. string.format("%s:%d", info.file, info.num)
    local file_like_obj = { macro = macro, subst = substtable, line = 1, read=macro_playback_read }
+   stat_increment "macrorun"
    parse(file_like_obj, filename)
 end
