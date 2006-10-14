@@ -87,3 +87,11 @@ function _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, 
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end
+
+function _encode_tst(info, alt, reg, bit)
+   local upper_bits = "0111" .. to_bitfield(reg,4)
+   local lower_bits = "10"..(alt and "1" or "0") .. to_bitfield(bit,5)
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
+

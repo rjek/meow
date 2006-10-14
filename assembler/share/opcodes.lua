@@ -281,3 +281,12 @@ function meow_op_mem(info, ...)
    _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, dest.value, src.value)
 end
 
+function meow_op_tst(info, reg, bit)
+   reg = parse_positional(info, reg)
+   bit = parse_positional(info, bit)
+   condwhinge(reg.type ~= "register", info, "TST takes a register as its first argument")
+   condwhinge(bit.type ~= "constant", info, "TST takes a constant as its second argument")
+   condwhinge(bit.value<0 or bit.value>31, info, "TST can only test bits in the range 0-31")
+   _encode_tst(info, reg.alt, reg.value, bit.value)
+end
+
