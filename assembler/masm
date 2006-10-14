@@ -1,0 +1,34 @@
+#!/usr/bin/lua5.1
+-- -*- Lua -*-
+
+local MASM_PATH = os.getenv "MASM_PATH" or "/usr/share/masm"
+local MASM_INCLUDE = os.getenv "MASM_INCLUDE" or "/usr/include/masm"
+
+local masm_modules = {
+   "utils",
+   "parser",
+   "macros",
+   "defines",
+   "opcodes",
+   "driver"
+}
+
+for _, v in ipairs(masm_modules) do
+   local f, msg = loadfile(MASM_PATH .. "/" .. v .. ".lua")
+   if not f then
+      print(msg)
+      os.exit(1)
+   end
+   f()
+end
+
+masm = {
+   verbose = 0,
+   include_path = ".:"..MASM_INCLUDE,
+   stdlib_path = MASM_INCLUDE,
+   do_stdinc = true,
+   source_files = {},
+   version = "0.0pre0"
+}
+
+masm_main(...)
