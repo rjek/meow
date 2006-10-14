@@ -37,7 +37,11 @@ BIT		110N dddd oo0- ssss	- register d = register d OP register s
 			10	ORR
 			11	EOR
 
-MEM		111L dddd SHWD ssss	- L = load/store, S = 8bit/16bit, H = hi/low half, W = writeback, D = direction
+MEM		111L dddd SHWD ssss	- L = load/store (1 to store)
+                                          S = 8bit/16bit,  (1 for 16 bit)
+                                          H = hi/low half, (1 for low)
+                                          W = writeback, (1 for on)
+                                          D = direction (1 for increase)
 
 Program counter layout:
 
