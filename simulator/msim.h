@@ -186,5 +186,6 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
 bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
+void msim_print_state(struct msim_ctx *ctx);
 
 #endif /* __MSIM_H__ */
