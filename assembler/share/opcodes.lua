@@ -183,7 +183,8 @@ local function _mathop(info, is_add, dest, source, value)
       condwhinge(source.type ~= "constant", info, "ADD/SUB requires a register or constant as the second argument")
    end
    -- Simple again, encode it
-   _encode_mathop(is_add, dest.value, source.value, value and value.value)
+   local v = value and value.value or false
+   _encode_mathop(info, is_add, dest.value, source.value, value and value.value or false)
 end
 
 function meow_op_add(info, dest, source, value)
