@@ -136,7 +136,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			instr->condition = (instrword >> 9) & 15;
 			instr->immediate =
 				MSIM_SIGN_EXTEND(
-					(instrword & (~(127<<10))), 16, 9) * 2;
+					(instrword & (~(127<<9))), 16, 9) * 2;
 			
 			break;
 		
@@ -281,6 +281,10 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 					case 0:
 						/* trigger an interrupt */
 						msim_irq(ctx, 0);
+						break;
+					case 2:
+						/* cause msim to exit(0); */
+						exit(0);
 						break;
 					default:
 						fprintf(stderr, "warning: unknown msim bnv instruction %x at %x\n",
@@ -593,7 +597,7 @@ int main(int argc, char *argv[])
 	
 	msim_add_rom_from_file(ctx, 0, "masm.out");
 	
-	for (i = 5; i > 0; i--) {
+	for (i = 6; i > 0; i--) {
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}
