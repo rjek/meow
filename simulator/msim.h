@@ -30,7 +30,7 @@
 #include <sys/types.h>
 
 #define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
-#define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | (y) & MSIM_PC_ADDR_MASK)
+#define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | ((y) & MSIM_PC_ADDR_MASK))
 #define MSIM_PC_NFLAG(i) (((i) & 1<<31) != 0)
 #define MSIM_PC_ZFLAG(i) (((i) & 1<<30) != 0)
 #define MSIM_PC_CFLAG(i) (((i) & 1<<29) != 0)
@@ -174,8 +174,11 @@ typedef void (*msim_reset_mem)(void *ctx);
 struct msim_ctx {
 	bool		irqmode;
 	bool		nopcincrement;
-	u_int32_t	r[16];
-	u_int32_t	ar[16];
+	u_int32_t	*r;
+	u_int32_t	*ar;
+	u_int32_t	realr[16];
+	u_int32_t	realar[16];
+	unsigned long long cyclecount;
 	struct {
 		 msim_read_mem	read;
 		 msim_write_mem	write;
@@ -197,6 +200,9 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t,	u_int16_t d);
 u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t);
+
+void msim_irq(struct msim_ctx *ctx, int irq);
+void msim_swap_banks(struct msim_ctx *ctx);
 
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);

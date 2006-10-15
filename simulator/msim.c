@@ -38,6 +38,9 @@ struct msim_ctx *msim_init(void)
 	
 	assert(ctx != NULL);
 	
+	ctx->r = ctx->realr;
+	ctx->ar = ctx->realar;
+	
 	return ctx;
 }
 
@@ -68,9 +71,9 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 void msim_run(struct msim_ctx *ctx, unsigned int instructions)
 {
 	for (; instructions > 0; instructions--) {
-		struct msim_instr instr;
 		msim_fetch_decode(ctx, &(ctx->instr));
 		msim_execute(ctx, &(ctx->instr));
+		ctx->cyclecount++;
 	}
 }
 
@@ -80,7 +83,7 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 	int area = ptr >> 28;
 	
 	if (ctx->areas[area].write == NULL) {
-		fprintf(stderr, "warning: attempt to write to %z, but no device is attached there.\n", ptr);
+		fprintf(stderr, "warning: attempt to write to %x, but no device is attached there.\n", ptr);
 		return;
 	}
 
@@ -98,6 +101,26 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 	}
 	
 	return ctx->areas[area].read(ptr & ~(15<<28), t, ctx->areas[area].ctx);
+}
+
+inline void msim_swap_banks(struct msim_ctx *ctx)
+{	
+	u_int32_t *t;
+	
+	t = ctx->r;
+	ctx->r = ctx->ar;
+	ctx->ar = t;
+}
+
+void msim_irq(struct msim_ctx *ctx, int irq)
+{
+	/* TODO: design system/interrupt controller, and set the right irq bit
+	 * there.
+	 */
+	 
+	msim_swap_banks(ctx);
+	ctx->r[15] = 32;
+	ctx->nopcincrement = true;
 }
 
 void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
@@ -196,7 +219,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			instr->shiftdirection = (instrword & (1<<7))
 							? MSIM_SHIFT_LEFT
 							: MSIM_SHIFT_RIGHT;
-			if (instrword & (1<<5) != 0)
+			if ((instrword & (1<<5)) != 0)
 				instr->source = MSIM_GET_SREG(instrword);
 			else {
 				instr->immediate = instrword & 31;
@@ -295,9 +318,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 					 * This is the magical instruction for
 					 * returning from the interrupt handler.
 					 */
-					fprintf(stderr,
-						"warning: intrtn (at %x) is unimplemented.\n",
-						ctx->r[15] & MSIM_PC_ADDR_MASK);
+					msim_swap_banks(ctx);
+					ctx->nopcincrement = true;
 				} else {
 					u_int32_t s;
 					s = (instr->sourcebank == MSIM_THIS_BANK) ?
@@ -508,7 +530,7 @@ static u_int16_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
 {
 	unsigned char *rom = (unsigned char *)ctx;
 	
-	if (access = MSIM_ACCESS_BYTE) {
+	if (access == MSIM_ACCESS_BYTE) {
 		return rom[ptr];
 	} else {
 		return rom[ptr] | (rom[ptr + 1] << 8);
@@ -562,6 +584,8 @@ int main(int argc, char *argv[])
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}
+	
+	return 0;
 }
 
 #endif
