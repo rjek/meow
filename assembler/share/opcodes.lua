@@ -290,3 +290,18 @@ function meow_op_tst(info, reg, bit)
    _encode_tst(info, reg.alt, reg.value, bit.value)
 end
 
+function meow_op_cmp(info, reg, val)
+   reg = parse_positional(info, reg)
+   val = parse_positional(info, val)
+   condwhinge(reg.type ~= "register", info, "CMP takes a register as its first argument")
+   condwhinge(val.type ~= "constant" and val.type ~= "register", info, "CMP takes a constant or register as its second argument")
+   if val.type == "constant" then
+      condwhinge(val.value < -128 or val.value > 127, info, "CMP takes a value in the range -128 to 127")
+   end
+   local alt = nil
+   if val.type=="register" then alt=val.alt end
+   if alt == nil then
+      condwhinge(reg.alt == true, info, "CMP cannot operate on the alternate bank if it is comparing against an immediate")
+   end
+   _encode_cmp(info, reg.alt, reg.value, alt, val.value)
+end

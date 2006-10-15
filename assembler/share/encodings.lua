@@ -95,3 +95,16 @@ function _encode_tst(info, alt, reg, bit)
    stat_increment "instructions"
 end
 
+function _encode_cmp(info, first_alt, first, second_alt, second)
+   local upper_bits, lower_bits
+   if second_alt == nil then
+      -- Actually doing a CMPI encoding
+      upper_bits = "0110"..to_bitfield(first,4)
+      lower_bits = to_bitfield(second,8)
+   else
+      upper_bits = "0111" .. to_bitfield(first,4)
+      lower_bits = "00" .. (first_alt and "1" or "0") .. (second_alt and "1" or "0") .. to_bitfield(second, 4)
+   end
+   _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
+   stat_increment "instructions"
+end
