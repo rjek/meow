@@ -275,6 +275,19 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			if (msim_cond_match(ctx->r[15], instr->condition)) {
 				MSIM_SET_PC(ctx->r[15], ctx->r[15] + instr->immediate);
 				ctx->nopcincrement = true;
+			} else if (instr->condition == MSIM_COND_NV) {
+				/* special msim meta-op - only one for now */
+				switch (instr->immediate) {
+					case 0:
+						/* trigger an interrupt */
+						msim_irq(ctx, 0);
+						break;
+					default:
+						fprintf(stderr, "warning: unknown msim bnv instruction %x at %x\n",
+							instr->immediate,
+							ctx->r[15] & (~1));
+						break;
+				}
 			}
 			break;
 		
