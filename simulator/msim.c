@@ -207,10 +207,38 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 		
 		case 6:
 			instr->opcode = MSIM_OPCODE_BIT;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->inverted = instr->subop;
+			instr->destination = MSIM_GET_DREG(instrword);
+			if (instrword & 1<<6) {
+				instr->immver = true;
+				instr->immediate = 1 << (instrword & 31);
+			} else {
+				instr->immver = false;
+				instr->source = MSIM_GET_SREG(instrword);
+			}
+			instr->bitop = (instrword >> 6) & 3;
 			break;
 			
 		case 7:
 			instr->opcode = MSIM_OPCODE_MEM;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->memop = instr->subop ? MSIM_MEM_STORE :
+							MSIM_MEM_LOAD;
+			instr->destination = MSIM_GET_DREG(instrword);
+			instr->source = MSIM_GET_SREG(instrword);
+			
+			instr->memsize = (instrword & 1<<7) ?
+						MSIM_ACCESS_HALFWORD :
+						MSIM_ACCESS_BYTE;
+			
+			instr->memhilo = (instrword & 1<<6) ?
+						MSIM_MEM_LO : MSIM_MEM_HI;
+			
+			instr->writeback = ((instrword & 1<<4) != 0);
+			instr->memdirection = (instrword & 1<<3) ?
+						MSIM_MEM_INCREASE :
+						MSIM_MEM_DECREASE;
 			break;
 	}
 						
@@ -310,7 +338,6 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 
 			if (instr->arithmetic == false &&
 			    instr->roll == false) {
-			    	MSIM_LOG("SHIFT r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] >>= tmp;
 				else
@@ -319,7 +346,6 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 			if (instr->arithmetic == true &&
 				instr->roll == false) {
-				MSIM_LOG("ARITHMETIC SHIFT r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] =
 					 MSIM_SIGN_EXTEND(
@@ -333,7 +359,6 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			}
 				
 			if (instr->roll == true) {
-				MSIM_LOG("ROLL r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] =
 					 ((ctx->r[instr->destination]) >> tmp) | 
@@ -349,9 +374,69 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 			
 		case MSIM_OPCODE_BIT:
+			tmp = (instr->immver == true) ? instr->immediate :
+				ctx->r[instr->source];
+			if (instr->inverted)
+				tmp = ~tmp;
+			
+			switch (instr->bitop) {
+				case MSIM_BITOP_NOT:
+					ctx->r[instr->destination] = ~tmp;
+					break;
+				case MSIM_BITOP_AND:
+					ctx->r[instr->destination] &= tmp;
+					break;
+				case MSIM_BITOP_ORR:
+					ctx->r[instr->destination] |= tmp;
+					break;
+				case MSIM_BITOP_EOR:
+					ctx->r[instr->destination] ^= tmp;
+					break;
+			}
 			break;
 			
 		case MSIM_OPCODE_MEM:
+			
+			if (instr->memop == MSIM_MEM_LOAD) {
+				tmp = msim_memget(ctx, ctx->r[instr->source],
+							instr->memsize);
+				
+				if (instr->memsize == MSIM_ACCESS_BYTE &&
+					instr->memhilo == MSIM_MEM_LO) {
+					ctx->r[instr->destination] &= (~0xff);
+					ctx->r[instr->destination] |= tmp & 0xff;
+				}
+				
+				if (instr->memsize == MSIM_ACCESS_BYTE &&
+					instr->memhilo == MSIM_MEM_HI) {
+					ctx->r[instr->destination] &= (~0xff0000);
+					ctx->r[instr->destination] |=
+						((tmp & 0xff) << 16);
+				}
+			
+				if (instr->memsize == MSIM_ACCESS_HALFWORD &&
+					instr->memhilo == MSIM_MEM_LO) {
+					ctx->r[instr->destination] &= (~0xffff);
+					ctx->r[instr->destination] |= tmp & 0xffff;
+				}
+			
+				if (instr->memsize == MSIM_ACCESS_HALFWORD &&
+					instr->memhilo == MSIM_MEM_HI) {
+					ctx->r[instr->destination] &= (~0xffff0000);
+					ctx->r[instr->destination] |=
+						((tmp & 0xffff) << 16);	
+				}
+			} else {
+				/* store */
+			}
+			
+			if (instr->writeback == true) {
+				int delta = (instr->memsize == MSIM_ACCESS_BYTE)
+						? 1 : 2;
+				if (instr->memdirection == MSIM_MEM_DECREASE)
+					delta = -delta;
+				ctx->r[instr->source] += delta;
+			}
 			break;
 	}
 	

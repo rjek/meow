@@ -89,6 +89,11 @@ typedef enum {
 } msim_mem_op_type;
 
 typedef enum {
+	MSIM_MEM_HI = 0,
+	MSIM_MEM_LO = 1
+} msim_mem_hilo_type;
+
+typedef enum {
 	MSIM_MEM_DECREASE = 0,
 	MSIM_MEM_INCREASE = 1
 } msim_mem_direction;
@@ -122,6 +127,10 @@ struct msim_instr {
 	msim_bank_type		destinationbank;
 	msim_bank_type		sourcebank;
 	int16_t			immediate;
+	bool			immver;		/* gerenic flag to say if this
+						is the immediate version of
+						some instructions
+						*/
 	bool			subop;		/* fourth bit.  used to
 						distinguish between the
 						different versions of ADD, etc
@@ -137,7 +146,7 @@ struct msim_instr {
 	
 	/* specifics for logical shift */
 	msim_shift_direction	shiftdirection;
-	bool			roll, arithmetic, immver;
+	bool			roll, arithmetic;
 	
 	/* specifics for bit */
 	msim_bit_op_type	bitop;
@@ -146,6 +155,7 @@ struct msim_instr {
 	/* specifics for mem */
 	msim_mem_op_type	memop;
 	msim_mem_access_type	memsize;
+	msim_mem_hilo_type	memhilo;
 	msim_mem_direction	memdirection;
 	bool			writeback;
 
