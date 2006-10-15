@@ -132,6 +132,9 @@ struct msim_instr {
 	/* specifics for move */
 	bool			byteswap, halfwordswap;
 	
+	/* specifics for cmp */
+	bool			cmp2reg, istst;
+	
 	/* specifics for logical shift */
 	msim_shift_direction	shiftdirection;
 	bool			roll, arithmetic, immver;

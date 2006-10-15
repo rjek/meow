@@ -143,6 +143,30 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 		case 3:
 			instr->opcode = MSIM_OPCODE_CMP;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->destination = MSIM_GET_DREG(instrword);
+			instr->source = MSIM_GET_SREG(instrword);
+			if (instr->subop == false)
+				/* compare dreg to 8 bit immediate */
+				instr->immediate = MSIM_SIGN_EXTEND(
+					instrword & 0xff, 32, 8);
+			else {
+				if (instrword & (1<<7)) {
+					/* tst */
+					instr->destinationbank =
+						(instrword & (1<<5)) != 0;
+					instr->immediate = instrword & 31;
+					instr->istst = true;
+				} else {
+					/* cmp two registers */
+					instr->source = MSIM_GET_SREG(instrword);
+					instr->destinationbank =
+						(instrword & (1<<5)) != 0;
+					instr->sourcebank =
+						(instrword & (1<<4)) != 0;					
+					instr->cmp2reg = true;
+				}
+			}
 			break;
 			
 		case 4:
