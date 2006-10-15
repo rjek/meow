@@ -191,11 +191,11 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			instr->opcode = MSIM_OPCODE_LSH;
 			instr->subop = MSIM_GET_SUBOP(instrword);
 			instr->arithmetic = instr->subop;
-			instr->roll = (instrword & (1<<6)) == 0;
+			instr->roll = (instrword & (1<<6)) != 0;
 			instr->destination = MSIM_GET_DREG(instrword);
 			instr->shiftdirection = (instrword & (1<<7))
-							? MSIM_SHIFT_RIGHT
-							: MSIM_SHIFT_LEFT;
+							? MSIM_SHIFT_LEFT
+							: MSIM_SHIFT_RIGHT;
 			if (instrword & (1<<5) != 0)
 				instr->source = MSIM_GET_SREG(instrword);
 			else {
@@ -310,6 +310,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 
 			if (instr->arithmetic == false &&
 			    instr->roll == false) {
+			    	MSIM_LOG("SHIFT r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] >>= tmp;
 				else
@@ -318,6 +319,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 			if (instr->arithmetic == true &&
 				instr->roll == false) {
+				MSIM_LOG("ARITHMETIC SHIFT r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] =
 					 MSIM_SIGN_EXTEND(
@@ -331,6 +333,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			}
 				
 			if (instr->roll == true) {
+				MSIM_LOG("ROLL r%d %s by %d\n", instr->destination, instr->shiftdirection == MSIM_SHIFT_RIGHT ? "right":"left", tmp);
 				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
 					ctx->r[instr->destination] =
 					 ((ctx->r[instr->destination]) >> tmp) | 
