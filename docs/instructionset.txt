@@ -27,6 +27,10 @@ LSH		101A rrrr dR0i iiii	- shift r by i bits in direction d, roll if R
 		101A rrrr dR1- ssss	- shift r by value of register s bits in direction d, roll if R
 					- arithmetic shifts if A bit set.
 
+					A == 1  => Arithmetic, else Logical
+					d == 1  => Left, else Right
+					R == 1  => Roll, else shift
+
 BIT		110N dddd oo0- ssss	- register d = register d OP register s
 		110N dddd oo1i iiii	- register d = register d OP 1<<immediate		
 
