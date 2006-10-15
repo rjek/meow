@@ -54,11 +54,11 @@ begin  -- Behavioural
   process
     variable err_cnt : integer := 0;
   begin
-    flags <= "0000";
+    test_flags <= "0000";
     test_condition <= "1110";
     wait for 10ns;
-    assert condpassed == '1' report "Failed";
-    if condpassed /= '1' then
+    assert test_result = '1' report "Failed";
+    if test_result /= '1' then
       err_cnt := err_cnt + 1;
     end if;
   end process;
