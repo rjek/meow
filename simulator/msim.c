@@ -119,7 +119,7 @@ void msim_irq(struct msim_ctx *ctx, int irq)
 	 */
 	 
 	msim_swap_banks(ctx);
-	ctx->r[15] = 32;
+	ctx->r[15] = 33;		/* bit 0 is set for irq mode */
 	ctx->nopcincrement = true;
 }
 
