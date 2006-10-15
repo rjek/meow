@@ -1,0 +1,2 @@
+#!/bin/sh
+MASM_INCLUDE=lib MASM_PATH=share ./masm "$@"
