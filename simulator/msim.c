@@ -24,10 +24,11 @@
  */
 
 #include <stdlib.h>
-#include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/types.h>
 
 #include "msim.h"
 
@@ -164,6 +165,20 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 		case 5:
 			instr->opcode = MSIM_OPCODE_LSH;
+			instr->subop = MSIM_GET_SUBOP(instrword);
+			instr->arithmetic = instr->subop;
+			instr->roll = (instrword & (1<<6)) == 0;
+			instr->destination = MSIM_GET_DREG(instrword);
+			instr->shiftdirection = (instrword & (1<<7))
+							? MSIM_SHIFT_RIGHT
+							: MSIM_SHIFT_LEFT;
+			if (instrword & (1<<5) != 0)
+				instr->source = MSIM_GET_SREG(instrword);
+			else {
+				instr->immediate = instrword & 31;
+				instr->immver = true;
+			}
+			
 			break;
 		
 		case 6:
@@ -179,6 +194,7 @@ void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr)
 
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 {
+	u_int32_t tmp;
 	switch (instr->opcode) {
 		case MSIM_OPCODE_B:
 			if (msim_cond_match(ctx->r[15], instr->condition)) {
@@ -188,7 +204,6 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 		
 		case MSIM_OPCODE_ADD:
-			MSIM_LOG("Executing an ADD at %08x...\n", ctx->r[15]);
 			if (instr->subop == false)
 				ctx->r[instr->destination] = 
 					ctx->r[instr->destination] +
@@ -246,25 +261,64 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 					
 					if (instr->destinationbank == MSIM_THIS_BANK)
 						if (instr->destination == 15) {
-							MSIM_SET_PC(ctx->r[15], s & MSIM_PC_ADDR_MASK);
+							MSIM_SET_PC(ctx->r[15],
+							s & MSIM_PC_ADDR_MASK);
 							ctx->nopcincrement = true;
 						} else
 							ctx->r[instr->destination] = s;
 					else
 						if (instr->destination == 15) {
-							MSIM_SET_PC(ctx->ar[15], s & MSIM_PC_ADDR_MASK);
+							MSIM_SET_PC(ctx->ar[15],
+							s & MSIM_PC_ADDR_MASK);
 							ctx->nopcincrement = true;
 						} else
 							ctx->ar[instr->destination] = s;
 				}
 			} else {
 				/* ldi rather than mov */
-				MSIM_LOG("LDI #%d\n", instr->immediate);
 				ctx->r[MSIM_REG_IR] = instr->immediate;
 			}
 			break;
 			
 		case MSIM_OPCODE_LSH:
+			tmp = (instr->immver == true) ? instr->immediate :
+				ctx->r[instr->source];
+
+			if (instr->arithmetic == false &&
+			    instr->roll == false) {
+				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
+					ctx->r[instr->destination] >>= tmp;
+				else
+					ctx->r[instr->destination] <<= tmp;
+			}
+			
+			if (instr->arithmetic == true &&
+				instr->roll == false) {
+				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
+					ctx->r[instr->destination] =
+					 MSIM_SIGN_EXTEND(
+					  ctx->r[instr->destination] >> tmp,
+					   32, 32 - tmp);
+				else
+					ctx->r[instr->destination] = 
+					(ctx->r[instr->destination] & 1<<31) |
+					 ((ctx->r[instr->destination] << tmp) &
+					  (~(1<<31)));
+			}
+				
+			if (instr->roll == true) {
+				if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
+					ctx->r[instr->destination] =
+					 ((ctx->r[instr->destination]) >> tmp) | 
+					  ((ctx->r[instr->destination]) << 
+					   (32 - tmp));
+				else
+					ctx->r[instr->destination] =
+					((ctx->r[instr->destination]) << tmp) | 
+					 ((ctx->r[instr->destination]) >> 
+					  (32 - tmp));
+			}
+
 			break;
 			
 		case MSIM_OPCODE_BIT:

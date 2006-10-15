@@ -25,9 +25,9 @@
  
 #ifndef __MSIM_H__
 #define __MSIM_H__
- 
+
+#include <stdbool.h> 
 #include <sys/types.h>
-#include <stdbool.h>
 
 #define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
 #define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | (y) & MSIM_PC_ADDR_MASK)
@@ -134,7 +134,7 @@ struct msim_instr {
 	
 	/* specifics for logical shift */
 	msim_shift_direction	shiftdirection;
-	bool			roll, arithmetic;
+	bool			roll, arithmetic, immver;
 	
 	/* specifics for bit */
 	msim_bit_op_type	bitop;
