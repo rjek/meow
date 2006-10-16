@@ -176,7 +176,7 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 					/* tst */
 					instr->destinationbank =
 						(instrword & (1<<5)) != 0;
-					instr->immediate = instrword & 31;
+					instr->immediate = 1<<(instrword & 31);
 					instr->istst = true;
 				} else {
 					/* cmp two registers */
@@ -318,6 +318,36 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 			
 		case MSIM_OPCODE_CMP:
+			if (instr->subop == true && instr->istst == true) {
+				/* tst instruction */
+				tmp = ctx->r[instr->destination] &
+					(instr->immediate);
+				MSIM_LOG("alu_out = %08x AND %08x == %08x\n", 
+						ctx->r[instr->destination],
+						instr->immediate,
+						tmp);
+				
+				if (tmp & (1<<31)) {
+					MSIM_LOG("NFLAG = TRUE\n");
+					MSIM_SET_NFLAG(ctx->r[15]);
+				} else {
+					MSIM_LOG("NFLAG = FALSE\n");
+					MSIM_CLEAR_NFLAG(ctx->r[15]);
+				}
+						
+				if (tmp == 0) {
+					MSIM_LOG("ZFLAG = TRUE\n");
+					MSIM_SET_ZFLAG(ctx->r[15]);
+				} else {
+					MSIM_LOG("ZFLAG = FALSE\n");
+					MSIM_CLEAR_ZFLAG(ctx->r[15]);
+				}
+					
+			} else if (instr->subop == true) {
+				/* compare with register */
+			} else {
+				/* compare with immediate */
+			}
 			break;
 			
 		case MSIM_OPCODE_MOV:
@@ -593,7 +623,7 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			snprintf(tmp, 256, "\t%s%d, #%d",
 				instr->destinationbank == MSIM_THIS_BANK ?
 				"R" : "AR", instr->destination,
-				instr->immediate);
+				ffs(instr->immediate));
 			APPEND(tmp);
 		} else {
 			APPEND("CMP");

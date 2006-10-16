@@ -36,6 +36,16 @@
 #define MSIM_PC_CFLAG(i) (((i) & 1<<29) != 0)
 #define MSIM_PC_VFLAG(i) (((i) & 1<<28) != 0)
 
+#define MSIM_SET_NFLAG(x) ((x) |= (1<<31))
+#define MSIM_SET_ZFLAG(x) ((x) |= (1<<30))
+#define MSIM_SET_CFLAG(x) ((x) |= (1<<29))
+#define MSIM_SET_VFLAG(x) ((x) |= (1<<28))
+
+#define MSIM_CLEAR_NFLAG(x) ((x) &= ~(1<<31))
+#define MSIM_CLEAR_ZFLAG(x) ((x) &= ~(1<<30))
+#define MSIM_CLEAR_CFLAG(x) ((x) &= ~(1<<29))
+#define MSIM_CLEAR_VFLAG(x) ((x) &= ~(1<<28))
+
 #define MSIM_SIGN_EXTEND(v, t, s) ((v) | (((v) & (1 << ((s)-1)))?(((1<<((t)-(s)))-1)<<(s)):(0)))
 
 #define MSIM_GET_SUBOP(i) (((i) >> 12) & 1)
