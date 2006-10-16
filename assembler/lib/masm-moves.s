@@ -14,5 +14,9 @@
 	mov	wordswap	byteswap	$0	$1
 	ENDMACRO
 
+	MACRO	irqrtn
+	movwb	ar15	ar15
+	ENDMACRO
+
 	DEFINE	movbw	movwb
 
