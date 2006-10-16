@@ -517,8 +517,10 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions)
 		u_int16_t i = msim_fetch(ctx);
 		char dis[256];
 		msim_decode(ctx, i, &(ctx->instr));
-		printf("msim: %d : ", ctx->cyclecount);
-		printf("%s\n", msim_mnemonic(ctx, dis, 256, &(ctx->instr)));
+		printf("msim: 0x%08x : %s\t\t\tcycle %d\n",
+			ctx->r[15] & MSIM_PC_ADDR_MASK,
+			msim_mnemonic(ctx, dis, 256, &(ctx->instr)),
+			ctx->cyclecount);
 		msim_execute(ctx, &(ctx->instr));
 		ctx->cyclecount++;
 	}
@@ -613,15 +615,23 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			instr->byteswap == true)
 			APPEND("INTRTN");
 		else {
-			APPEND("MOV");
-			if (instr->halfwordswap == true) APPEND("W");
-			if (instr->byteswap == true) APPEND("B");
+			if (instr->subop == true) {
+				APPEND("LDI");
+				snprintf(tmp, 256, "\t#%d\t; 0x%08x",
+					instr->immediate,
+					instr->immediate);
+				APPEND(tmp);	
+			} else {
+				APPEND("MOV");
+				if (instr->halfwordswap == true) APPEND("W");
+				if (instr->byteswap == true) APPEND("B");
 				snprintf(tmp, 256, "\t%s%d, %s%d",
-				instr->destinationbank == MSIM_THIS_BANK ?
-				"R" : "AR", instr->destination,
-				instr->sourcebank == MSIM_THIS_BANK ?
-				"R" : "AR", instr->source);
-			APPEND(tmp);
+					instr->destinationbank == MSIM_THIS_BANK ?
+					"R" : "AR", instr->destination,
+					instr->sourcebank == MSIM_THIS_BANK ?
+					"R" : "AR", instr->source);
+				APPEND(tmp);
+			}
 		}
 	
 		break;
