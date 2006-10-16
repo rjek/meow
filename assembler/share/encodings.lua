@@ -82,7 +82,7 @@ end
 
 
 function _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, valreg, addrreg)
-   local upper_bits = "111" .. (is_load and "1" or "0") .. to_bitfield(valreg, 4)
+   local upper_bits = "111" .. (is_load and "0" or "1") .. to_bitfield(valreg, 4)
    local lower_bits = (is_half and "1" or "0") .. (is_low and "1" or "0") .. (is_writeback and ("1" .. (is_increase and "1" or "0")) or "00") .. to_bitfield(addrreg, 4)
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
