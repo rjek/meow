@@ -178,7 +178,7 @@ struct msim_ctx {
 	u_int32_t	*ar;
 	u_int32_t	realr[16];
 	u_int32_t	realar[16];
-	unsigned long long cyclecount;
+	unsigned int	cyclecount;
 	struct {
 		 msim_read_mem	read;
 		 msim_write_mem	write;
@@ -204,9 +204,14 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 void msim_irq(struct msim_ctx *ctx, int irq);
 void msim_swap_banks(struct msim_ctx *ctx);
 
-void msim_fetch_decode(struct msim_ctx *ctx, struct msim_instr *instr);
+u_int16_t msim_fetch(struct msim_ctx *ctx);
+void msim_decode(struct msim_ctx *ctx, u_int16_t instrword, 
+			struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
 bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
+
+char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 
+			struct msim_instr *instr);
 void msim_print_state(struct msim_ctx *ctx);
 
 void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename);
