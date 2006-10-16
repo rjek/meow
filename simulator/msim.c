@@ -260,8 +260,8 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 		instr->memhilo = (instrword & 1<<6) ?
 					MSIM_MEM_LO : MSIM_MEM_HI;
 		
-		instr->writeback = ((instrword & 1<<4) != 0);
-		instr->memdirection = (instrword & 1<<3) ?
+		instr->writeback = ((instrword & 1<<5) != 0);
+		instr->memdirection = (instrword & 1<<4) ?
 					MSIM_MEM_INCREASE :
 					MSIM_MEM_DECREASE;
 		break;
@@ -541,7 +541,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				tmp = (ctx->r[instr->destination] >> 16) & 
 					0xffff;
 			}
-			msim_memset(ctx, ctx->r[instr->destination],
+			msim_memset(ctx, ctx->r[instr->source],
 					instr->memsize, tmp);
 		}
 			
