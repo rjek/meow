@@ -520,7 +520,29 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 					((tmp & 0xffff) << 16);	
 			}
 		} else {
-			/* TODO: store */
+			if (instr->memsize == MSIM_ACCESS_BYTE &&
+				instr->memhilo == MSIM_MEM_LO) {
+				tmp = ctx->r[instr->destination] & 0xff;
+			}
+			
+			if (instr->memsize == MSIM_ACCESS_BYTE &&
+				instr->memhilo == MSIM_MEM_HI) {
+				tmp = (ctx->r[instr->destination] >> 16) & 
+					0xff;
+			}
+			
+			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
+				instr->memhilo == MSIM_MEM_LO) {
+				tmp = ctx->r[instr->destination] & 0xffff;
+			}
+			
+			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
+				instr->memhilo == MSIM_MEM_HI) {
+				tmp = (ctx->r[instr->destination] >> 16) & 
+					0xffff;
+			}
+			msim_memset(ctx, ctx->r[instr->destination],
+					instr->memsize, tmp);
 		}
 			
 		if (instr->writeback == true) {
@@ -746,9 +768,9 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			APPEND("STR");
 		
 		if (instr->memhilo == MSIM_MEM_HI)
-			APPEND("HI");
+			APPEND("H");
 		else
-			APPEND("LO");
+			APPEND("L");
 		
 		if (instr->memsize == MSIM_ACCESS_BYTE)
 			APPEND("B");
@@ -850,6 +872,46 @@ void msim_del_rom(struct msim_ctx *ctx, int area)
 	msim_device_remove(ctx, area);
 }
 
+static u_int16_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
+				void *ctx)
+{
+	unsigned char *ram = (unsigned char *)ctx;
+	
+	if (access == MSIM_ACCESS_BYTE) {
+		return ram[ptr];
+	} else {
+		return ram[ptr] | (ram[ptr + 1] << 8);
+	}
+	
+}
+
+static void msim_ram_write(const u_int32_t ptr,
+				const msim_mem_access_type access,
+				const u_int16_t d, void *ctx)
+{
+	unsigned char *ram = (unsigned char *)ctx;
+	
+	if (access == MSIM_ACCESS_BYTE) {
+		ram[ptr] = d & 0xff;
+	} else {
+		ram[ptr] = (d & 0xff);
+		ram[ptr + 1] = (d >> 8);
+	}
+}
+
+void msim_add_ram(struct msim_ctx *ctx, int area, size_t size)
+{
+	unsigned char *ram = calloc(size, 1);
+	
+	msim_device_add(ctx, area, msim_ram_read, msim_ram_write, NULL, ram);
+}
+
+void msim_del_ram(struct msim_ctx *ctx, int area)
+{
+	free(ctx->areas[area].ctx);
+	msim_device_remove(ctx, area);
+}
+
 #ifdef TEST_RIG
 
 int main(int argc, char *argv[])
@@ -858,11 +920,16 @@ int main(int argc, char *argv[])
 	int i;
 	
 	msim_add_rom_from_file(ctx, 0, "masm.out");
+	msim_add_ram(ctx, 1, 4096);
 	
 	for (i = 50; i > 0; i--) {
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}
+	
+	msim_del_rom(ctx, 0);
+	msim_del_ram(ctx, 1);
+	msim_destroy(ctx);
 	
 	return 0;
 }

@@ -227,4 +227,7 @@ void msim_print_state(struct msim_ctx *ctx);
 void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename);
 void msim_del_rom(struct msim_ctx *ctx, int area);
 
+void msim_add_ram(struct msim_ctx *ctx, int area, size_t size);
+void msim_del_ram(struct msim_ctx *ctx, int area);
+
 #endif /* __MSIM_H__ */
