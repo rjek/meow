@@ -33,6 +33,44 @@
 
 #include "msim.h"
 
+static void msim_builtin_get_model(struct msim_ctx *ctx,
+					signed int op, void *c)
+{
+	ctx->r[12] = 0x00000100;
+}
+
+static void msim_builtin_halt(struct msim_ctx *ctx, signed int op, void *c)
+{
+	exit(0);
+}
+
+static const struct msim_builtins_t msim_builtins[] = {
+	{ -256,		msim_builtin_get_model },
+	{ -255,		msim_builtin_halt },	
+	{ 0,		NULL }
+};
+
+static void msim_builtin_bnv_add(struct msim_ctx *ctx)
+{
+	const struct msim_builtins_t *e = msim_builtins;
+	
+	do {
+		printf("Adding op for %d\n", e->op);
+		msim_bnv_op_add(ctx, e->op, e->func, NULL);
+		e++;
+	} while (e->func != NULL);
+}
+
+static void msim_builtin_bnv_del(struct msim_ctx *ctx)
+{
+	const struct msim_builtins_t *e = msim_builtins;
+	
+	do {
+		msim_bnv_op_remove(ctx, e->op);
+		e++;
+	} while (e->func != NULL);
+}
+
 struct msim_ctx *msim_init(void)
 {
 	struct msim_ctx *ctx = calloc(1, sizeof(struct msim_ctx));
@@ -42,11 +80,14 @@ struct msim_ctx *msim_init(void)
 	ctx->r = ctx->realr;
 	ctx->ar = ctx->realar;
 	
+	msim_builtin_bnv_add(ctx);
+	
 	return ctx;
 }
 
 void msim_destroy(struct msim_ctx *ctx)
 {
+	msim_builtin_bnv_del(ctx);
 	free(ctx);
 }
 
@@ -67,6 +108,18 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 	ctx->areas[area].write = NULL;
 	ctx->areas[area].reset = NULL;
 	ctx->areas[area].ctx = NULL;
+}
+
+void msim_bnv_op_add(struct msim_ctx *ctx, const signed int o,
+			msim_bnv_op func, void *c)
+{
+	ctx->bnv_op[o + 256] = func;
+	ctx->bnv_op_ctx[o + 256] = c;
+}
+
+void msim_bnv_op_remove(struct msim_ctx *ctx, const signed int o)
+{
+	msim_bnv_op_add(ctx, o, NULL, NULL);
 }
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
@@ -278,23 +331,16 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			MSIM_SET_PC(ctx->r[15], ctx->r[15] + instr->immediate);
 			ctx->nopcincrement = true;
 		} else if (instr->condition == MSIM_COND_NV) {
-			/* special msim meta-op - only one for now */
-			switch (instr->immediate) {
-			case 0:
-				/* trigger an interrupt */
-				msim_irq(ctx, 0);
-				break;
-			case 2:
-				/* cause msim to exit(0); */
-				exit(0);
-				break;
-			default:
+			/* special msim meta-op */
+			tmp = ((instr->immediate) + 512) / 2;
+			if (ctx->bnv_op[tmp] == NULL)
 				fprintf(stderr,
-			"warning: unknown msim bnv instruction %x at %x\n",
-					instr->immediate,
-					ctx->r[15] & (~1));
-				break;
-			}
+			"msim: warning: unhandled bnv instruction %x at %08x\n",
+					instr->immediate, ctx->r[15] &
+					MSIM_PC_ADDR_MASK);
+			else
+				ctx->bnv_op[tmp](ctx, instr->immediate,
+							ctx->bnv_op_ctx[tmp]);	
 		}
 		break;
 		
@@ -324,7 +370,6 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 	case MSIM_OPCODE_CMP:
 		if (instr->subop == true && instr->istst == true) {
-			/* tst instruction */
 			tmp = (instr->destinationbank == MSIM_THIS_BANK)
 				? ctx->r[instr->destination]
 				: ctx->ar[instr->destination];
@@ -342,13 +387,11 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			
 			break;
 		} else if (instr->subop == true) {
-			/* compare with register */
 			tmp = (instr->sourcebank == MSIM_THIS_BANK)
 				? ctx->r[instr->sourcebank]
 				: ctx->ar[instr->sourcebank];
 			
 		} else {
-			/* compare with immediate */
 			tmp = instr->immediate;
 		}
 		
@@ -922,7 +965,7 @@ int main(int argc, char *argv[])
 	msim_add_rom_from_file(ctx, 0, "masm.out");
 	msim_add_ram(ctx, 1, 4096);
 	
-	for (i = 50; i > 0; i--) {
+	for (i = 4; i > 0; i--) {
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}

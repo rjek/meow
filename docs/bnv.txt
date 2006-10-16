@@ -1,0 +1,32 @@
+BNV instruction extension space
+-------------------------------
+
+BNV, or Branch Never, is a useless instruction in that the CPU will never
+execute it, and programmers should never use it (there are plenty of other
+instructions that can act as a NOP should they want one.)
+
+Because of this, it is specified that the BNV range (signed 9 bit integer, so
+the range -256 to 255) will be given special purposes for custom behavior.
+
+The range -256 to -1 is for the implementor of the CPU (be it msim or a hardware
+implemention).  Some of these have defined meanings, listed below.
+Implementation-specific BNV functions should be given positive numbers.
+
+#-512		Sets IM(R12) to be the processor's model number.
+		The high byte indicates implementor:
+		
+			0x00	-	MEOW official
+			Other values are currently undefined
+			
+		The 2nd byte indicates model.  For MEOW offical, these are:
+			
+			0x00	-	MSIM
+			0x01	-	Intial VHDL implementation
+			
+		The 3rd byte indicates revision.
+		
+		The 4th byte is implementation-defined, and current official
+		MEOW implementations this is always zero.
+
+#-510		HALT.  Causes the CPU to stop.  Under msim, it causes exit() to
+		be called.

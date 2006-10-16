@@ -171,6 +171,8 @@ struct msim_instr {
 
 };
 
+struct msim_ctx;
+
 typedef u_int16_t (*msim_read_mem)(const u_int32_t /* ptr */, 
 					const msim_mem_access_type,
 					void *ctx);
@@ -180,6 +182,8 @@ typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
 				void *ctx);
 
 typedef void (*msim_reset_mem)(void *ctx);
+
+typedef void (*msim_bnv_op)(struct msim_ctx *ctx, signed int op, void *c);
 
 struct msim_ctx {
 	bool		irqmode;
@@ -195,11 +199,22 @@ struct msim_ctx {
 		 msim_reset_mem reset;
 		 void		*ctx;
 	}		areas[16];
+	msim_bnv_op	bnv_op[512];
+	void		*bnv_op_ctx[512];
 	struct msim_instr instr;
+};
+
+struct msim_builtins_t {
+	signed int	op;
+	msim_bnv_op	func;
 };
 
 struct msim_ctx *msim_init(void);
 void msim_destroy(struct msim_ctx *ctx);
+void msim_bnv_op_add(struct msim_ctx *ctx, const signed int o,
+			msim_bnv_op func, void *c);
+void msim_bnv_op_remove(struct msim_ctx *ctx, const signed int o);
+
 void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
  			msim_write_mem write, msim_reset_mem reset, 
  			void *fctx);
