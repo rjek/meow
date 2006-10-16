@@ -267,7 +267,7 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 {
-	u_int32_t tmp;
+	u_int32_t tmp, alu;
 	switch (instr->opcode) {
 		case MSIM_OPCODE_B:
 			if (msim_cond_match(ctx->r[15], instr->condition)) {
@@ -320,34 +320,58 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 		case MSIM_OPCODE_CMP:
 			if (instr->subop == true && instr->istst == true) {
 				/* tst instruction */
-				tmp = ctx->r[instr->destination] &
-					(instr->immediate);
-				MSIM_LOG("alu_out = %08x AND %08x == %08x\n", 
-						ctx->r[instr->destination],
-						instr->immediate,
-						tmp);
+				tmp = (instr->destinationbank == MSIM_THIS_BANK)
+					? ctx->r[instr->destination]
+					: ctx->ar[instr->destination];
+				tmp &= (instr->immediate);
 				
 				if (tmp & (1<<31)) {
-					MSIM_LOG("NFLAG = TRUE\n");
 					MSIM_SET_NFLAG(ctx->r[15]);
 				} else {
-					MSIM_LOG("NFLAG = FALSE\n");
 					MSIM_CLEAR_NFLAG(ctx->r[15]);
 				}
 						
 				if (tmp == 0) {
-					MSIM_LOG("ZFLAG = TRUE\n");
 					MSIM_SET_ZFLAG(ctx->r[15]);
 				} else {
-					MSIM_LOG("ZFLAG = FALSE\n");
 					MSIM_CLEAR_ZFLAG(ctx->r[15]);
 				}
-					
+				
+				break;
 			} else if (instr->subop == true) {
 				/* compare with register */
+				tmp = (instr->sourcebank == MSIM_THIS_BANK)
+					? ctx->r[instr->sourcebank]
+					: ctx->ar[instr->sourcebank];
+				
 			} else {
 				/* compare with immediate */
+				tmp = instr->immediate;
 			}
+			
+			alu = (instr->destinationbank == MSIM_THIS_BANK)
+				? ctx->r[instr->destination]
+				: ctx->ar[instr->destination];
+			
+			if (alu < tmp)
+				MSIM_SET_CFLAG(ctx->r[15]);
+			else
+				MSIM_CLEAR_CFLAG(ctx->r[15]);		
+		
+			alu -= tmp;
+			
+			if (alu & (1<<31))
+				MSIM_SET_NFLAG(ctx->r[15]);
+			else
+				MSIM_CLEAR_NFLAG(ctx->r[15]);
+				
+			if (alu == 0)
+				MSIM_SET_ZFLAG(ctx->r[15]);
+			else
+				MSIM_CLEAR_ZFLAG(ctx->r[15]);
+			
+			MSIM_CLEAR_VFLAG(ctx->r[15]);
+			
 			break;
 			
 		case MSIM_OPCODE_MOV:
