@@ -23,7 +23,7 @@ function strsplit(delimiter, text)
 end
 
 function whinge(info, ...)
-   io.stderr:write(string.format("ERROR in %s on line %d: ", info.file, info.num))
+   io.stderr:write(string.format("error: %s:%d: ", info.file, info.num))
    io.stderr:write(string.format(...))
    io.stderr:write("\n")
    io.stderr:write(string.format("%s\n", info.line))
@@ -45,12 +45,12 @@ function parse_positional(info, str)
       local reg = tonumber(str)
       local alt = reg > 15
       if alt then reg = reg - 16 end
-      condwhinge(reg > 15 or reg < 0, info, "Unable to parse register number %s", str)
+      condwhinge(reg > 15 or reg < 0, info, "Unable to parse register number '%s'.", str)
       return { type="register", value=reg, alt=alt }
    end
    if string.sub(str, 1, 1) == "#" then
       local val = tonumber(string.sub(str, 2))
-      condwhinge(val == nil, info, "Unable to parse constant value %s", str)
+      condwhinge(val == nil, info, "Unable to parse constant value '%s'.", str)
       return { type="constant", value=val }
    end
    if is_memozied_string(str) then
@@ -60,7 +60,7 @@ function parse_positional(info, str)
       return { type="label", value=str }
    end
    whinge(info, 
-	  "Unable to parse positional argument %s. Expecting register, number, string or label", str)
+	  "Unable to parse positional argument '%s'. Expecting register, number, string or label.", str)
 end
 
 function __dump(t)

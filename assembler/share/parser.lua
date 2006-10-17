@@ -32,7 +32,7 @@ end
 
 local function memoize_string(str)
    if resolve_string(str) then return strtab[str] end
-   local unique_name = '"uniquestring' .. tostring(ustrctr)..'"'
+   local unique_name = '\127uniquestring' .. tostring(ustrctr)..''
    ustrctr = ustrctr + 1
    strtab[str] = unique_name
    strtab[unique_name] = str
@@ -68,7 +68,7 @@ local function deal_with_line(parts, orig_line, linenumber, filename)
       local op = parts[1]
       table.remove(parts, 1)
       if not dispatch(info, op, parts) then
-	 whinge(info, "Unable to find op `%s`.", op)
+	 whinge(info, "Unable to find op '%s'.", op)
       end
    end
 end

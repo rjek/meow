@@ -21,7 +21,7 @@ end
 function meow_op_include(info, fname)
    local file, name = find_source_file(fname)
    if not file then
-      whinge(info, "Unable to find file `%s` in include directive.", fname)
+      whinge(info, "Unable to find file '%s' in include directive.", fname)
    end
    parse(file, name)
 end
@@ -43,12 +43,12 @@ function masm_main(...)
 	 elseif v == "-o" then
 	    ignore[i+1] = true
 	    if masm.output_file then
-	       verbose(0, "More than one -o supplied, ARGH, *waves arms and wibbles*")
+	       verbose(0, "More than one -o supplied; unable to output to more than one file.")
 	       os.exit(1)
 	    end
 	    masm.output_file = argv[i+1]
 	 elseif string.sub(v,1,1) == "-" then
-	    verbose(0, "Unknown argument `%s` at position %d", v, i)
+	    verbose(0, "Unknown argument '`%s`' at position %d.", v, i)
 	    os.exit(1)
 	 else
 	    table.insert(masm.source_files, v)
@@ -56,7 +56,7 @@ function masm_main(...)
       end
    end
    if not masm.output_file then masm.output_file = "masm.out" end
-   verbose(1, "MEOW Assembler version %s", masm.version)
+   verbose(1, "MEOW assembler version %s", masm.version)
    if masm.do_stdinc then
       table.insert(masm.source_files, 1, masm.stdlib_path .. "/masm-stdlib.s")
    end
@@ -72,12 +72,12 @@ function masm_main(...)
    verbose(3, "Write stream to disk...")
    f = io.open(masm.output_file, "wb")
    if not f then
-      verbose(0, "Unable to open output file %s. STOP", masm.output_file)
+      verbose(0, "Unable to open output file '%s'.", masm.output_file)
       os.exit(1)
    end
    dump_stream(f)
    f:close()
    dump_stats()
-   verbose(1, "MEOW Assembler finished.")
+   verbose(1, "MEOW assembler finished.")
    os.exit(0)
 end

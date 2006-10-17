@@ -13,7 +13,7 @@ function _encode_mov(info, byteswap, wordswap, dest_alt, source_alt, dest_reg, s
 end
 
 function _encode_branch(info, condition, jump_by)
-   condwhinge(jump_by < -512 or jump_by > 510, info, "Branch can only jump forward or backward by by 256 instructions")
+   condwhinge(jump_by < -512 or jump_by > 510, info, "Branch can only jump forward or backward by by 256 instructions.")
    condwhinge(math.mod(jump_by, 2) ~= 0, info, "Branch must jump to an instruction boundary, thus jumping by an odd number cannot happen.")
    
    local targ = to_bitfield(jump_by / 2, 9)
@@ -29,7 +29,7 @@ end
 
 function _encode_ldi(info, value)
    condwhinge(value < -2048 or value > 2047, 
-	      info, "ldi can only take constants between -2048 and 2047")
+	      info, "LDI can only take constants between -2048 and 2047.")
    local instr = "1001" .. to_bitfield(value, 12)
    local lower_bits = string.sub(instr,9)
    local upper_bits = string.sub(instr,1,8)
@@ -42,7 +42,7 @@ function _encode_mathop(info, is_add, destreg, source, value)
    local lower_bits
    if not value then
       -- encoding a two arg form, which is destreg +-= #source
-      condwhinge(source < 0 or source > 255, info, "ADD/SUB can only use immediates in the range 0-255")
+      condwhinge(source < 0 or source > 255, info, "ADD/SUB can only use immediates in the range 0-255.")
       upper_bits = upper_bits .. "1" .. to_bitfield(destreg, 4)
       lower_bits = to_bitfield(source, 8)
    else
@@ -58,7 +58,7 @@ function _encode_shift(info, is_left, is_roll, is_arith, destreg, amount_is_reg,
    local upper_bits = "101" .. (is_arith and "1" or "0") .. to_bitfield(destreg, 4)
    local lower_bits = (is_left and "1" or "0") .. (is_roll and "1" or "0") .. (amount_is_reg and "10" or "0")
    if amount_is_reg == false then
-      condwhinge(amount<0 or amount>31, info, "shifts can only be by 0-31 bits")
+      condwhinge(amount<0 or amount>31, info, "Shifts can only be by 0-31 bits.")
       lower_bits = lower_bits .. to_bitfield(amount,5)
    else
       lower_bits = lower_bits .. to_bitfield(amount,4)
@@ -73,7 +73,7 @@ function _encode_bit(info, op, inverted, destreg, val_is_reg, val)
    if val_is_reg then
       lower_bits = lower_bits .. to_bitfield(val, 4)
    else
-      condwhinge(val<0 or val>31, info, "bit operations can only work on bits 0 to 31")
+      condwhinge(val<0 or val>31, info, "Bit operations can only work on bits in the range0-31")
       lower_bits = lower_bits .. to_bitfield(val, 5)
    end
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))

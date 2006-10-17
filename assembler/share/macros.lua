@@ -28,7 +28,7 @@ function meow_op_macro(info, macroname, ...)
       stat_increment("macrolines")
       line = parser_steal_line()
    end
-   whinge(info, "Macro `%s` does not terminate before the end of input", macroname)
+   whinge(info, "Macro '%s' does not terminate before the end of input.", macroname)
 end
 
 local function macro_playback_read(f, arg)

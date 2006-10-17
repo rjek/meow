@@ -45,11 +45,11 @@ register_stat("data", "Bytes of data")
 function meow_op_dcd(info, ...)
    local args = {...}
    local nargs = table.getn(args)
-   condwhinge(nargs == 0, info, "dcd takes at minimum one argument")
+   condwhinge(nargs == 0, info, "DCD takes at minimum one argument.")
    for i=1,nargs do
       local dec = parse_positional(info, args[i])
       condwhinge(dec.type ~= "constant" and dec.type ~= "label", info,
-		 "dcd only supports immediate constants or labels")
+		 "DCD only supports immediate constants or labels.")
       if dec.type == "constant" then
 	 local v = dec.value
 	 for i=1,4 do
@@ -66,12 +66,12 @@ end
 function meow_op_dcw(info, ...)
    local args = {...}
    local nargs = table.getn(args)
-   condwhinge(nargs == 0, info, "dcw takes at minimum one argument")
+   condwhinge(nargs == 0, info, "DCW takes at minimum one argument.")
    for i=1,nargs do
       local dec = parse_positional(info, args[i])
-      condwhinge(dec.type ~= "constant", info, "dcw only supports immediate constants.")
+      condwhinge(dec.type ~= "constant", info, "DCW only supports immediate constants.")
       if dec.value < -32768 or dec.value > 65535 then
-	 whinge(info, "dcw only supports constants in the range -32768 to 65535")
+	 whinge(info, "DCW only supports constants in the range -32768 to 65535.")
       end
       if dec.value < 0 then dec.value = 65536 + dec.value end
       local bottom = math.mod(dec.value, 256)
@@ -84,14 +84,14 @@ end
 function meow_op_dcb(info, ...)
    local args = {...}
    local nargs = table.getn(args)
-   condwhinge(nargs == 0, info, "dcb takes at minimum one argument")
+   condwhinge(nargs == 0, info, "DCB takes at minimum one argument.")
    for i=1,nargs do
       local dec = parse_positional(info, args[i])
       condwhinge(dec.type ~= "constant" and dec.type ~= "string", info,
-		 "dcb only supports immedate constants or literal strings.")
+		 "DCB only supports immedate constants or literal strings.")
       if dec.type == "constant" then
 	 if dec.value < -128 or dec.value > 255 then
-	    whinge(info, "dcb only supports constants in the range -127 to 255")
+	    whinge(info, "DCB only supports constants in the range -127 to 255.")
 	 end
 	 if dec.value < 0 then dec.value = 256 - dec.value end
 	 _queue_bytes(info, dec.value)
@@ -106,7 +106,7 @@ end
 function meow_op_mov(info, ...)
    local args = {...}
    local nargs = table.getn(args)
-   condwhinge(nargs < 2, info, "mov takes at minimum two arguments")
+   condwhinge(nargs < 2, info, "MOV takes at minimum two arguments.")
    local wordswap = false
    local byteswap = false
    local dest, source
@@ -114,15 +114,15 @@ function meow_op_mov(info, ...)
       if args[1] == "wordswap" then wordswap = true
       elseif args[1] == "byteswap" then byteswap = true
       else
-	 whinge(info, "Unable to parse extra flag %s, expecting wordswap or byteswap", args[1])
+	 whinge(info, "Unable to parse extra flag %s, expecting wordswap or byteswap.", args[1])
       end
       table.remove(args,1)
       nargs = nargs - 1
    end
    dest = parse_positional(info, args[1])
    source = parse_positional(info, args[2])
-   condwhinge(dest.type ~= "register", info, "Source was a %s, expecting register", dest.type)
-   condwhinge(source.type ~= "register", info, "Destination was a %s, expecting register", dest.type)
+   condwhinge(dest.type ~= "register", info, "Source was a %s, expecting register.", dest.type)
+   condwhinge(source.type ~= "register", info, "Destination was a %s, expecting register.", dest.type)
    -- We can always encode a mov at this point
    _encode_mov(info, byteswap, wordswap, dest.alt, source.alt, dest.value, source.value)
 end
@@ -130,7 +130,7 @@ end
 function _deferred_branch_callback(info, streampos, amount, condition, labelname)
    assert(amount==2,"Amount isn't 2 while performing deferred branch encoding")
    local labelpos = find_label(streampos, labelname)
-   condwhinge(labelpos == nil, info, "Label %s cannot be found", labelname)
+   condwhinge(labelpos == nil, info, "Label %s cannot be found.", labelname)
    _encode_branch(info, condition, labelpos - streampos)
 end
 
@@ -157,9 +157,9 @@ local branch_conditions = {
 
 function meow_op_branch(info, condition, target)
    target = parse_positional(info, target)
-   condwhinge(target.type ~= "label" and target.type ~= "constant", info, "Branch expects either a constant or a label")
+   condwhinge(target.type ~= "label" and target.type ~= "constant", info, "B expects either a constant or a label.")
 
-   condwhinge(branch_conditions[condition] == nil, info, "Unknown branch condition code %s", condition)
+   condwhinge(branch_conditions[condition] == nil, info, "Unknown branch condition code %s.", condition)
    condition = branch_conditions[condition]
 
 
@@ -169,7 +169,7 @@ end
 
 function meow_op_ldi(info, imm)
    local target = parse_positional(info, imm)
-   condwhinge(target.type ~= "constant", info, "ldi expects a constant")
+   condwhinge(target.type ~= "constant", info, "LDI expects a constant.")
    -- Simple (yay)
    _encode_ldi(info, target.value)
 end
@@ -177,16 +177,16 @@ end
 local function _mathop(info, is_add, dest, source, value)
    dest = parse_positional(info, dest)
    source = parse_positional(info, source)
-   condwhinge(dest.type ~= "register", info, "ADD/SUB require a register as their first argument")
-   condwhinge(dest.alt == true, info, "ADD/SUB cannot use the alternate register bank")
+   condwhinge(dest.type ~= "register", info, "ADD/SUB require a register as their first argument.")
+   condwhinge(dest.alt == true, info, "ADD/SUB cannot use the alternate register bank.")
    if not value and source.type == "register" then value = "#0" end
    if value then
-      condwhinge(source.type ~= "register", info, "ADD/SUB require a register as their source argument")
-      condwhinge(source.alt == true, info, "ADD/SUB cannot use the alternate register bank")
+      condwhinge(source.type ~= "register", info, "ADD/SUB require a register as their source argument.")
+      condwhinge(source.alt == true, info, "ADD/SUB cannot use the alternate register bank.")
       value = parse_positional(info, value)
-      condwhinge(value.type ~= "constant", info, "ADD/SUB require a constant as their third argument")
+      condwhinge(value.type ~= "constant", info, "ADD/SUB require a constant as their third argument.")
    else
-      condwhinge(source.type ~= "constant", info, "ADD/SUB requires a register or constant as the second argument")
+      condwhinge(source.type ~= "constant", info, "ADD/SUB requires a register or constant as the second argument.")
    end
    -- Simple again, encode it
    local v = value and value.value or false
@@ -212,16 +212,16 @@ function meow_op_shift(info, ...)
 	 if not dest then
 	    dest = parse_positional(info, v)
 	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
-		       "shift must be given a non-alternate register as its first argument")
+		       "Shifts cannot use the alternate register bank.")
 	 else
-	    condwhinge(value ~= nil, info, "shift can only take two arguments")
+	    condwhinge(value ~= nil, info, "Shifts can only take two arguments.")
 	    value = parse_positional(info, v)
 	    condwhinge(value.type ~= "constant" and value.type ~= "register", info,
-		       "shift's second argument must be either a register or a constant")
+		       "Shifts expect aregister or a constant as their second argument.")
 	 end
       end
    end
-   condwhinge(is_left == nil, info, "shift needs to be told left vs. right")
+   condwhinge(is_left == nil, info, "Shifts needs to be specifically left of right.")
    _encode_shift(info, is_left, is_roll, is_arith, dest.value, value.type=="register", value.value)
 end
 
@@ -242,18 +242,18 @@ function meow_op_bit(info, ...)
 	 if not dest then
 	    dest = parse_positional(info, v)
 	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
-		       "bit ops can only be performed on the current register bank.")
+		       "Bit operations cannot use the alternate register bank.")
 	 else
-	    condwhinge(value ~= nil, info, "bit ops can only have two arguments")
+	    condwhinge(value ~= nil, info, "Bit operations can only have two arguments.")
 	    value = parse_positional(info, v)
 	    condwhinge(value.type ~= "constant" and value.type ~= "register", info,
-		       "bit ops second argument must be a register or a constant")
+		       "Bit operations expect a register or a constant as their second argument.")
 	 end
       end
    end
-   condwhinge(dest == nil, info, "No destination register supplied")
-   condwhinge(value == nil, info, "No value/reg supplied")
-   condwhinge(op == nil, info, "No operation supplied")
+   condwhinge(dest == nil, info, "No destination register supplied.")
+   condwhinge(value == nil, info, "No value/reg supplied.")
+   condwhinge(op == nil, info, "No operation supplied.")
    _encode_bit(info, op, inverted, dest.value, value.type=="register", value.value)
 end
 
@@ -274,45 +274,45 @@ function meow_op_mem(info, ...)
 	 if not dest then
 	    dest = parse_positional(info, v)
 	    condwhinge(dest.type ~= "register" or dest.alt == true, info,
-		       "mem ops can only be performed on the current register bank.")
+		       "Memory operations cannot use the alternate register bank.")
 	 else
 	    condwhinge(src ~= nil, info, "mem ops take only two registers")
 	    src = parse_positional(info, v)
 	    condwhinge(src.type ~= "register" or src.alt == true, info,
-		       "mem ops can only be performed from the current register bank.")
+		       "Memory operations cannot use the alternate register bank.")
 	 end
       end
    end
-   condwhinge(dest == nil, info, "No value register supplied")
-   condwhinge(src == nil, info, "No address register supplied")
-   condwhinge(is_load == nil, info, "Direction not supplied")
-   condwhinge(is_half == nil, info, "Size of transfer not supplied")
+   condwhinge(dest == nil, info, "No value register supplied.")
+   condwhinge(src == nil, info, "No address register supplied.")
+   condwhinge(is_load == nil, info, "Direction not supplied.")
+   condwhinge(is_half == nil, info, "Size of transfer not supplied.")
    condwhinge(is_writeback and is_increase == nil, info, 
-	      "Writeback requested but direction not provided")
+	      "Writeback requested but direction not provided.")
    _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, dest.value, src.value)
 end
 
 function meow_op_tst(info, reg, bit)
    reg = parse_positional(info, reg)
    bit = parse_positional(info, bit)
-   condwhinge(reg.type ~= "register", info, "TST takes a register as its first argument")
-   condwhinge(bit.type ~= "constant", info, "TST takes a constant as its second argument")
-   condwhinge(bit.value<0 or bit.value>31, info, "TST can only test bits in the range 0-31")
+   condwhinge(reg.type ~= "register", info, "TST takes a register as its first argument.")
+   condwhinge(bit.type ~= "constant", info, "TST takes a constant as its second argument.")
+   condwhinge(bit.value<0 or bit.value>31, info, "TST can only test bits in the range 0-31.")
    _encode_tst(info, reg.alt, reg.value, bit.value)
 end
 
 function meow_op_cmp(info, reg, val)
    reg = parse_positional(info, reg)
    val = parse_positional(info, val)
-   condwhinge(reg.type ~= "register", info, "CMP takes a register as its first argument")
-   condwhinge(val.type ~= "constant" and val.type ~= "register", info, "CMP takes a constant or register as its second argument")
+   condwhinge(reg.type ~= "register", info, "CMP takes a register as its first argument.")
+   condwhinge(val.type ~= "constant" and val.type ~= "register", info, "CMP takes a constant or register as its second argument.")
    if val.type == "constant" then
-      condwhinge(val.value < -128 or val.value > 127, info, "CMP takes a value in the range -128 to 127")
+      condwhinge(val.value < -128 or val.value > 127, info, "CMP takes a value in the range -128 to 127.")
    end
    local alt = nil
    if val.type=="register" then alt=val.alt end
    if alt == nil then
-      condwhinge(reg.alt == true, info, "CMP cannot operate on the alternate bank if it is comparing against an immediate")
+      condwhinge(reg.alt == true, info, "CMP cannot operate on the alternate bank if it is comparing against an immediate.")
    end
    _encode_cmp(info, reg.alt, reg.value, alt, val.value)
 end
@@ -339,7 +339,7 @@ local function __cb_adr(info, streampos, amount, register, label)
       _encode_mathop(info, true, register, 12, 0)
    else
       -- Unfortunately the user is trying to encode an ADR which is too big.
-      whinge(info, "Unable to encode ADR, target is too damned far away. (target delta %d, maximal range %d to %d)", delta, -2048-25, 2047+15)
+      whinge(info, "ADR target is out of range. (target is %d away, maximal range %d to %d)", delta, -2048-25, 2047+15)
    end
 end
 
@@ -352,7 +352,7 @@ function meow_op_adr(info, reg, label)
    reg = parse_positional(info, reg)
    label = parse_positional(info, label)
    condwhinge(reg.type ~= "register" or label.type ~= "label", info,
-	      "ADR takes a register and a label and no other combination of things. Sorry.")
+	      "ADR takes a register and a label.")
    condwhinge(reg.alt == true, info,
 	      "ADR can only operate on registers in the current bank.")
    _queue_callback(info, _cb_adr, reg.value, label.value)
