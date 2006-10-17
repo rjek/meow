@@ -2,11 +2,17 @@
 
 register_stat("align_wastage", "Number of bytes wasted in alignments")
 
-local function _do_align(info, streampos, barrier, alignval)
+local function __do_align(info, streampos, amount, barrier, alignval)
    local extra = math.mod(streampos, barrier)
-   if extra == 0 then return end
-   _queue_bytes(info, string.rep(string.char(alignval), barrier-extra))
-   stat_increment("align_wastage", barrier - extra)
+   if extra > 0 then 
+      _queue_bytes(info, string.rep(string.char(alignval), barrier-extra))
+      stat_increment("align_wastage", barrier - extra)
+   end
+   return true -- Says that if I shrink, I meant it damnit, don't pad me.
+end
+
+function _do_align(info, streampos, barrier, alignval)
+   return "defer", barrier - math.mod(streampos, barrier), __do_align, barrier, alignval
 end
 
 function meow_op_align(info, barrier, alignval)
@@ -219,13 +225,18 @@ function meow_op_shift(info, ...)
    _encode_shift(info, is_left, is_roll, is_arith, dest.value, value.type=="register", value.value)
 end
 
+BITOP_NOT = 0
+BITOP_AND = 1
+BITOP_ORR = 2
+BITOP_EOR = 3
+
 function meow_op_bit(info, ...)
    local op, inverted, dest, value = nil, false
    for i, v in ipairs({...}) do
-      if v == "not" then op = 0
-      elseif v == "and" then op = 1
-      elseif v == "orr" then op = 2
-      elseif v == "eor" then op = 3
+      if v == "not" then op = BITOP_NOT
+      elseif v == "and" then op = BITOP_AND
+      elseif v == "orr" then op = BITOP_ORR
+      elseif v == "eor" then op = BITOP_EOR
       elseif v == "inverted" then inverted = true
       else
 	 if not dest then
@@ -305,3 +316,45 @@ function meow_op_cmp(info, reg, val)
    end
    _encode_cmp(info, reg.alt, reg.value, alt, val.value)
 end
+
+local function __cb_adr(info, streampos, amount, register, label)
+   -- First up, work out the delta to where we want to address
+   local delta = find_label(streampos, label) - streampos
+   if delta == 0 then
+      -- If the delta is zero, it's just capture pc
+      _encode_mov(info, false, false, false, false, register, 15)
+   elseif delta >= -15 and delta <= 15 then
+      -- The next simplest form is add/sub
+      local is_add = (delta > 0) and true or false
+      _encode_mathop(info, is_add, register, 15, math.abs(delta))
+   elseif delta >= -2048-15 and delta <= (2047+15) then
+      -- Next simplest form is a mov/add/sub, then an ldi and then an add/sub
+      if (delta >= -2048 and delta <= 2047) then
+	 _encode_mov(info, false, false, false, false, register, 15)
+      else
+	 _encode_mathop(info, delta>0 and true or false, register, 15, 15)
+	 if delta < 0 then delta = delta + 15 else delta = delta - 15 end
+      end
+      _encode_ldi(info, delta)
+      _encode_mathop(info, true, register, 12, 0)
+   else
+      -- Unfortunately the user is trying to encode an ADR which is too big.
+      whinge(info, "Unable to encode ADR, target is too damned far away. (target delta %d, maximal range %d to %d)", delta, -2048-25, 2047+15)
+   end
+end
+
+local function _cb_adr(info, streampos, register, label)
+   -- At minimum, adr takes one instruction, typically 2, sometimes more
+   return "defer", 2, __cb_adr, register, label
+end
+
+function meow_op_adr(info, reg, label)
+   reg = parse_positional(info, reg)
+   label = parse_positional(info, label)
+   condwhinge(reg.type ~= "register" or label.type ~= "label", info,
+	      "ADR takes a register and a label and no other combination of things. Sorry.")
+   condwhinge(reg.alt == true, info,
+	      "ADR can only operate on registers in the current bank.")
+   _queue_callback(info, _cb_adr, reg.value, label.value)
+end
+

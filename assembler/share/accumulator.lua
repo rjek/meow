@@ -90,6 +90,8 @@ function find_label(streampos, str)
    if streampos-cand1 < cand2-streampos then return cand1 else return cand2 end
 end
 
+register_stat("noops", "Number of NOOPs inserted to pad things")
+
 function resolve_stream()
    -- We have a full stream, the process is as follows...
    -- Every byte/string is just transferred as-is
@@ -173,13 +175,16 @@ function resolve_stream()
 	       local info = output_info[res.replace]
 	       deferred_bytes = ""
 	       queue_routines.bytes = deferred_queue_bytes
-	       res.func(info, cur_pos, res.reservation, unpack(res.func_args))
+	       local repl_v = res.func(info, cur_pos, res.reservation, unpack(res.func_args))
 	       if string.len(deferred_bytes) > res.reservation then
 		  res.tries = res.tries + 1
 		  res.reservation = string.len(deferred_bytes)
 		  condwhinge(res.tries >= 10, info, "Assembler callback is not stable after 10 cycles")
 		  early_exit = true
 		  break
+	       end
+	       if repl_v then
+		  res.reservation = string.len(deferred_bytes)
 	       end
 	       if string.len(deferred_bytes) < res.reservation then
 		  if not res.warned then
@@ -194,6 +199,7 @@ function resolve_stream()
 		  while string.len(deferred_bytes) < res.reservation do
 		     -- encode a noop (mov r0 r0)
 		     _encode_mov(info, false, false, false, false, 0, 0)
+		     stat_increment "noops"
 		  end
 	       end
 	       output_stream[res.replace] = deferred_bytes

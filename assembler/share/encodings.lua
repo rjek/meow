@@ -108,3 +108,4 @@ function _encode_cmp(info, first_alt, first, second_alt, second)
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"
 end
+
