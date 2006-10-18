@@ -904,10 +904,19 @@ void msim_print_state(struct msim_ctx *ctx)
 	printf("\n\n");
 }
 
+struct msim_rom_ctx {
+	unsigned char 	*rom;
+	size_t		size;
+};
+
 static u_int16_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
 				void *ctx)
 {
-	unsigned char *rom = (unsigned char *)ctx;
+	struct msim_rom_ctx *mctx = (struct msim_rom_ctx *)ctx;
+	unsigned char *rom = mctx->rom;
+	
+	if (ptr > mctx->size)
+		return 0;
 	
 	if (access == MSIM_ACCESS_BYTE) {
 		return rom[ptr];
@@ -928,7 +937,7 @@ static void msim_rom_write(const u_int32_t ptr,
 void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
 {
 	FILE *fh = fopen(filename, "r");
-	unsigned char *rom;
+	struct msim_rom_ctx *mctx;
 	int fs;
 
 	if (fh == NULL) {
@@ -937,27 +946,42 @@ void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
 		return;
 	}
 	
+	mctx = malloc(sizeof(struct msim_rom_ctx));
+	
 	fseek(fh, 0, SEEK_END);
 	fs = ftell(fh);
 	fseek(fh, 0, SEEK_SET);
 	
-	rom = malloc(fs);
-	fread(rom, fs, 1, fh);
+	mctx->rom = malloc(fs);
+	mctx->size = fs;
+	fread(mctx->rom, fs, 1, fh);
 	fclose(fh);
 	
-	msim_device_add(ctx, area, msim_rom_read, msim_rom_write, NULL, rom);
+	msim_device_add(ctx, area, msim_rom_read, msim_rom_write, NULL, mctx);
 }
 
 void msim_del_rom(struct msim_ctx *ctx, int area)
 {
+	struct msim_rom_ctx *mctx =
+		(struct msim_rom_ctx *)ctx->areas[area].ctx;
+	free(mctx->rom);
 	free(ctx->areas[area].ctx);
 	msim_device_remove(ctx, area);
 }
 
+struct msim_ram_ctx {
+	unsigned char 	*ram;
+	size_t		size;
+};
+
 static u_int16_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
 				void *ctx)
 {
-	unsigned char *ram = (unsigned char *)ctx;
+	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
+	unsigned char *ram = mctx->ram;
+	
+	if (ptr > mctx->size)
+		return 0;
 	
 	if (access == MSIM_ACCESS_BYTE) {
 		return ram[ptr];
@@ -971,7 +995,11 @@ static void msim_ram_write(const u_int32_t ptr,
 				const msim_mem_access_type access,
 				const u_int16_t d, void *ctx)
 {
-	unsigned char *ram = (unsigned char *)ctx;
+	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
+	unsigned char *ram = mctx->ram;
+	
+	if (ptr > mctx->size)
+		return;
 	
 	if (access == MSIM_ACCESS_BYTE) {
 		ram[ptr] = d & 0xff;
@@ -983,16 +1011,24 @@ static void msim_ram_write(const u_int32_t ptr,
 
 void msim_add_ram(struct msim_ctx *ctx, int area, size_t size)
 {
+	struct msim_ram_ctx *mctx = malloc(sizeof(struct msim_ram_ctx));
 	unsigned char *ram = calloc(size, 1);
 	
-	msim_device_add(ctx, area, msim_ram_read, msim_ram_write, NULL, ram);
+	mctx->ram = ram;
+	mctx->size = size;
+	
+	msim_device_add(ctx, area, msim_ram_read, msim_ram_write, NULL, mctx);
 }
 
 void msim_del_ram(struct msim_ctx *ctx, int area)
 {
+	struct msim_ram_ctx *mctx =
+		(struct msim_ram_ctx *)ctx->areas[area].ctx;
+	free(mctx->ram);
 	free(ctx->areas[area].ctx);
 	msim_device_remove(ctx, area);
 }
+
 
 #ifdef TEST_RIG
 
