@@ -840,7 +840,7 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			snprintf(tmp, 256, "#%d", ffs(instr->immediate));
 		else
 			snprintf(tmp, 256, "R%d", instr->source);
-
+		APPEND(tmp);
 		break;
 			
 	case MSIM_OPCODE_MEM:
@@ -1040,7 +1040,7 @@ int main(int argc, char *argv[])
 	msim_add_rom_from_file(ctx, 0, "masm.out");
 	msim_add_ram(ctx, 1, 4096);
 	
-	for (i = 4; i > 0; i--) {
+	for (i = 100; i > 0; i--) {
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}
