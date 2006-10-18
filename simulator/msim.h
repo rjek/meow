@@ -183,7 +183,9 @@ typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
 
 typedef void (*msim_reset_mem)(void *ctx);
 
-typedef void (*msim_bnv_op)(struct msim_ctx *ctx, signed int op, void *c);
+struct msim_ctx;
+
+typedef void (*msim_bnvop)(struct msim_ctx *ctx, signed int op, void *bnvctx);
 
 struct msim_ctx {
 	bool		irqmode;
@@ -199,21 +201,15 @@ struct msim_ctx {
 		 msim_reset_mem reset;
 		 void		*ctx;
 	}		areas[16];
-	msim_bnv_op	bnv_op[512];
-	void		*bnv_op_ctx[512];
+	
+	msim_bnvop	bnvops[512];
+	void		*bnvopsctx[512];
+	
 	struct msim_instr instr;
-};
-
-struct msim_builtins_t {
-	signed int	op;
-	msim_bnv_op	func;
 };
 
 struct msim_ctx *msim_init(void);
 void msim_destroy(struct msim_ctx *ctx);
-void msim_bnv_op_add(struct msim_ctx *ctx, const signed int o,
-			msim_bnv_op func, void *c);
-void msim_bnv_op_remove(struct msim_ctx *ctx, const signed int o);
 
 void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
  			msim_write_mem write, msim_reset_mem reset, 
@@ -239,10 +235,17 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			struct msim_instr *instr);
 void msim_print_state(struct msim_ctx *ctx);
 
+void msim_add_bnv(struct msim_ctx *ctx, signed int op, msim_bnvop func,
+			void *fctx);
+void msim_del_bnv(struct msim_ctx *ctx, signed int op);
+
 void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename);
 void msim_del_rom(struct msim_ctx *ctx, int area);
 
 void msim_add_ram(struct msim_ctx *ctx, int area, size_t size);
 void msim_del_ram(struct msim_ctx *ctx, int area);
+
+void msim_add_builtin_bnvs(struct msim_ctx *ctx);
+void msim_del_builtin_bnvs(struct msim_ctx *ctx);
 
 #endif /* __MSIM_H__ */

@@ -8,11 +8,11 @@ instructions that can act as a NOP should they want one.)
 Because of this, it is specified that the BNV range (signed 9 bit integer, so
 the range -256 to 255) will be given special purposes for custom behavior.
 
-The range -256 to -1 is for the implementor of the CPU (be it msim or a hardware
+The range -256 to -2 is for the implementor of the CPU (be it msim or a hardware
 implemention).  Some of these have defined meanings, listed below.
 Implementation-specific BNV functions should be given positive numbers.
 
-#-512		Sets IM(R12) to be the processor's model number.
+#-256		Sets IM(R12) to be the processor's model number.
 		The high byte indicates implementor:
 		
 			0x00	-	MEOW official
@@ -28,5 +28,16 @@ Implementation-specific BNV functions should be given positive numbers.
 		The 4th byte is implementation-defined, and current official
 		MEOW implementations this is always zero.
 
-#-510		HALT.  Causes the CPU to stop.  Under msim, it causes exit() to
+#-254		HALT.  Causes the CPU to stop.  Under msim, it causes exit() to
 		be called.
+
+
+msim also implements the following:
+
+-2		Output string pointed to by R12 to stdout
+-4		Output 32 bit signed integer in R12 to stdout
+-6		Output 32 bit unsigned integer in R12 to stdout
+-8		Output byte in R12 to stdout
+
+-128		Cause msim to call exit(R12)
+-130		Fake interrupt 0

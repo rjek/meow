@@ -33,44 +33,6 @@
 
 #include "msim.h"
 
-static void msim_builtin_get_model(struct msim_ctx *ctx,
-					signed int op, void *c)
-{
-	ctx->r[12] = 0x00000100;
-}
-
-static void msim_builtin_halt(struct msim_ctx *ctx, signed int op, void *c)
-{
-	exit(0);
-}
-
-static const struct msim_builtins_t msim_builtins[] = {
-	{ -256,		msim_builtin_get_model },
-	{ -255,		msim_builtin_halt },	
-	{ 0,		NULL }
-};
-
-static void msim_builtin_bnv_add(struct msim_ctx *ctx)
-{
-	const struct msim_builtins_t *e = msim_builtins;
-	
-	do {
-		printf("Adding op for %d\n", e->op);
-		msim_bnv_op_add(ctx, e->op, e->func, NULL);
-		e++;
-	} while (e->func != NULL);
-}
-
-static void msim_builtin_bnv_del(struct msim_ctx *ctx)
-{
-	const struct msim_builtins_t *e = msim_builtins;
-	
-	do {
-		msim_bnv_op_remove(ctx, e->op);
-		e++;
-	} while (e->func != NULL);
-}
-
 struct msim_ctx *msim_init(void)
 {
 	struct msim_ctx *ctx = calloc(1, sizeof(struct msim_ctx));
@@ -80,17 +42,103 @@ struct msim_ctx *msim_init(void)
 	ctx->r = ctx->realr;
 	ctx->ar = ctx->realar;
 	
-	msim_builtin_bnv_add(ctx);
+	msim_add_builtin_bnvs(ctx);
 	
 	return ctx;
 }
 
 void msim_destroy(struct msim_ctx *ctx)
 {
-	msim_builtin_bnv_del(ctx);
+	msim_del_builtin_bnvs(ctx);
 	free(ctx);
 }
 
+void msim_add_bnv(struct msim_ctx *ctx, signed int op, msim_bnvop func,
+			void *fctx)
+{
+	ctx->bnvops[op + 256] = func;
+	ctx->bnvopsctx[op + 256] = fctx;
+}
+
+void msim_del_bnv(struct msim_ctx *ctx, signed int op)
+{
+	msim_add_bnv(ctx, op, NULL, NULL);
+}
+
+static void msim_builtin_get_model(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	ctx->r[12] = 0x00000100;
+}
+
+static void msim_builtin_halt(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	fprintf(stderr,
+	"msim: warning, HALT executed, but not implemented by msim at 0x%08x\n",
+		(ctx->r[15]) & MSIM_PC_ADDR_MASK);
+}
+
+static void msim_builtin_exit(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	exit(ctx->r[12]);
+}
+
+static void msim_builtin_fake_interrupt(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	msim_irq(ctx, 1);
+}
+
+static void msim_builtin_write(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	unsigned char d;
+	u_int32_t p = ctx->r[12];
+	
+	switch (op) {
+	case -2:
+		/* write string */
+		d = msim_memget(ctx, p, MSIM_ACCESS_BYTE);
+		while (d != '\0') {
+			printf("%c", d);
+			p++;
+			d = msim_memget(ctx, p, MSIM_ACCESS_BYTE);
+		}
+		break;
+	case -4:
+		/* write 32 bit signed */
+		break;
+	case -6:
+		/* write 32 bit unsigned */
+		break;
+	case -8:
+		/* write char */
+		printf("%c", p);
+		break;
+	}
+}
+
+void msim_add_builtin_bnvs(struct msim_ctx *ctx)
+{
+	msim_add_bnv(ctx, -256, msim_builtin_get_model, NULL);
+	msim_add_bnv(ctx, -254, msim_builtin_halt, NULL);
+
+	msim_add_bnv(ctx, -130, msim_builtin_fake_interrupt, NULL);
+	msim_add_bnv(ctx, -128, msim_builtin_exit, NULL);
+	
+	msim_add_bnv(ctx, -2, msim_builtin_write, NULL);
+}
+
+void msim_del_builtin_bnvs(struct msim_ctx *ctx)
+{
+	msim_del_bnv(ctx, -256);
+	msim_del_bnv(ctx, -254);
+	
+	msim_del_bnv(ctx, -128);
+	msim_del_bnv(ctx, -130);
+}
 
 void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
  			msim_write_mem write, msim_reset_mem reset, 
@@ -108,18 +156,6 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 	ctx->areas[area].write = NULL;
 	ctx->areas[area].reset = NULL;
 	ctx->areas[area].ctx = NULL;
-}
-
-void msim_bnv_op_add(struct msim_ctx *ctx, const signed int o,
-			msim_bnv_op func, void *c)
-{
-	ctx->bnv_op[o + 256] = func;
-	ctx->bnv_op_ctx[o + 256] = c;
-}
-
-void msim_bnv_op_remove(struct msim_ctx *ctx, const signed int o)
-{
-	msim_bnv_op_add(ctx, o, NULL, NULL);
 }
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
@@ -331,16 +367,16 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			MSIM_SET_PC(ctx->r[15], ctx->r[15] + instr->immediate);
 			ctx->nopcincrement = true;
 		} else if (instr->condition == MSIM_COND_NV) {
-			/* special msim meta-op */
-			tmp = ((instr->immediate) + 512) / 2;
-			if (ctx->bnv_op[tmp] == NULL)
+			signed int operation = (instr->immediate) + 256;
+			if (ctx->bnvops[operation] == NULL) {
 				fprintf(stderr,
-			"msim: warning: unhandled bnv instruction %x at %08x\n",
-					instr->immediate, ctx->r[15] &
-					MSIM_PC_ADDR_MASK);
-			else
-				ctx->bnv_op[tmp](ctx, instr->immediate,
-							ctx->bnv_op_ctx[tmp]);	
+				"msim: unhandled BNV %d at %08x\n",
+				instr->immediate,
+				ctx->r[15] & MSIM_PC_ADDR_MASK);	
+			} else {
+				ctx->bnvops[operation](ctx, instr->immediate,
+					ctx->bnvopsctx[operation]);
+			}
 		}
 		break;
 		
