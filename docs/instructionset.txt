@@ -58,6 +58,13 @@ Program counter layout:
 	
 	I == set if in interrupt mode
 
+IMPORTANT NOTE ABOUT PC
+^^^^^^^^^^^^^^^^^^^^^^^
+
+When accessing/setting PC you only get/set the 'a' portion of it.
+The only instruction which can alter the NZCVI bits is 'bit'
+The only instruction which can read them is 'tst'
+
 Memory layout:
 
 	0	System call entry point / OS inititialisation / CPU initial PC
