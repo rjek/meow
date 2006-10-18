@@ -327,6 +327,15 @@ local function __cb_adr(info, streampos, amount, register, label)
       -- The next simplest form is add/sub
       local is_add = (delta > 0) and true or false
       _encode_mathop(info, is_add, register, 15, math.abs(delta))
+   elseif delta >= -255-15 and delta <= 255+15 then
+      -- add/sub/mov and then add/sub
+      if (delta >= -255 and delta <= 255) then
+         _encode_mov(info, false, false, false, false, register, 15)
+      else
+         _encode_mathop(info, delta>0 and true or false, register, 15, 15)
+         if delta < 0 then delta = delta + 15 else delta = delta - 15 end
+      end
+      _encode_mathop(info, delta>0 and true or false, register, math.abs(delta))
    elseif delta >= -2048-15 and delta <= (2047+15) then
       -- Next simplest form is a mov/add/sub, then an ldi and then an add/sub
       if (delta >= -2048 and delta <= 2047) then
