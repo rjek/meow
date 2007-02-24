@@ -51,19 +51,30 @@ MEM		111L vvvv SHWD aaaa	- L = load/store (1 to store)
                                               or register to write into
                                           a = address to store or read from
 
-Program counter layout:
 
+Register layouts
+	register        aliases        purpose
+	r0 - r10                       general-purpose
+        r11             sp             stack pointer / general purpose
+        r12             lr             link register / general purpose
+        r13             ir             immediate / syscall no. / general purpose
+        r14             sr             status bits register
+        r15             pc             program counter, points to the next
+                                       instruction to be executed.
+
+Status bits register layout
+        21098765 43210987 65432109 87654321
+	NZCVxxxx xxxxxxxx xxxxxxxx xxxxxxxI
+
+	NZCV = condition codes
+	x = currently undefined, must be zero.  (read only)
+	I = set if in interrupt mode (read only)
+
+Program counter layout
 	21098765 43210987 65432109 87654321
-	NZCVaaaa aaaaaaaa aaaaaaaa aaaaaaaI
+	aaaaaaaa aaaaaaaa aaaaaaaa aaaaaaax
 	
-	I == set if in interrupt mode
-
-IMPORTANT NOTE ABOUT PC
-^^^^^^^^^^^^^^^^^^^^^^^
-
-When accessing/setting PC you only get/set the 'a' portion of it.
-The only instruction which can alter the NZCVI bits is 'bit'
-The only instruction which can read them is 'tst'
+	x == must be zero
 
 Memory layout:
 
@@ -89,12 +100,12 @@ On reset, all registers in both banks are set to zero, the cpu enters interrupt 
 
 If the address part of PC is altered in any way the MCU supresses the automatic increment.
 
-To syscall:
-		-- syscall(5)
-		ldi(5)
-		and(reg_lr, 0)         -- clear reg_lr 
-		add(reg_lr, reg_pc, 4) -- reg_lr = (0 +) reg_pc + 4
-		and(reg_pc, 0)         -- clear reg_pc
+To syscall:  (tip: make this a macro called SYS)
+
+		LDI    #SysCallNumber  ; syscall number goes into IR register
+		AND    LR, #0          ; quick way of setting LR to zero
+		ADD    LR, PC, #4      ; change LR to point after our syscall
+		AND    PC, #0          ; set PC to zero (location of syscall handler)
 
 Condition codes
 cccc	suffix	What it means			What it is implemented as?
@@ -117,6 +128,3 @@ cccc	suffix	What it means			What it is implemented as?
 1101	LE 	Less than or equal 		N<>V or Z=1
 1110	AL	Always				This is the default
 1111	NV 	Never				** Do not use **
-
-
-
