@@ -129,11 +129,37 @@ typedef enum {
 	MSIM_COND_NV	= 15
 } msim_condition_type;
 
+typedef enum {
+	MSIM_R0		= 0,
+	MSIM_R1		= 1,
+	MSIM_R2		= 2,
+	MSIM_R3		= 3,
+	MSIM_R4		= 4,
+	MSIM_R5		= 5,
+	MSIM_R6		= 6,
+	MSIM_R7		= 7,
+	MSIM_R8		= 8,
+	MSIM_R9		= 9,
+	MSIM_R10	= 10,
+	MSIM_R11	= 11,
+	MSIM_R12	= 12,
+	MSIM_R13	= 13,
+	MSIM_R14	= 14,
+	MSIM_R15	= 15,
+	
+	/* some useful aliases */
+	MSIM_IR		= 11,		/* immediate register */
+	MSIM_SP		= 12,		/* stack pointer */
+	MSIN_LR		= 13,		/* link register */
+	MSIM_SR		= 14,		/* status register */
+	MSIM_PC		= 15		/* program counter */
+} msim_register;
+
 struct msim_instr {
 	/* general to most instructions */
 	msim_opcode_type	opcode;
-	int			destination;
-	int			source;
+	msim_register		destination;
+	msim_register		source;
 	msim_bank_type		destinationbank;
 	msim_bank_type		sourcebank;
 	int16_t			immediate;
@@ -229,7 +255,7 @@ u_int16_t msim_fetch(struct msim_ctx *ctx);
 void msim_decode(struct msim_ctx *ctx, u_int16_t instrword, 
 			struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
-bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
+inline bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
 
 char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 
 			struct msim_instr *instr);
