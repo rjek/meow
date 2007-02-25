@@ -106,7 +106,8 @@ findmemloop	STRLI	R1, R0
 		STRHD	R1, IR		; store RAM size in first word of RAM
 		
 		
-		B	>displaybanner				
+		BL	>displaybanner
+		B	idleloop
 		
 nextfindmem	LDI	#1024
 		ADD	R0, IR
@@ -116,8 +117,6 @@ displaybanner
 		
 		ADR	R1, >catflapbanner
 		SYS	OS_Write0
-
-		BNV	#-128		; exit msim
 		MOV	PC, R14
 
 catflapbanner	DCB "Catflap - Copyright (c) 2006, Rob Kendrick", #10, #0
@@ -132,7 +131,7 @@ Sys_OS_ReadSysInfo
 		MOV	PC, R14
 		
 Sys_OS_WriteC	MOV	IR, R0
-		BNV	#-8		; msim "write character"
+		BNV	#-6		; msim "write character"
 		MOV	PC, R14
 		
 Sys_OS_Write0	PUSH	R0
