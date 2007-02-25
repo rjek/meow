@@ -2,6 +2,7 @@ MEOW Instruction Set
 --------------------
 
 B		000c ccca aaaa aaaa	- branch to signed-9 bit offet from current PC, if condition codes match
+UNDEF		0001 111i iiii iiii     - bnv UNDEF range
 
 ADD		0011 dddd iiii iiii     - register d = register d + unsigned 8 bit constant
 		0010 dddd iiii ssss     - register d = register s + unsigned 4 bit constant
@@ -19,8 +20,6 @@ MOV		1000 dddd yzwx ssss	- d = s
 					- x = source bank
 					- y = byte swap
 					- z = half word swap
-
-IRQRTN		1000 1111 1111 1111	- Return from interrupt handler (yes, it's a MOV, but an insane useless one.)
 
 LDI		1001 iiii iiii iiii	- reg_imm = 12 bit signed constant
 
@@ -51,6 +50,46 @@ MEM		111L vvvv SHWD aaaa	- L = load/store (1 to store)
                                               or register to write into
                                           a = address to store or read from
 
+UNDEF instruction range
+-----------------------
+
+The Branch instruction contains an encoding that is otherwise useless with its NEVER
+condition code.  This gives us a 9 bit immediate constant that we can use for special
+purpose instuctions, implementation-defined extensions, etc.
+
+What is encoded is a signed instruction offset.  This gives us the range of -512 to
+510, even numbers only.  We interpret this bit field such as it is how the decoder
+already decodes the data.
+
+Negative values are IMPLEMENTATION DEFINED.  Others are defined by this specification,
+and all implementations must provide them.
+
+If a CPU does not implement a requested BNV, then it acts as a no-op.
+
+MEOW-specified BNV calls:
+        0               Read CPU model information
+                        IR => 1st byte Implementor (0 == us)
+			      2nd byte Model (implementor-defined 0 = MSIM, 1 = MEOW1)
+			      3rd byte Revision (implementor-defined)
+			      4th byte Instruction Set version (this document == 0)
+
+	2               Read CPU bus information
+	                IR => xxxx xxxx xxxx xxxx xxxx xxxx xxxi iiii
+			      x = undefined
+			      i = Bus ID of machine
+
+	4               Return from IRQ mode and swap the banks back.
+
+MSIM-specific BNV calls:
+        -2              Quit MSIM
+
+	-4              Dump machine state to debug output
+
+	-6              Print character in IR to debug output
+
+	-8              Print integer in IR to debug output
+
+	-10             Print integet in IR to debug output as hex
 
 Register layouts
 	register        aliases        purpose
@@ -67,7 +106,7 @@ Status bits register layout
 	NZCVxxxx xxxxxxxx xxxxxxxx xxxxxxxI
 
 	NZCV = condition codes
-	x = currently undefined, must be zero.  (read only)
+	x = currently undefined, write what you read.
 	I = set if in interrupt mode (read only)
 
 Program counter layout
@@ -94,7 +133,7 @@ The top nibble of the address is the peripheral selector.
 When the CPU is interrupted, if it is in interrupt mode it resets. Otherwise it enters interrupt mode.
 Entering interrupt mode causes the active bank of registers to switch to the interrupt bank and causes
 PC to be loaded with the address of the interrupt handler. To return from interrupt, you execute 
-MOVWB alt_pc, alt_pc (also known as IRQRTN).
+BNV #4 (also known as IRQRTN).
 
 On reset, all registers in both banks are set to zero, the cpu enters interrupt mode and the SYS has interrupts masked.
 
@@ -128,3 +167,43 @@ cccc	suffix	What it means			What it is implemented as?
 1101	LE 	Less than or equal 		N<>V or Z=1
 1110	AL	Always				This is the default
 1111	NV 	Never				** Do not use **
+
+
+Memory layout:
+
+   cccccaaa aaaaaaaa aaaaaaaa aaaaaaaa
+
+   c = chipselect, a = address.  Each chipselect is 128MB.
+
+   chipselect 0 is ROM.
+   chipselect 1 is RAM.
+
+   chipselect 31 is System Controller.
+
+   System controller:
+
+     0 .. 0x1fff is chip select information table, 32 x 256 byte entries.
+       Each table entry has:
+         0 => vvvv vvvv dddd dddd
+  	      v = vendor (0 = us)
+	      d = vendor-specified device number
+
+	      For vendor 0, current devices are:
+	      0 => ROM
+	      1 => RAM
+	      2 => System Controller version 0 (this specification)
+	      3 => IOC version 0 (this specification)
+
+     0x2000 .. 0x23ff is 32 x 32 bit interrupt masks (one for each CPU).
+       On reset, all interrupts go to CPU0 only.  All other CPU masks disable
+       intterupts.
+
+     0x2400 .. 0x2403 is 32 bit field for pending intterupts.
+
+     0x2404 .. 0x240f is the programmable interrupt timer.
+            1st word => read-only system controller input clock frequency (Hz)
+	    2nd word => timer reload value.  When high-half of register is written, it will cause a timer reset.  If this
+	                is zero, the timer does not run.  (Default value)
+	    3rd word => current timer value.  When this reaches zero, the system controller's interrupt is asserted.
+	                and the timer is reset.  A timer reset consists of moving the timer reload value into
+			the current timer value register.
