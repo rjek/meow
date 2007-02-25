@@ -35,14 +35,15 @@
 	define	ar14	30
 	define	ar15	31
 
+	define	sp	r11
+	define	lr	r12
+	define	ir	r13
+	define	sr	r14
 	define	pc	r15
-	define	lr	r14
-	define	sp	r13
-	define	ir	r12
-
+	
+	define	asp	ar11
+	define	alr	ar12
+	define	air	ar13
+	define	asr	ar14
 	define	apc	ar15
-	define	alr	ar14
-	define	asp	ar13
-	define	air	ar12
-
 	

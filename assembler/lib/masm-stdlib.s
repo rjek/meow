@@ -6,3 +6,4 @@
 	INCLUDE	masm-mem.s
 	INCLUDE	masm-branches.s
 	INCLUDE	masm-bit.s
+	INCLUDE masm-bnv.s
