@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://web.resource.org/cc/"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="1419.5153"
+   height="61.025551"
+   id="svg3824"
+   sodipodi:version="0.32"
+   inkscape:version="0.44"
+   version="1.0"
+   sodipodi:docbase="/home/rjek/svn/meow/docs/figures"
+   sodipodi:docname="encoding-pc.svg">
+  <defs
+     id="defs3826" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     gridtolerance="10000"
+     guidetolerance="10"
+     objecttolerance="10"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="0.35"
+     inkscape:cx="375"
+     inkscape:cy="520"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     inkscape:window-width="914"
+     inkscape:window-height="622"
+     inkscape:window-x="5"
+     inkscape:window-y="47" />
+  <metadata
+     id="metadata3829">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(409.7577,-504.7066)">
+    <rect
+       style="opacity:0.93000034;fill:none;fill-opacity:1;stroke:black;stroke-width:1.86589468;stroke-opacity:1"
+       id="rect3623"
+       width="1417.6494"
+       height="33.41531"
+       x="-408.82471"
+       y="531.38385" />
+    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3625"
+       style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+       transform="translate(-453.9285,497.7937)"><flowRegion
+         id="flowRegion3627"><rect
+           id="rect3629"
+           width="1373.1074"
+           height="24.908649"
+           x="44.215431"
+           y="35.327549"
+           style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono" /></flowRegion><flowPara
+         id="flowPara3631">address</flowPara></flowRoot>    <flowRoot
+       transform="translate(-453.9285,463.7937)"
+       style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+       id="flowRoot3665"
+       xml:space="preserve"><flowRegion
+         id="flowRegion3667"><rect
+           style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+           y="35.327549"
+           x="44.215431"
+           height="27.394344"
+           width="44.215431"
+           id="rect3669" /></flowRegion><flowPara
+         id="flowPara3671">31</flowPara></flowRoot>    <flowRoot
+       transform="translate(919.9295,498.5817)"
+       style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+       id="flowRoot3705"
+       xml:space="preserve"><flowRegion
+         id="flowRegion3707"><rect
+           style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+           y="35.327549"
+           x="44.215431"
+           height="27.394344"
+           width="44.215431"
+           id="rect3709" /></flowRegion><flowPara
+         id="flowPara3711">X</flowPara></flowRoot>    <flowRoot
+       transform="translate(875.6385,464.5817)"
+       style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+       id="flowRoot3713"
+       xml:space="preserve"><flowRegion
+         id="flowRegion3715"><rect
+           style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+           y="35.327549"
+           x="44.215431"
+           height="27.394344"
+           width="44.215431"
+           id="rect3717" /></flowRegion><flowPara
+         id="flowPara3719">1</flowPara></flowRoot>    <flowRoot
+       xml:space="preserve"
+       id="flowRoot3721"
+       style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono"
+       transform="translate(919.9295,464.5817)"><flowRegion
+         id="flowRegion3723"><rect
+           id="rect3725"
+           width="44.215431"
+           height="27.394344"
+           x="44.215431"
+           y="35.327549"
+           style="font-size:22px;text-align:center;text-anchor:middle;font-family:Bitstream Vera Sans Mono" /></flowRegion><flowPara
+         id="flowPara3727">0</flowPara></flowRoot>    <path
+       style="fill:none;fill-opacity:0.75;fill-rule:evenodd;stroke:black;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+       d="M 963.27383,529.36606 L 963.23613,563.86619"
+       id="path3737" />
+  </g>
+</svg>

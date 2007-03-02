@@ -1,0 +1,240 @@
+\documentclass[12t,a4paper,twoside]{report}
+
+\author{\copyright~\href{http://www.rjek.com/}{Rob Kendrick} and
+         \href{http://www.digital-scurf.org}{Daniel Silverstone}, 2007}
+\title{MEOW MCU Reference Guide, Version 0}
+\date{02 March 2007}
+
+\usepackage[pdftex]{color,graphicx}
+\graphicspath{{figures/}}
+
+\usepackage[pdftex]{hyperref} % must be last thing in document preamble.
+
+\begin{document}
+
+  \tableofcontents{}
+  
+  \chapter{Introduction}
+    MEOW is a trivial ARM-inspired 32 bit RISC microcontroller, with 16 bit
+    instructions.  It feature a simple memory map, basic multi-processing,
+    and an easy-to-pick-up instruction set.
+
+    MEOW is a disingenuous acronym for Microprocessor With Eight Opcodes,
+    which demonstrates the MCU's simplicity.  The design is kept this simple
+    such that it is easy to fit in small, hobbyest, cheap FPGAs, as the
+    initial purpose of the project was to build a computer from scratch,
+    including the CPU and system controller.
+
+    People familier with the ARM should be comfortable with the MEOW
+    instruction set, as it is designed to be similar.  It is 16 bits wide,
+    much like Thumb, however only the Branch instruction is conditionally
+    executable.
+  
+  \chapter{Registers}
+    MEOW uses 4 bits to describe registers, and thus has 16 available.
+    Additionally, it has two banks of these 16 registers, and swaps between
+    them when entering interrupt mode, such that it can have its own stack,
+    and other environmental values untouched by the program executing.
+    
+    Most of these registers are completely general-purpose, where some are 
+    special-purpose.  Others inhabit the range between the two.  Registers are
+    usually referred to using \emph{Rx} notation, such that the first
+    register is \emph{R0}, the second \emph{R1} and so on.  There are also
+    aliases for the special-purpose registers, such that symbolic names
+    such as \emph{pc} can be used in place of \emph{R15}.
+    
+    \emph{R0 $\to$ R12} are completely general-purpose.  The CPU has no
+    specific use for them, and the programmer is free to use them entirely as
+    they wish.  Any operating system or calling standard may of course
+    specify uses for them, but that is out of the scope of this document.
+    
+    \emph{R11 $\to$ R15} vary between recommended usage, and specific purpose.
+    \begin{figure}[h]
+      \begin{tabular}{c c l}
+        Register   & Alias     & Purpose\\
+        \hline
+        \emph{R0 $\to$ R10} &  & General purpose\\
+        \emph{R11} & \emph{sp} & Recommended as stack pointer, general purpose\\
+        \emph{R12} & \emph{lr} & Recommended as link register, general purpose\\
+        \emph{R13} & \emph{ir} & Immediate register, recommended as
+                                      syscall register, general purpose\\
+        \emph{R14} & \emph{sr} & Status register\\
+        \emph{R15} & \emph{pc} & Program counter
+      \end{tabular}
+      \caption{Register usage and aliases}
+      \label{fig:registers}
+    \end{figure}
+
+    All registers are 32 bits wide.
+
+    \newpage
+
+    \section{Special-purpose registers}
+      \subsection{Status Register}
+        \label{sec:statusregister}
+        The status register contains flags describing the current state of
+        the MCU.  These include the condition flags used for deciding if a
+        branch should be taken, and if we are in interrupt mode.
+        \begin{figure}[h]
+          \begin{center}\includegraphics[width=1\textwidth]{encoding-sr.pdf}
+          \end{center}
+          \begin{tabular}{r l}
+            Bit & Meaning\\
+            \hline
+            N & Non-zero\\
+            Z & Zero\\
+            C & Carry\\
+            V & Overflow\\
+            Undefined & No current meaning. \emph{Write the same as you read.}\\
+            I & Set if in interrupt mode.  \emph{Read-only}.
+          \end{tabular}
+          \caption{Contents of the status register}
+          \label{fig:statusregister}
+        \end{figure}
+        
+
+      \subsection{Program Counter}
+        The program counter register contains the address in memory of the
+        currently executing instruction.  As MEOW is not a pipelined CPU,
+        there are no surprises here --- instructions can reference themselves
+        via \emph{pc} without applying any offset.
+        \begin{figure}[h]
+          \begin{center}\includegraphics[width=1\textwidth]{encoding-pc.pdf}
+          \end{center}
+          MEOW only supports executing instructions that are on 2-byte
+          boundries, and as such \emph{X} must always be zero.  What happens
+          when it is set to one is \emph{UNDEFINED}.
+          \caption{Contents of the program counter}
+          \label{fig:programcounter}
+        \end{figure}        
+
+  \chapter{Instructions}
+    This chapter describes each of MEOW's instructions, including their bit
+    encodings, and suggested assembler mnemonics.
+    
+    All of MEOW's instructions are 16 bits wide, and have their opcode encoded
+    into the first three bits.  The other bits of the instructions are
+    reasonably consistently used.  For example, bits 11 $\to$ 8 are always used
+    to store the destination register if the instruction acts on one.
+    
+    While some of the instructions will seem familiar to ARM programmers,
+    others such as the \texttt{BIT} and \texttt{MEM} instructions will not.
+    However, assembler macros are usually built using these instructions in
+    order to provide more friendly ARM-like instructions such as \texttt{AND},
+    \texttt{EOR}, \texttt{LDR} etc.
+    
+    \newpage
+    
+    \section{Branch --- B}
+      \begin{center}
+         \includegraphics[width=0.75\textwidth]{encoding-b.pdf}
+      \end{center}
+      Tells the MCU to start executing instructions from another location in
+      memory, if the conditions are right.
+      \subsection*{Syntax}
+        \texttt{B\{cond\} \#offset}
+        
+        The condition part of the instruction is optional, and if it is
+        omitted, it is assumed that it is \emph{AL}.  The offset is a signed
+        9 bit immediate, shifted right one bit so that it fits into 8 bits.
+        This gives the branch instruction the range of -510 to 512.
+        
+        \begin{figure}[h]
+          \begin{tabular}{c c c c}
+            Bits & Mnemonic & Meaning            & Status register mapping\\
+            \hline
+            0000 & EQ & Equal                    & Z = 1\\
+            0001 & NE & Not equal                & Z = 0\\
+            0010 & CS & Carry set                & C = 1\\
+            0010 & HS & Higher/same (unsigned)   & Same as CS\\
+            0011 & CC & Carry clear              & C = 0\\
+            0011 & LO & Lower (unsigned)         & Same as CC\\
+            0100 & MI & Negative                 & N = 1\\
+            0101 & PL & Positive                 & N = 0\\
+            0110 & VS & Overflow set             & V = 1\\
+            0111 & VC & Overflow clear           & V = 0\\
+            1000 & HI & Higher (unsigned)        & C = 1 and Z = 0\\
+            1001 & LS & Lower or same (unsigned) & C = 0 or Z = 1\\
+            1010 & GE & Greater than or equal    & N = V\\
+            1011 & LT & Less than                & N $\ne$ V\\
+            1100 & GT & Greater than             & N = V and Z = 0\\
+            1101 & LE & Less than or equal       & N $\ne$ V or Z = 1\\
+            1110 & AL & Always                   & Any, this is the default\\
+            1111 & NV & \emph{UNDEFINED}         & Do not use\\
+          \end{tabular}
+          \caption{Condition code bit mappings and meanings}
+        \end{figure}
+        
+      
+      \subsection*{Operation}
+      
+      \texttt{if cond is satisfied, \emph{pc} $\gets$ \emph{pc} + offset}
+      
+      \newpage
+
+    \section{Addition -- ADD}
+      \subsection*{Add two registers and a 4 bit immediate}
+        \begin{center}
+          \includegraphics[width=0.75\textwidth]{encoding-add-0.pdf}
+         \end{center}
+         Add two registers together, and then add an unsigned 4 bit integer,
+         and store the result in the first register.
+         \subsubsection*{Syntax}
+           \texttt{ADD <\emph{Rd}>, <\emph{Rs}>, \#immediate}
+         \subsubsection*{Operation}
+           \texttt{\emph{Rd} $\gets$ ( \emph{Rd} + \emph{Rs} ) + immediate}
+         
+      \subsection*{Add register and an 8 bit immediate}
+        \begin{center}
+          \includegraphics[width=0.75\textwidth]{encoding-add-1.pdf}
+         \end{center}
+         Add the contents of a register and an unsigned 8 bit integer and
+         store the result back into the register.
+         \subsubsection*{Syntax}
+           \texttt{ADD <\emph{Rd}>, \#immediate}
+         \subsubsection*{Operation}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} + immediate}
+    
+      \newpage
+      
+    \section{Subtraction -- SUB}
+      \subsection*{Subtracts two registers and a 4 bit immediate}
+        \begin{center}
+          \includegraphics[width=0.75\textwidth]{encoding-sub-0.pdf}
+         \end{center}
+         Substract two registers from each other, and then subtract an unsigned
+         4 bit integer, and store the result in the first register.
+         \subsubsection*{Syntax}
+           \texttt{SUB <\emph{Rd}>, <\emph{Rs}>, \#immediate}
+         \subsubsection*{Operation}
+           \texttt{\emph{Rd} $\gets$ ( \emph{Rd} - \emph{Rs} ) - immediate}
+         
+      \subsection*{Subtracts register and an 8 bit immediate}
+        \begin{center}
+          \includegraphics[width=0.75\textwidth]{encoding-sub-1.pdf}
+         \end{center}
+         Subtracts the contents of a register and an unsigned 8 bit integer and
+         store the result back into the register.
+         \subsubsection*{Syntax}
+           \texttt{SUB <\emph{Rd}>, \#immediate}
+         \subsubsection*{Operation}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} - immediate}
+    
+      \newpage   
+    
+    
+    \section{Bitwise - BIT}
+    \section{Compare - CMP / TST}
+    \section{Bit Manipulation - BIT}
+    \section{Bit Shifting - LSH}
+    \section{Memory Access - MEM}
+  
+  \chapter{Memory Layout}
+  
+  \chapter{System Controller}
+    \section{Chip-select information table}
+    \section{Interrupt controller}
+    \section{Programmable interrupt timer}
+
+\end{document}
+
