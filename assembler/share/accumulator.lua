@@ -5,6 +5,8 @@ local output_count = 0
 local output_labels = {}
 local output_info = {}
 local queue_routines
+local valid_deferred_labels = {}
+local global_labels = {}
 
 local function normal_queue_bytes(info, ...)
    -- A sequence of bytes (or strings if wanted) are appended to the output stream
@@ -48,9 +50,32 @@ queue_routines = {
 function _queue_bytes(...) queue_routines.bytes(...) end
 function _queue_callback(...) queue_routines.callback(...) end
 
+local function __missing_newline()
+   local v = output_stream[table.getn(output_stream)]
+   if type(v) == "string" then
+      if string.sub(v, -1) == "\n" then return true end
+      _queue_bytes(nil, "\n")
+   else
+      return "defer", 0, __missing_newline
+   end
+   return true
+end
+
+function _queue_missing_newline()
+   _queue_callback(nil, __missing_newline)
+end
+
 local function _define_label(info, stream_pos, str)
    -- Actually define the label at the current point in the output stream
    output_labels[stream_pos] = str
+end
+
+local labelnum = 0
+local function generate_fake_label(str)
+   -- Generate a "unique" label replacement
+   if global_labels[str] then return str end
+   labelnum = labelnum + 1
+   return str .. "_UNIQ_" .. tostring(math.random(100000)) .. "_" .. tostring(os.time()) .. "_" .. tostring(labelnum)
 end
 
 function define_label(info, str)
@@ -58,7 +83,20 @@ function define_label(info, str)
    if fc == ">" or fc == "<" or fc == "#" or (fc >= "0" and fc <= "9") then
       whinge(info, "Bad label, cannot start with 0-9><#: %s", str)
    end
-   _queue_callback(info, _define_label, str)
+   if do_intermediate() then
+      valid_deferred_labels[str] = generate_fake_label(str)
+      _queue_bytes(info, valid_deferred_labels[str])
+   else
+      _queue_callback(info, _define_label, str)
+   end
+end
+
+function meow_op_global(info, labelname)
+   global_labels[labelname] = true
+   valid_deferred_labels[labelname] = labelname
+   if do_intermediate() then
+      _queue_bytes(info, "\tglobal\t", labelname, "\n")
+   end
 end
 
 function is_label(str)
@@ -76,6 +114,11 @@ end
 function find_label(streampos, str)
    local fc = string.sub(str, 1, 1)
    local cand1, cand2
+   if do_intermediate() then
+      if fc == "<" or fc == ">" then str = string.sub(str, 2) end
+      print("hunt", str)
+      return valid_deferred_labels[str]
+   end
    if fc == "<" then
       cand1 = scan_for_label(streampos, string.sub(str, 2), -1)
    elseif fc == ">" then
@@ -217,6 +260,9 @@ function dump_stream(f)
       if type(v) == "number" then
 	 f:write((string.char(v)))
       else
+	 if type(v) ~= "string" then
+	    _dump("dump_stream_arg", v)
+	 end
 	 f:write(v)
       end
       f:flush()

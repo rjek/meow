@@ -26,6 +26,10 @@ function meow_op_include(info, fname)
    parse(file, name)
 end
 
+function do_intermediate()
+   return masm.output_intermediate == true
+end
+
 function masm_main(...)
    local argv = {...}
    local ignore = {}
@@ -47,6 +51,8 @@ function masm_main(...)
 	       os.exit(1)
 	    end
 	    masm.output_file = argv[i+1]
+	 elseif v == "-c" then
+	    masm.output_intermediate = true
 	 elseif string.sub(v,1,1) == "-" then
 	    verbose(0, "Unknown argument '`%s`' at position %d.", v, i)
 	    os.exit(1)

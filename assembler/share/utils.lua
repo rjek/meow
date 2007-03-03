@@ -57,7 +57,8 @@ function parse_positional(info, str)
       return { type="string", value=resolve_string(str), tag=str }
    end
    if is_label(str) then
-      return { type="label", value=str }
+      local ret = { type="label", value=str }
+      return ret
    end
    whinge(info, 
 	  "Unable to parse positional argument '%s'. Expecting register, number, string or label.", str)

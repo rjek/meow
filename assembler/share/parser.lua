@@ -80,10 +80,16 @@ function parser_steal_line()
    return parser_files[1]:read("*l"), parser_lines[1]
 end
 
+local parse_level = 0
 function parse(f, filename)
    -- parse the file-like object f which comes from file 'filename'
    -- into the assembler's internal state.
    verbose(3, "  read %s", filename)
+   parse_level = parse_level + 1
+   if do_intermediate() then
+      _queue_missing_newline() 
+      _queue_bytes(nil, ";;;", string.rep(" ", parse_level), "> ", filename, "\n")
+   end
    table.insert(parser_files, 1, f)
    table.insert(parser_lines, 1, 0)
    local line, linenumber = parser_steal_line();
@@ -102,5 +108,10 @@ function parse(f, filename)
       line, linenumber = parser_steal_line()
    end
    table.remove(parser_files, 1)
+   if do_intermediate() then 
+      _queue_missing_newline() 
+      _queue_bytes(nil, ";;;", string.rep(" ", parse_level), "< ", filename, "\n")
+   end
+   parse_level = parse_level - 1
 end
 
