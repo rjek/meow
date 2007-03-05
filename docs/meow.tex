@@ -207,7 +207,7 @@
       \newpage
 
     \section{Addition}
-      \subsection{ADD(1) -- Add two registers and a 4 bit immediate}
+      \subsection{ADD(1) --- Add two registers and a 4 bit immediate}
         \begin{center}\begin{bytefield}{16}
           \bitheader[b]{0, 3, 4, 7, 8, 11, 12, 13, 15}\\
           \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} & 
@@ -221,7 +221,8 @@
          \subsubsection*{Syntax}
            \texttt{ADD <\emph{Rd}>, <\emph{Rs}>, \#immediate}
          \subsubsection*{Operation}
-           \texttt{\emph{Rd} $\gets$ ( \emph{Rd} + \emph{Rs} ) + immediate}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} + \emph{Rs} +
+             SignExtend(immediate)}
          
       \subsection{ADD(2) --- Add register and an 8 bit immediate}
         \begin{center}\begin{bytefield}{16}
@@ -236,7 +237,7 @@
          \subsubsection*{Syntax}
            \texttt{ADD <\emph{Rd}>, \#immediate}
          \subsubsection*{Operation}
-           \texttt{\emph{Rd} $\gets$ \emph{Rd} + immediate}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} + SignExtend(immediate)}
     
       \newpage
       
@@ -255,7 +256,8 @@
          \subsubsection*{Syntax}
            \texttt{SUB <\emph{Rd}>, <\emph{Rs}>, \#immediate}
          \subsubsection*{Operation}
-           \texttt{\emph{Rd} $\gets$ ( \emph{Rd} - \emph{Rs} ) - immediate}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} - \emph{Rs} - 
+             SignExtend(immediate)}
          
       \subsection{SUB(2) --- Subtracts register and an 8 bit immediate}
         \begin{center}\begin{bytefield}{16}
@@ -270,7 +272,7 @@
          \subsubsection*{Syntax}
            \texttt{SUB <\emph{Rd}>, \#immediate}
          \subsubsection*{Operation}
-           \texttt{\emph{Rd} $\gets$ \emph{Rd} - immediate}
+           \texttt{\emph{Rd} $\gets$ \emph{Rd} - SignExtend(immediate)}
     
       \newpage   
     
@@ -290,11 +292,11 @@
           \texttt{CMP <\emph{Rs}>, \#immediate}
         \subsubsection*{Operation}
           \begin{texttt}
-            alu\_out $\gets$ \emph{Rs} - immediate\\
-            if (\emph{Rs} - immediate) is negative then \emph{sr}[N] $\gets$ 1 else 0\\
-            if (\emph{Rs} - immediate) = 0 then \emph{sr}[Z] $\gets$ 1 else 0\\
-            if (immediate $\ge$ \emph{Rs}) then \emph{sr}[C] $\gets$ 1 else 0\\
-            if OverflowFrom(\emph{Rs} - immediate) then \emph{sr}[V] $\gets$ 1 else 0
+            alu\_out $\gets$ \emph{Rs} - SignExtend(immediate)\\
+            if (alu\_out) is negative then \emph{sr}[N] $\gets$ 1 else 0\\
+            if (alu\_out) = 0 then \emph{sr}[Z] $\gets$ 1 else 0\\
+            if (SignExtend(immediate) $\ge$ \emph{Rs}) then \emph{sr}[C] $\gets$ 1 else 0\\
+            if OverflowFrom(\emph{Rs} - SignExtend(immediate)) then \emph{sr}[V] $\gets$ 1 else 0
           \end{texttt}
 
       \subsection{CMP(2) --- Compare two registers from either banks}
@@ -305,14 +307,14 @@
           \bitbox{4}{\emph{Rn}} &
           \bitbox{1}{0} &
           \bitbox{1}{0} &
-          \bitbox{1}{n} &
-          \bitbox{1}{x} &
+          \bitbox{1}{$B^{n}$} &
+          \bitbox{1}{$B^{x}$} &
           \bitbox{4}{\emph{Rx}}
         \end{bytefield}\end{center}
         
         Compare the contents of two registers, either from either of the
         register banks, and update the status flags reflecting the results.
-        The \emph{n} and \emph{x} bits are set to 1 if the corresponding
+        The \emph{$B^{n}$} and \emph{$B^{x}$} bits are set to 1 if the corresponding
         \emph{Rn} or \emph{Rx} are to be read from the alternative bank.
         \subsubsection*{Syntax}
           \texttt{CMP <\emph{\{A\}Rn}>, <\emph{\{A\}Rx}>}
@@ -333,27 +335,180 @@
           \bitbox{4}{\emph{Rn}} &
           \bitbox{1}{1} &
           \bitbox{1}{0} &
-          \bitbox{1}{n} &
+          \bitbox{1}{$B^{n}$} &
           \bitbox{5}{immed}
         \end{bytefield}\end{center}
         
         Test to see if a specific bit is set in a register, which can be from
         either bank, and update the status flags reflecting the results.  The
         instruction stores which bit to test in a 5 bit unsigned immediate.
-        If the \emph{n} bit is set, then the register compared against is from
-        the alternative bank.
+        If the \emph{$B^{n}$} bit is set, then the register compared against is
+        from the alternative bank.
         \subsubsection*{Syntax}
           \texttt{TST <\emph{\{A\}Rs}>, \#immediate}
         \subsubsection*{Operation}
           \begin{texttt}
-            alu\_out $\gets$ \emph{Rn} AND (1 shifted left \#immediate bits)\\
+            alu\_out $\gets$ \emph{Rn} AND (1 $\ll$ immediate)\\
             \emph{sr}[N] $\gets$ alu\_out[31]\\
             if alu\_out = 0 then \emph{sr}[Z] $\gets$ 1 else 0
           \end{texttt}
       \newpage
      
-    \section{Move - MOV / LDI}
-    \section{Bit Shifting - LSH}    
+    \section{Moving Registers}
+      \subsection{MOV --- Move contents of registers, with optional byte swapping}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{0} &
+          \bitbox{1}{0} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{1}{B} &
+          \bitbox{1}{W} &
+          \bitbox{1}{$B^{d}$} &
+          \bitbox{1}{$B^{s}$} &
+          \bitbox{4}{\emph{Rs}}
+        \end{bytefield}\end{center}
+        
+        Moves the contents of one register to another, overwriting the
+        destiniation's current value.  It can optionally read or write to
+        the alternative bank by appropriately setting \emph{$B^{d}$} or
+        \emph{$B^{s}$}.  It can also perform some data manipulation while
+        the move happens.  The \emph{B} bit will cause all the bytes in the
+        register to be swapped with their neighbour.  The \emph{W} bit will
+        swap the two halves of the register.  Combining both bits will give
+        you a endian swap.
+        
+        \subsubsection*{Syntax}
+          \texttt{MOV\{B\}\{W\} <\emph{\{A\}Rd}>, <\emph{\{A\}Rs}>}
+          
+        \subsubsection*{Operation}
+          alu\_out $\gets$ \emph{Rs}\\
+          if B bit, alu\_out $\gets$ (alu\_out \& 0xff00ff00) $\gg$ 8 ORR
+                                     (alu\_out \& 0x00ff00ff) $\ll$ 8\\
+          if W bit, alu\_out $\gets$ (alu\_out $\ll$ 16) ORR
+                                     (alu\_out $\gg$ 16)\\
+          \emph{Rd} $\gets$ alu\_out
+      
+        \subsection{LDI --- Load 12 bit signed immediate into IR/R13}
+          \begin{center}\begin{bytefield}{16}
+            \bitheader[b]{0, 11, 12, 13, 15}\\
+            \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{0} &
+            \bitbox{1}{1} &
+            \bitbox{12}{immed}
+          \end{bytefield}\end{center}
+          
+          Moves a 12 bit signed immediate value into \emph{R13}, the
+          Immediate Register, or \emph{ir} for short.  This allows values from
+          -2048 to 2047 to be easily obtained.
+          
+          \subsubsection*{Syntax}
+            \texttt{LDI \#immediate}
+            
+          \subsubsection*{Operation}
+            \emph{ir} $\gets$ SignExtend(immediate)
+      
+      \newpage
+      
+    \section{Bit Shifting}
+      \subsection{LSH(1) --- Shifting by immediate}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
+          \bitbox{1}{A} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{1}{D} &
+          \bitbox{1}{R} &
+          \bitbox{1}{0} &
+          \bitbox{5}{immed}
+        \end{bytefield}\end{center}
+        
+        Precisely what this instruction does is controlled by the bits
+        \emph{A}, \emph{D} and \emph{R}.  Setting them in different ways allows
+        you to recreate ARM-like instructions such as LSL, LSR, ROL, ROR, ASR,
+        etc:
+        \\
+        \\
+        \begin{tabular}{c l}
+          Bit & Meaning\\
+          \hline
+          A & 1 $\Rightarrow$ arithmetic, 0 $\Rightarrow$ logical\\
+          D & 1 $\Rightarrow$ shift right, 0 $\Rightarrow$ shift left\\
+          R & 1 $\Rightarrow$ rotate, 0 $\Rightarrow$ shift
+        \end{tabular}
+        \\
+        \\
+        The immediate is a 5 bit unsigned value describing a number of
+        positions to shift or roll, between 0 and 31.
+        
+        \subsubsection*{Syntax}
+          Due to this instruction's flexibility, several mnemonics are
+          suggested for it, depending on the combinations of option bits that
+          are set:
+          \\
+          \\*
+          \texttt{
+            \begin{tabular}{l l}
+              LSL <\emph{Rd}>, \#immediate & ; logical shift left\\
+              LSR <\emph{Rd}>, \#immediate & ; logical shift right\\
+              ASL <\emph{Rd}>, \#immediate & ; arithmetic shift left\\
+              ASR <\emph{Rd}>, \#immediate & ; arithmetic shift right\\
+              ROL <\emph{Rd}>, \#immediate & ; logical roll left\\
+              ROR <\emph{Rd}>, \#immediate & ; logical roll right\\
+            \end{tabular}
+          }
+
+        \subsection{LSH(2) -- Shifting by register}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
+          \bitbox{1}{A} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{1}{D} &
+          \bitbox{1}{R} &
+          \bitbox{1}{1} &
+          \bitbox{1}{0} &
+          \bitbox{4}{\emph{Rs}}
+        \end{bytefield}\end{center}
+        
+        Precisely what this instruction does is controlled by the bits
+        \emph{A}, \emph{D} and \emph{R}.  Setting them in different ways allows
+        you to recreate ARM-like instructions such as LSL, LSR, ROL, ROR, ASR,
+        etc:
+        \\
+        \\
+        \begin{tabular}{c l}
+          Bit & Meaning\\
+          \hline
+          A & 1 $\Rightarrow$ arithmetic, 0 $\Rightarrow$ logical\\
+          D & 1 $\Rightarrow$ shift right, 0 $\Rightarrow$ shift left\\
+          R & 1 $\Rightarrow$ rotate, 0 $\Rightarrow$ shift
+        \end{tabular}
+        \\
+        \\
+        The source register should contain a number between 0 and 31,
+        describing the amount to shift or roll by.  Other values are
+        currently \emph{UNDEFINED}.
+        
+        \subsubsection*{Syntax}
+          Due to this instruction's flexibility, several mnemonics are
+          suggested for it, depending on the combinations of option bits that
+          are set:
+          \\
+          \\*
+          \texttt{
+            \begin{tabular}{l l}
+              LSL <\emph{Rd}>, <\emph{Rs}> & ; logical shift left\\
+              LSR <\emph{Rd}>, <\emph{Rs}> & ; logical shift right\\
+              ASL <\emph{Rd}>, <\emph{Rs}> & ; arithmetic shift left\\
+              ASR <\emph{Rd}>, <\emph{Rs}> & ; arithmetic shift right\\
+              ROL <\emph{Rd}>, <\emph{Rs}> & ; logical roll left\\
+              ROR <\emph{Rd}>, <\emph{Rs}> & ; logical roll right\\
+            \end{tabular}
+          }
+        
+
+      \newpage
+      
+      
     \section{Bit Manipulation - BIT}
     \section{Memory Access - MEM}
   
