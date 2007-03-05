@@ -1,4 +1,4 @@
-\documentclass[12t,a4paper,twoside]{report}
+\documentclass[a4paper,twoside]{book}
 
 \author{\copyright~\href{http://www.rjek.com/}{Rob Kendrick} and
          \href{http://www.digital-scurf.org}{Daniel Silverstone}, 2007}
@@ -10,8 +10,9 @@
 
 \usepackage[pdftex]{hyperref} % must be last thing in document preamble.
 
-\begin{document}
+\usepackage{bytefield}
 
+\begin{document}
   \tableofcontents{}
   
   \chapter{Introduction}
@@ -29,6 +30,9 @@
     instruction set, as it is designed to be similar.  It is 16 bits wide,
     much like Thumb, however only the Branch instruction is conditionally
     executable.
+    
+    This reference guide describes \emph{MEOW v0}, the initial version of
+    the architecture.
   
   \chapter{Registers}
     MEOW uses 4 bits to describe registers in its instructions, and thus has
@@ -55,8 +59,8 @@
         \emph{R0 $\to$ R10} &  & General purpose\\
         \emph{R11} & \emph{sp} & Recommended as stack pointer, general purpose\\
         \emph{R12} & \emph{lr} & Recommended as link register, general purpose\\
-        \emph{R13} & \emph{ir} & Immediate register, recommended as
-                                      syscall register, general purpose\\
+        \emph{R13} & \emph{ir} & Immediate register, recommended as\\
+                   &           & syscall register, general purpose\\
         \emph{R14} & \emph{sr} & Status register\\
         \emph{R15} & \emph{pc} & Program counter
       \end{tabular}
@@ -85,9 +89,18 @@
         The status register contains flags describing the current state of
         the MCU.  These include the condition flags used for deciding if a
         branch should be taken, and if we are in interrupt mode.
+
         \begin{figure}[h]
-          \begin{center}\includegraphics[width=1\textwidth]{encoding-sr.pdf}
-          \end{center}
+          \begin{bytefield}{32}
+            \bitheader[b]{0, 1, 27, 28, 29, 30, 31}\\
+            \bitbox{1}{N} &
+            \bitbox{1}{Z} &
+            \bitbox{1}{C} &
+            \bitbox{1}{V} &
+            \bitbox{27}{undefined} &
+            \bitbox{1}{I}\\
+          \end{bytefield}
+          
           \begin{tabular}{r l}
             Bit & Meaning\\
             \hline
@@ -95,7 +108,7 @@
             Z & Zero\\
             C & Carry\\
             V & Overflow\\
-            Undefined & No current meaning. \emph{Write the same as you read.}\\
+            Undefined & No current meaning. Maintain the values stored here.\\
             I & Set if in interrupt mode.  \emph{Read-only}.
           \end{tabular}
           \caption{Contents of the status register}
@@ -109,8 +122,11 @@
         there are no surprises here --- instructions can reference themselves
         via \emph{pc} without applying any offset.
         \begin{figure}[h]
-          \begin{center}\includegraphics[width=1\textwidth]{encoding-pc.pdf}
-          \end{center}
+          \begin{bytefield}{32}
+            \bitheader[b]{0, 1, 31}\\
+            \bitbox{31}{address} &
+            \bitbox{1}{X}\\
+          \end{bytefield}\\
           MEOW only supports executing instructions that are on 2-byte
           boundries, and as such \emph{X} must always be zero.  What happens
           when it is set to one is \emph{UNDEFINED}.
@@ -119,6 +135,10 @@
         \end{figure}        
 
   \chapter{Instructions}
+    \setlength{\bitwidth}{2em} % All the bitfields in this chapter are 16 bits,
+                               % and they look a bit puny compared to the 32
+                               % bit ones earlier, so we make them a bit wider
+
     This chapter describes each of MEOW's instructions, including their bit
     encodings, and suggested assembler mnemonics.
     
@@ -135,10 +155,14 @@
     
     \newpage
     
-    \section{Branch --- B}
-      \begin{center}
-         \includegraphics[width=0.75\textwidth]{encoding-b.pdf}
-      \end{center}
+    \section{B --- Branch}
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 8, 9, 12, 13, 14, 15}\\
+        \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{0} & 
+	\bitbox{4}{cond} &
+	\bitbox{9}{signed offset}
+      \end{bytefield}\end{center}
+      
       Tells the MCU to start executing instructions from another location in
       memory, if the conditions are right.
       \subsection*{Syntax}
@@ -170,7 +194,7 @@
             1100 & GT & Greater than             & N = V and Z = 0\\
             1101 & LE & Less than or equal       & N $\ne$ V or Z = 1\\
             1110 & AL & Always                   & Any, this is the default\\
-            1111 & NV & \emph{UNDEFINED}         & Do not use\\
+            1111 & NV & \emph{BNV extension space} & Do not use\\
           \end{tabular}
           \caption{Condition code bit mappings and meanings}
         \end{figure}
@@ -183,10 +207,15 @@
       \newpage
 
     \section{Addition}
-      \subsection*{Add two registers and a 4 bit immediate -- ADD(1)}
-        \begin{center}
-          \includegraphics[width=0.75\textwidth]{encoding-add-0.pdf}
-         \end{center}
+      \subsection{ADD(1) -- Add two registers and a 4 bit immediate}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 3, 4, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} & 
+          \bitbox{1}{0} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{4}{immed} &
+          \bitbox{4}{\emph{Rs}}
+        \end{bytefield}\end{center}
          Add two registers together, and then add an unsigned 4 bit integer,
          and store the result in the first register.
          \subsubsection*{Syntax}
@@ -194,10 +223,14 @@
          \subsubsection*{Operation}
            \texttt{\emph{Rd} $\gets$ ( \emph{Rd} + \emph{Rs} ) + immediate}
          
-      \subsection*{Add register and an 8 bit immediate -- ADD(2)}
-        \begin{center}
-          \includegraphics[width=0.75\textwidth]{encoding-add-1.pdf}
-         \end{center}
+      \subsection{ADD(2) --- Add register and an 8 bit immediate}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} & 
+          \bitbox{1}{1} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{8}{immed}
+        \end{bytefield}\end{center}
          Add the contents of a register and an unsigned 8 bit integer and
          store the result back into the register.
          \subsubsection*{Syntax}
@@ -208,10 +241,15 @@
       \newpage
       
     \section{Subtraction}
-      \subsection*{Subtracts two registers and a 4 bit immediate -- SUB(1)}
-        \begin{center}
-          \includegraphics[width=0.75\textwidth]{encoding-sub-0.pdf}
-         \end{center}
+      \subsection{SUB(1) --- Subtracts two registers and a 4 bit immediate}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 3, 4, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{0} & 
+          \bitbox{1}{0} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{4}{immed} &
+          \bitbox{4}{\emph{Rs}}
+        \end{bytefield}\end{center}
          Substract two registers from each other, and then subtract an unsigned
          4 bit integer, and store the result in the first register.
          \subsubsection*{Syntax}
@@ -219,10 +257,14 @@
          \subsubsection*{Operation}
            \texttt{\emph{Rd} $\gets$ ( \emph{Rd} - \emph{Rs} ) - immediate}
          
-      \subsection*{Subtracts register and an 8 bit immediate -- SUB(2)}
-        \begin{center}
-          \includegraphics[width=0.75\textwidth]{encoding-sub-1.pdf}
-         \end{center}
+      \subsection{SUB(2) --- Subtracts register and an 8 bit immediate}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{0} &
+          \bitbox{1}{1} &
+          \bitbox{4}{\emph{Rd}} &
+          \bitbox{8}{immed}
+        \end{bytefield}\end{center}
          Subtracts the contents of a register and an unsigned 8 bit integer and
          store the result back into the register.
          \subsubsection*{Syntax}
@@ -233,8 +275,14 @@
       \newpage   
     
     \section{Comparison}
-      \subsection*{Compare register to an 8 bit signed immediate - CMP(1)}
-        \emph{TODO: put bitfield diagram here}
+      \subsection{CMP(1) --- Compare register to an 8 bit signed immediate}
+        \begin{center}\begin{bytefield}{16}
+	  \bitheader[b]{0, 7, 8, 11, 12, 13, 15}\\
+	  \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{1} &
+          \bitbox{1}{0} &
+          \bitbox{4}{\emph{Rs}} &
+          \bitbox{8}{immed}
+        \end{bytefield}\end{center}
         
         Compare the contents of a register to an 8 bit signed immediate value,
         and update the status flags reflecting the results.
@@ -249,11 +297,23 @@
             if OverflowFrom(\emph{Rs} - immediate) then \emph{sr}[V] $\gets$ 1 else 0
           \end{texttt}
 
-      \subsection*{Compare two registers from either banks - CMP(2)}
-        \emph{TODO: put bitfield diagram here}
+      \subsection{CMP(2) --- Compare two registers from either banks}
+        \begin{center}\begin{bytefield}{16}
+	  \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+	  \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{1} &
+          \bitbox{1}{1} &
+          \bitbox{4}{\emph{Rn}} &
+          \bitbox{1}{0} &
+          \bitbox{1}{0} &
+          \bitbox{1}{n} &
+          \bitbox{1}{x} &
+          \bitbox{4}{\emph{Rx}}
+        \end{bytefield}\end{center}
         
         Compare the contents of two registers, either from either of the
         register banks, and update the status flags reflecting the results.
+        The \emph{n} and \emph{x} bits are set to 1 if the corresponding
+        \emph{Rn} or \emph{Rx} are to be read from the alternative bank.
         \subsubsection*{Syntax}
           \texttt{CMP <\emph{\{A\}Rn}>, <\emph{\{A\}Rx}>}
         \subsubsection*{Operation}
@@ -265,12 +325,23 @@
             if OverflowFrom(\emph{Rn} - \emph{Rx}) then \emph{sr}[V] $\gets$ 1 else 0
           \end{texttt}
 
-      \subsection*{Test if a bit is set in a register - TST}
-        \emph{TODO: put bitfield diagram here}
+      \subsection{TST --- Test if a bit is set in a register}
+        \begin{center}\begin{bytefield}{16}
+          \bitheader[b]{0, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+          \bitbox[ltb]{1}{0} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{1} &
+          \bitbox{1}{1} &
+          \bitbox{4}{\emph{Rn}} &
+          \bitbox{1}{1} &
+          \bitbox{1}{0} &
+          \bitbox{1}{n} &
+          \bitbox{5}{immed}
+        \end{bytefield}\end{center}
         
         Test to see if a specific bit is set in a register, which can be from
         either bank, and update the status flags reflecting the results.  The
         instruction stores which bit to test in a 5 bit unsigned immediate.
+        If the \emph{n} bit is set, then the register compared against is from
+        the alternative bank.
         \subsubsection*{Syntax}
           \texttt{TST <\emph{\{A\}Rs}>, \#immediate}
         \subsubsection*{Operation}
