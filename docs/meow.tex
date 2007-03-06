@@ -1,12 +1,13 @@
-\documentclass[a4paper,twoside]{book}
+\documentclass[a4paper,twoside,openany]{book}
 
 \author{\copyright~\href{http://www.rjek.com/}{Rob Kendrick} and
          \href{http://www.digital-scurf.org}{Daniel Silverstone}, 2007}
 \title{MEOW MCU Reference Guide, Version 0}
 \date{02 March 2007}
 
-\usepackage[pdftex]{hyperref} % must be last thing in document preamble.
+\pagestyle{headings}
 \usepackage{bytefield}
+\usepackage[pdftex]{hyperref} % must be last thing in document preamble.
 
 \begin{document}
   \tableofcontents{}
@@ -404,104 +405,76 @@
       
       \newpage
       
-    \section{Bit Shifting}
-      \subsection{LSH(1) --- Shifting by immediate}
-        \begin{center}\begin{bytefield}{16}
-          \bitheader[b]{0, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
-          \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
-          \bitbox{1}{A} &
-          \bitbox{4}{\emph{Rd}} &
-          \bitbox{1}{D} &
-          \bitbox{1}{R} &
-          \bitbox{1}{0} &
-          \bitbox{5}{immed}
-        \end{bytefield}\end{center}
-        
-        Precisely what this instruction does is controlled by the bits
-        \emph{A}, \emph{D} and \emph{R}.  Setting them in different ways allows
-        you to recreate ARM-like instructions such as LSL, LSR, ROL, ROR, ASR,
-        etc:
+    \section{Bit Shifting and Rotating}
+      By immediate constant:\\*
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+        \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
+        \bitbox{1}{A} &
+        \bitbox{4}{\emph{Rd}} &
+        \bitbox{1}{D} &
+        \bitbox{1}{R} &
+        \bitbox{1}{0} &
+        \bitbox{5}{immed}
+      \end{bytefield}\end{center}
+      By value in register:\\*
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+        \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
+        \bitbox{1}{A} &
+        \bitbox{4}{\emph{Rd}} &
+        \bitbox{1}{D} &
+        \bitbox{1}{R} &
+        \bitbox{1}{1} &
+        \bitbox{1}{0} &
+        \bitbox{4}{\emph{Rs}}
+      \end{bytefield}\end{center}    
+            
+      Precisely what this instruction does is controlled by the bits
+      \emph{A}, \emph{D} and \emph{R}.  Setting them in different ways allows
+      you to recreate ARM-like instructions such as LSL, LSR, ROL, ROR, ASR,
+      etc:
+      \\
+      \\
+      \begin{tabular}{c l}
+        Bit & Meaning\\
+        \hline
+        A & Style, 1 $\Rightarrow$ arithmetic, 0 $\Rightarrow$ logical\\
+        D & Direction, 1 $\Rightarrow$ right, 0 $\Rightarrow$ left\\
+        R & Type, 1 $\Rightarrow$ rotate, 0 $\Rightarrow$ shift
+      \end{tabular}
+      \\
+      \\
+      The immediate is a 5 bit unsigned value describing a number of
+      positions to shift or roll, between 0 and 31.
+      
+      \subsection*{Syntax}
+        Due to this instruction's flexibility, several mnemonics are
+        suggested for it, depending on the combinations of option bits that
+        are set.  These are:
         \\
         \\
         \begin{tabular}{c l}
-          Bit & Meaning\\
+          Mnemonic & Purpose\\
           \hline
-          A & 1 $\Rightarrow$ arithmetic, 0 $\Rightarrow$ logical\\
-          D & 1 $\Rightarrow$ shift right, 0 $\Rightarrow$ shift left\\
-          R & 1 $\Rightarrow$ rotate, 0 $\Rightarrow$ shift
+          LSL & Logical Shift Left\\
+          LSR & Logical Shift Right\\
+          ASL & Arithmetic Shift Left\\
+          ASR & Arithmetic Shift Right\\
+          ROL & Rotate Left\\
+          ROR & Rotate Right
         \end{tabular}
         \\
+        All of these can be used in either the immediate or register forms:
         \\
-        The immediate is a 5 bit unsigned value describing a number of
-        positions to shift or roll, between 0 and 31.
+        \\*
+        \texttt{LSL <\emph{Rd}>, \#immediate\\
+        ROR <\emph{Rd}>, <\emph{Rs}>}
+      
+      \subsection*{Operation}
+        shift\_value $\gets$ \#immediate if immediate form, \emph{Rs} otherwise\\
+        \emph{Rd} $\gets$ \emph{Rd} OPERATION shift\_value
         
-        \subsubsection*{Syntax}
-          Due to this instruction's flexibility, several mnemonics are
-          suggested for it, depending on the combinations of option bits that
-          are set:
-          \\
-          \\*
-          \texttt{
-            \begin{tabular}{l l}
-              LSL <\emph{Rd}>, \#immediate & ; logical shift left\\
-              LSR <\emph{Rd}>, \#immediate & ; logical shift right\\
-              ASL <\emph{Rd}>, \#immediate & ; arithmetic shift left\\
-              ASR <\emph{Rd}>, \#immediate & ; arithmetic shift right\\
-              ROL <\emph{Rd}>, \#immediate & ; logical roll left\\
-              ROR <\emph{Rd}>, \#immediate & ; logical roll right\\
-            \end{tabular}
-          }
-
-        \subsection{LSH(2) -- Shifting by register}
-        \begin{center}\begin{bytefield}{16}
-          \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
-          \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{0} & \bitbox[tb]{1}{1} &
-          \bitbox{1}{A} &
-          \bitbox{4}{\emph{Rd}} &
-          \bitbox{1}{D} &
-          \bitbox{1}{R} &
-          \bitbox{1}{1} &
-          \bitbox{1}{0} &
-          \bitbox{4}{\emph{Rs}}
-        \end{bytefield}\end{center}
-        
-        Precisely what this instruction does is controlled by the bits
-        \emph{A}, \emph{D} and \emph{R}.  Setting them in different ways allows
-        you to recreate ARM-like instructions such as LSL, LSR, ROL, ROR, ASR,
-        etc:
-        \\
-        \\
-        \begin{tabular}{c l}
-          Bit & Meaning\\
-          \hline
-          A & 1 $\Rightarrow$ arithmetic, 0 $\Rightarrow$ logical\\
-          D & 1 $\Rightarrow$ shift right, 0 $\Rightarrow$ shift left\\
-          R & 1 $\Rightarrow$ rotate, 0 $\Rightarrow$ shift
-        \end{tabular}
-        \\
-        \\
-        The source register should contain a number between 0 and 31,
-        describing the amount to shift or roll by.  Other values are
-        currently \emph{UNDEFINED}.
-        
-        \subsubsection*{Syntax}
-          Due to this instruction's flexibility, several mnemonics are
-          suggested for it, depending on the combinations of option bits that
-          are set:
-          \\
-          \\*
-          \texttt{
-            \begin{tabular}{l l}
-              LSL <\emph{Rd}>, <\emph{Rs}> & ; logical shift left\\
-              LSR <\emph{Rd}>, <\emph{Rs}> & ; logical shift right\\
-              ASL <\emph{Rd}>, <\emph{Rs}> & ; arithmetic shift left\\
-              ASR <\emph{Rd}>, <\emph{Rs}> & ; arithmetic shift right\\
-              ROL <\emph{Rd}>, <\emph{Rs}> & ; logical roll left\\
-              ROR <\emph{Rd}>, <\emph{Rs}> & ; logical roll right\\
-            \end{tabular}
-          }
-        
-
       \newpage
       
       
