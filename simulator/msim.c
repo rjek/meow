@@ -25,6 +25,7 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -103,7 +104,7 @@ static void msim_builtin_dump_state(struct msim_ctx *ctx, signed int op,
 static void msim_builtin_print(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	int type = (int)bnvctx;
+	intptr_t type = (intptr_t)bnvctx;
 	
 	switch (type) {
 	case 0: printf("%c", ctx->r[MSIM_IR]); break;
