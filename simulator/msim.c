@@ -42,6 +42,8 @@ struct msim_ctx *msim_init(void)
 	ctx->r = ctx->realr;
 	ctx->ar = ctx->realar;
 	
+	ctx->ar[MSIM_SR] = 1;	/* set bit indicating interrupt mode */
+	
 	msim_add_builtin_bnvs(ctx);
 	
 	return ctx;
@@ -68,76 +70,69 @@ void msim_del_bnv(struct msim_ctx *ctx, signed int op)
 static void msim_builtin_get_model(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	ctx->r[MSIM_R12] = 0x00000100;
+	ctx->r[MSIM_IR] = 0x00000100;
 }
 
-static void msim_builtin_halt(struct msim_ctx *ctx, signed int op,
+static void msim_builtin_get_bus_id(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	fprintf(stderr,
-	"msim: warning, HALT executed, but not implemented by msim at 0x%08x\n",
-		(ctx->r[MSIM_PC]) & MSIM_PC_ADDR_MASK);
+	ctx->r[MSIM_IR] = 0;
+}
+
+static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
+					void *bnvctx)
+{
+	if (ctx->r[MSIM_SR] && 1) {
+		/* only do the swap if we're in interrupt mode */
+		msim_swap_banks(ctx);
+	}
 }
 
 static void msim_builtin_exit(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	exit(ctx->r[MSIM_R12]);
+	exit(ctx->r[MSIM_IR]);
 }
 
-static void msim_builtin_fake_interrupt(struct msim_ctx *ctx, signed int op,
+static void msim_builtin_dump_state(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	msim_irq(ctx, 1);
+	msim_print_state(ctx);
 }
 
-static void msim_builtin_write(struct msim_ctx *ctx, signed int op,
+static void msim_builtin_print(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	unsigned char d;
-	u_int32_t p = ctx->r[MSIM_R12];
+	int type = (int)bnvctx;
 	
-	switch (op) {
-	case -2:
-		/* write string */
-		d = msim_memget(ctx, p, MSIM_ACCESS_BYTE);
-		while (d != '\0') {
-			printf("%c", d);
-			p++;
-			d = msim_memget(ctx, p, MSIM_ACCESS_BYTE);
-		}
-		break;
-	case -4:
-		/* write 32 bit signed */
-		break;
-	case -6:
-		/* write 32 bit unsigned */
-		break;
-	case -8:
-		/* write char */
-		printf("%c", p);
-		break;
+	switch (type) {
+	case 0: printf("%c", ctx->r[MSIM_IR]); break;
+	case 1: printf("%d", ctx->r[MSIM_IR]); break;
+	case 2: printf("%x", ctx->r[MSIM_IR]); break;
 	}
 }
 
 void msim_add_builtin_bnvs(struct msim_ctx *ctx)
 {
-	msim_add_bnv(ctx, -256, msim_builtin_get_model, NULL);
-	msim_add_bnv(ctx, -254, msim_builtin_halt, NULL);
-
-	msim_add_bnv(ctx, -130, msim_builtin_fake_interrupt, NULL);
-	msim_add_bnv(ctx, -128, msim_builtin_exit, NULL);
+	/* positive values are architecture-defined */
+	msim_add_bnv(ctx, 0, msim_builtin_get_model, NULL);
+	msim_add_bnv(ctx, 2, msim_builtin_get_bus_id, NULL);
+	msim_add_bnv(ctx, 4, msim_builtin_irqrtn, NULL);
 	
-	msim_add_bnv(ctx, -2, msim_builtin_write, NULL);
+	/* negative values are implementation-defined */
+	msim_add_bnv(ctx, -2, msim_builtin_exit, NULL);
+	msim_add_bnv(ctx, -4, msim_builtin_dump_state, NULL);
+	msim_add_bnv(ctx, -6, msim_builtin_print, (void *) 0);
+	msim_add_bnv(ctx, -8, msim_builtin_print, (void *) 1);
+	msim_add_bnv(ctx, -10, msim_builtin_print, (void *) 2);
 }
 
 void msim_del_builtin_bnvs(struct msim_ctx *ctx)
 {
-	msim_del_bnv(ctx, -256);
-	msim_del_bnv(ctx, -254);
+	unsigned int i;
 	
-	msim_del_bnv(ctx, -128);
-	msim_del_bnv(ctx, -130);
+	for (i = -10; i < 5; i += 2)
+		msim_del_bnv(ctx, i);
 }
 
 void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
@@ -206,7 +201,7 @@ void msim_irq(struct msim_ctx *ctx, int irq)
 	 */
 	 
 	msim_swap_banks(ctx);
-	ctx->r[MSIM_PC] = 33;		/* bit 0 is set for irq mode */
+	ctx->r[MSIM_PC] = 32;
 	ctx->nopcincrement = true;
 }
 
@@ -463,45 +458,32 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 	case MSIM_OPCODE_MOV:
 		if (instr->subop == false) {
 			/* mov rather than ldi */
-			if (instr->destination == MSIM_PC &&
-			    instr->source == MSIM_PC &&
-			    instr->destinationbank == MSIM_OTHER_BANK &&
-			    instr->sourcebank == MSIM_OTHER_BANK &&
-			    instr->byteswap &&
-			    instr->halfwordswap) {
-				/* TODO: OMG IT BURNS MY EYES.
-				 * This is the magical instruction for
-				 * returning from the interrupt handler.
-				 */
-				msim_swap_banks(ctx);
-			} else {
-				u_int32_t s;
-				s = (instr->sourcebank == MSIM_THIS_BANK) ?
-					ctx->r[instr->source] :
-					ctx->ar[instr->source];
-				
-				if (instr->byteswap)
-					s = (s & 0xff00ff00) >> 8 |
-						(s & 0x00ff00ff) << 8;
-				
-				if (instr->halfwordswap)
-					s = (s << 16) |	(s >> 16);
-				
-				if (instr->destinationbank == MSIM_THIS_BANK)
-					if (instr->destination == MSIM_PC) {
-						MSIM_SET_PC(ctx->r[MSIM_PC],
-						s & MSIM_PC_ADDR_MASK);
-						ctx->nopcincrement = true;
-					} else
-						ctx->r[instr->destination] = s;
-				else
-					if (instr->destination == MSIM_PC) {
-						MSIM_SET_PC(ctx->ar[MSIM_PC],
-						s & MSIM_PC_ADDR_MASK);
-						ctx->nopcincrement = true;
-					} else
-						ctx->ar[instr->destination] = s;
-			}
+			u_int32_t s;
+			s = (instr->sourcebank == MSIM_THIS_BANK) ?
+				ctx->r[instr->source] :
+				ctx->ar[instr->source];
+			
+			if (instr->byteswap)
+				s = (s & 0xff00ff00) >> 8 |
+					(s & 0x00ff00ff) << 8;
+			
+			if (instr->halfwordswap)
+				s = (s << 16) |	(s >> 16);
+			
+			if (instr->destinationbank == MSIM_THIS_BANK)
+				if (instr->destination == MSIM_PC) {
+					MSIM_SET_PC(ctx->r[MSIM_PC],
+					s & MSIM_PC_ADDR_MASK);
+					ctx->nopcincrement = true;
+				} else
+					ctx->r[instr->destination] = s;
+			else
+				if (instr->destination == MSIM_PC) {
+					MSIM_SET_PC(ctx->ar[MSIM_PC],
+					s & MSIM_PC_ADDR_MASK);
+					ctx->nopcincrement = true;
+				} else
+					ctx->ar[instr->destination] = s;
 		} else {
 			/* ldi rather than mov */
 			ctx->r[MSIM_IR] = instr->immediate;
@@ -1041,7 +1023,7 @@ int main(int argc, char *argv[])
 	msim_add_rom_from_file(ctx, 0, "masm.out");
 	msim_add_ram(ctx, 1, 4096);
 	
-	for (i = 100; i > 0; i--) {
+	for (i = (argc < 2) ? 10 : atoi(argv[1]); i > 0; i--) {
 		msim_run(ctx, 1);
 		msim_print_state(ctx);
 	}
