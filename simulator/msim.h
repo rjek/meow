@@ -29,12 +29,11 @@
 #include <stdbool.h> 
 #include <sys/types.h>
 
-#define MSIM_PC_ADDR_MASK (~(1 | (15<<28)))
-#define MSIM_SET_PC(x, y) ((x) = ((x) & ~MSIM_PC_ADDR_MASK) | ((y) & MSIM_PC_ADDR_MASK))
-#define MSIM_PC_NFLAG(i) (((i) & 1<<31) != 0)
-#define MSIM_PC_ZFLAG(i) (((i) & 1<<30) != 0)
-#define MSIM_PC_CFLAG(i) (((i) & 1<<29) != 0)
-#define MSIM_PC_VFLAG(i) (((i) & 1<<28) != 0)
+#define MSIM_SR_NFLAG(i) (((i) & 1<<31) != 0)
+#define MSIM_SR_ZFLAG(i) (((i) & 1<<30) != 0)
+#define MSIM_SR_CFLAG(i) (((i) & 1<<29) != 0)
+#define MSIM_SR_VFLAG(i) (((i) & 1<<28) != 0)
+#define MSIM_SR_IRQ(i)   (((i) & 1) != 0)
 
 #define MSIM_SET_NFLAG(x) ((x) |= (1<<31))
 #define MSIM_SET_ZFLAG(x) ((x) |= (1<<30))

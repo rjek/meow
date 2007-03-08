@@ -82,7 +82,7 @@ static void msim_builtin_get_bus_id(struct msim_ctx *ctx, signed int op,
 static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	if (ctx->r[MSIM_SR] && 1) {
+	if (MSIM_SR_IRQ(ctx->r[MSIM_SR])) {
 		/* only do the swap if we're in interrupt mode */
 		msim_swap_banks(ctx);
 	}
@@ -207,8 +207,7 @@ void msim_irq(struct msim_ctx *ctx, int irq)
 
 inline u_int16_t msim_fetch(struct msim_ctx *ctx)
 {
-	return msim_memget(ctx, ctx->r[MSIM_PC] & MSIM_PC_ADDR_MASK,
-						MSIM_ACCESS_HALFWORD);
+	return msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
 }
 
 void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
@@ -358,9 +357,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 	u_int32_t tmp = 0, alu;
 	switch (instr->opcode) {
 	case MSIM_OPCODE_B:
-		if (msim_cond_match(ctx->r[MSIM_PC], instr->condition)) {
-			MSIM_SET_PC(ctx->r[MSIM_PC], ctx->r[MSIM_PC] + 
-							instr->immediate);
+		if (msim_cond_match(ctx->r[MSIM_SR], instr->condition)) {
+			ctx->r[MSIM_PC] += instr->immediate;
 			ctx->nopcincrement = true;
 		} else if (instr->condition == MSIM_COND_NV) {
 			signed int operation = (instr->immediate) + 256;
@@ -368,7 +366,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				fprintf(stderr,
 				"msim: unhandled BNV %d at %08x\n",
 				instr->immediate,
-				ctx->r[MSIM_PC] & MSIM_PC_ADDR_MASK);	
+				ctx->r[MSIM_PC]);	
 			} else {
 				ctx->bnvops[operation](ctx, instr->immediate,
 					ctx->bnvopsctx[operation]);
@@ -411,14 +409,14 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			tmp &= (instr->immediate);
 			
 			if (tmp & (1<<31))
-				MSIM_SET_NFLAG(ctx->r[MSIM_PC]);
+				MSIM_SET_NFLAG(ctx->r[MSIM_SR]);
 			else
-				MSIM_CLEAR_NFLAG(ctx->r[MSIM_PC]);
+				MSIM_CLEAR_NFLAG(ctx->r[MSIM_SR]);
 					
 			if (tmp == 0)
-				MSIM_SET_ZFLAG(ctx->r[MSIM_PC]);
+				MSIM_SET_ZFLAG(ctx->r[MSIM_SR]);
 			else
-				MSIM_CLEAR_ZFLAG(ctx->r[MSIM_PC]);
+				MSIM_CLEAR_ZFLAG(ctx->r[MSIM_SR]);
 			
 			break;
 		} else if (instr->subop == true) {
@@ -435,23 +433,23 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			: ctx->ar[instr->destination];
 		
 		if (alu < tmp)
-			MSIM_SET_CFLAG(ctx->r[MSIM_PC]);
+			MSIM_SET_CFLAG(ctx->r[MSIM_SR]);
 		else
-			MSIM_CLEAR_CFLAG(ctx->r[MSIM_PC]);		
+			MSIM_CLEAR_CFLAG(ctx->r[MSIM_SR]);		
 	
 		alu -= tmp;
 		
 		if (alu & (1<<31))
-			MSIM_SET_NFLAG(ctx->r[MSIM_PC]);
+			MSIM_SET_NFLAG(ctx->r[MSIM_SR]);
 		else
-			MSIM_CLEAR_NFLAG(ctx->r[MSIM_PC]);
+			MSIM_CLEAR_NFLAG(ctx->r[MSIM_SR]);
 			
 		if (alu == 0)
-			MSIM_SET_ZFLAG(ctx->r[MSIM_PC]);
+			MSIM_SET_ZFLAG(ctx->r[MSIM_SR]);
 		else
-			MSIM_CLEAR_ZFLAG(ctx->r[MSIM_PC]);
+			MSIM_CLEAR_ZFLAG(ctx->r[MSIM_SR]);
 		
-		MSIM_CLEAR_VFLAG(ctx->r[MSIM_PC]);
+		MSIM_CLEAR_VFLAG(ctx->r[MSIM_SR]);
 			
 		break;
 		
@@ -471,19 +469,11 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				s = (s << 16) |	(s >> 16);
 			
 			if (instr->destinationbank == MSIM_THIS_BANK)
-				if (instr->destination == MSIM_PC) {
-					MSIM_SET_PC(ctx->r[MSIM_PC],
-					s & MSIM_PC_ADDR_MASK);
+				ctx->r[instr->destination] = s;
+				if (instr->destination == MSIM_PC)
 					ctx->nopcincrement = true;
-				} else
-					ctx->r[instr->destination] = s;
 			else
-				if (instr->destination == MSIM_PC) {
-					MSIM_SET_PC(ctx->ar[MSIM_PC],
-					s & MSIM_PC_ADDR_MASK);
-					ctx->nopcincrement = true;
-				} else
-					ctx->ar[instr->destination] = s;
+				ctx->ar[instr->destination] = s;
 		} else {
 			/* ldi rather than mov */
 			ctx->r[MSIM_IR] = instr->immediate;
@@ -622,16 +612,15 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 	if (ctx->nopcincrement == true)
 		ctx->nopcincrement = false;
 	else
-		MSIM_SET_PC(ctx->r[MSIM_PC], 
-			(ctx->r[MSIM_PC] & MSIM_PC_ADDR_MASK) + 2);
+		ctx->r[MSIM_PC] += 2;
 }
 
-inline bool msim_cond_match(u_int32_t pc, msim_condition_type condition)
+inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
 {
-	bool nflag = MSIM_PC_NFLAG(pc);
-	bool zflag = MSIM_PC_ZFLAG(pc);
-	bool cflag = MSIM_PC_CFLAG(pc);
-	bool vflag = MSIM_PC_VFLAG(pc);
+	bool nflag = MSIM_SR_NFLAG(sr);
+	bool zflag = MSIM_SR_ZFLAG(sr);
+	bool cflag = MSIM_SR_CFLAG(sr);
+	bool vflag = MSIM_SR_VFLAG(sr);
 	
 	switch (condition) {
 	case MSIM_COND_EQ: return zflag == true;
@@ -662,7 +651,7 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions)
 		char dis[256];
 		msim_decode(ctx, i, &(ctx->instr));
 		printf("msim: 0x%08x : %s\t\t\tcycle %d\n",
-			ctx->r[15] & MSIM_PC_ADDR_MASK,
+			ctx->r[MSIM_PC],
 			msim_mnemonic(ctx, dis, 256, &(ctx->instr)),
 			ctx->cyclecount);
 		msim_execute(ctx, &(ctx->instr));
