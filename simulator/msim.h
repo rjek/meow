@@ -52,12 +52,6 @@
 #define MSIM_GET_DREG(i) (((i) >> 8) & 15)
 #define MSIM_GET_SREG(i) ((i) & 15)
 
-#define MSIM_REG_PC	15
-#define MSIM_REG_LR	14
-#define MSIM_REG_SP	13
-#define MSIM_REG_IR	12
-#define MSIM_REG_AT	11
-
 #define MSIM_LOG printf
 
 typedef enum {
@@ -148,9 +142,9 @@ typedef enum {
 	MSIM_R15	= 15,
 	
 	/* some useful aliases */
-	MSIM_IR		= 11,		/* immediate register */
-	MSIM_SP		= 12,		/* stack pointer */
-	MSIN_LR		= 13,		/* link register */
+	MSIM_SP		= 11,		/* immediate register */
+	MSIM_LR		= 12,		/* stack pointer */
+	MSIM_IR		= 13,		/* link register */
 	MSIM_SR		= 14,		/* status register */
 	MSIM_PC		= 15		/* program counter */
 } msim_register;

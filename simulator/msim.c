@@ -428,8 +428,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			break;
 		} else if (instr->subop == true) {
 			tmp = (instr->sourcebank == MSIM_THIS_BANK)
-				? ctx->r[instr->sourcebank]
-				: ctx->ar[instr->sourcebank];
+				? ctx->r[instr->source]
+				: ctx->ar[instr->source];
 			
 		} else {
 			tmp = instr->immediate;
