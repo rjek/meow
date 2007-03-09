@@ -882,7 +882,7 @@ void msim_print_state(struct msim_ctx *ctx)
 	printf("     R0       R1       R2       R3       R4       R5       R6       R7\n");
 	printf("1    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->ar[0], ctx->ar[1], ctx->ar[2], ctx->ar[3], ctx->ar[4], ctx->ar[5], ctx->ar[6], ctx->ar[7]);
-	printf("     R8       R9       R10      R11/SP   R12/LR   R13/IP   R14/SR   R15/PC\n");
+	printf("     R8       R9       R10      R11/SP   R12/LR   R13/IR   R14/SR   R15/PC\n");
 	printf("1    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->ar[8], ctx->ar[9], ctx->ar[10], ctx->ar[11], ctx->ar[12], ctx->ar[13], ctx->ar[14], ctx->ar[15]);
 

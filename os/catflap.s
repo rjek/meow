@@ -27,7 +27,7 @@
 		DEFINE	OS_Write0	#3
 		
 		MACRO	PUSH	$0
-		SUB	R13, #2
+		SUB	SP, #2
 		STRHD	$0, SP
 		STRL	$0, SP
 		ENDMACRO
@@ -52,12 +52,21 @@ syscall		; main OS entry point
 		; ir = 2 -> write character in r0 to output
 		; ir = 3 -> write string pointed to by r0 to output
 		
+		CMP	SP, #0		; have we got a stack yet?
+		BEQ	>Sys_Os_Reset	; no stack - we must be resetting.
+		
+		PUSH	R1
+		
 		ADR	R1, jumptable
 		LSL	IR, #2
 		ADD	IR, R1
 		LDRLI	R1, IR
 		LDRHD	R1, IR
-		MOV	PC, R1
+		
+		MOV	IR, R1
+		POP	R1
+		
+		MOV	PC, IR
 		
 jumptable
 		DCD	Sys_OS_Reset
@@ -117,7 +126,7 @@ displaybanner
 		
 		ADR	R0, >catflapbanner
 		SYS	OS_Write0
-		MOV	PC, R14
+		MOV	PC, LR
 
 catflapbanner	DCB "Catflap - Copyright (c) 2006, Rob Kendrick", #10, #0
 		ALIGN 2
@@ -128,11 +137,11 @@ Sys_OS_ReadSysInfo
 		LDRLI	R0, IR
 		LDRHD	R0, IR
 		
-		MOV	PC, R14
+		MOV	PC, LR
 		
 Sys_OS_WriteC	MOV	IR, R0
 		BNV	#-6		; msim "write character"
-		MOV	PC, R14
+		MOV	PC, LR
 		
 Sys_OS_Write0	PUSH	R0
 		PUSH	R1
@@ -149,6 +158,6 @@ loop		LDRBI	R0, R1
 exit		
 		POP	R1
 		POP	R0
-		MOV	PC, R14		
+		MOV	PC, LR	
 
 idleloop	B	idleloop

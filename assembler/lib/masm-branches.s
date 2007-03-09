@@ -82,95 +82,95 @@
 
 	
 	MACRO	bleq	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	eq	$0
 	ENDMACRO
 	
 	MACRO	blne	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	ne	$0
 	ENDMACRO
 	
 	MACRO	blcs	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	cs	$0
 	ENDMACRO
 	
 	MACRO	blhs	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	cs	$0
 	ENDMACRO
 	
 	MACRO	blcc	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	cc	$0
 	ENDMACRO
 	
 	MACRO	bllo	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	cc	$0
 	ENDMACRO
 	
 	MACRO	blmi	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	mi	$0
 	ENDMACRO
 	
 	MACRO	blpl	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	pl	$0
 	ENDMACRO
 	
 	MACRO	blvs	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	vs	$0
 	ENDMACRO
 	DEFINE	berr	bvs
 	
 	MACRO	blvc	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	vc	$0
 	ENDMACRO
 	DEFINE	bok	bvc
 	
 	MACRO	blhi	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	hi	$0
 	ENDMACRO
 	
 	MACRO	blls	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	ls	$0
 	ENDMACRO
 	
 	MACRO	blge	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	ge	$0
 	ENDMACRO
 	
 	MACRO	bllt	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	lt	$0
 	ENDMACRO
 	
 	MACRO	blgt	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	gt	$0
 	ENDMACRO
 	
 	MACRO	blle	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	le	$0
 	ENDMACRO
 	
 	MACRO	blal	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	al	$0
 	ENDMACRO
 	DEFINE	bl	blal
 	
 	MACRO	blnv	$0
-	add	r14	pc	#4
+	add	lr	pc	#4
 	branch	nv	$0
 	ENDMACRO
 
