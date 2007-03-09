@@ -26,6 +26,8 @@
 		DEFINE	OS_WriteC	#2
 		DEFINE	OS_Write0	#3
 		
+		GLOBAL	_main
+		
 		MACRO	PUSH	$0
 		SUB	SP, #2
 		STRHD	$0, SP
@@ -116,7 +118,9 @@ findmemloop	STRLI	R1, R0
 		
 		
 		BL	>displaybanner
-		B	idleloop
+		BL	_main		; branch to imported main function
+		MOV	IR, R0		; _main's return value
+		BNV	#-2		; msim quit()
 		
 nextfindmem	LDI	#1024
 		ADD	R0, IR
@@ -158,6 +162,5 @@ loop		LDRBI	R0, R1
 exit		
 		POP	R1
 		POP	R0
-		MOV	PC, LR	
+		MOV	PC, LR
 
-idleloop	B	idleloop
