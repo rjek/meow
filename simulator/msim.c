@@ -325,7 +325,7 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 		instr->subop = MSIM_GET_SUBOP(instrword);
 		instr->inverted = instr->subop;
 		instr->destination = MSIM_GET_DREG(instrword);
-		if (instrword & 1<<6) {
+		if (instrword & (1<<5)) {
 			instr->immver = true;
 			instr->immediate = 1 << (instrword & 31);
 		} else {
@@ -394,6 +394,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			ctx->r[instr->destination] = 
 				ctx->r[instr->destination] +
 				instr->immediate;
+		
+		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 		
 	case MSIM_OPCODE_SUB:
@@ -406,6 +408,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			ctx->r[instr->destination] = 
 				ctx->r[instr->destination] -
 				instr->immediate;
+		
+		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 			
 	case MSIM_OPCODE_CMP:
@@ -526,7 +530,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				 ((ctx->r[instr->destination]) >> 
 				  (32 - tmp));
 		}
-
+		
+		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 			
 	case MSIM_OPCODE_BIT:
@@ -549,6 +554,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			ctx->r[instr->destination] ^= tmp;
 			break;
 		}
+		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 			
 	case MSIM_OPCODE_MEM:	
@@ -614,6 +620,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				delta = -delta;
 			ctx->r[instr->source] += delta;
 		}
+		
+		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 	}
 	
