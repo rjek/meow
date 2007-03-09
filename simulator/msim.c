@@ -475,12 +475,13 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			if (instr->halfwordswap)
 				s = (s << 16) |	(s >> 16);
 			
-			if (instr->destinationbank == MSIM_THIS_BANK)
+			if (instr->destinationbank == MSIM_THIS_BANK) {
 				ctx->r[instr->destination] = s;
 				if (instr->destination == MSIM_PC)
 					ctx->nopcincrement = true;
-			else
+			} else {
 				ctx->ar[instr->destination] = s;
+			}
 		} else {
 			/* ldi rather than mov */
 			ctx->r[MSIM_IR] = instr->immediate;
@@ -861,25 +862,25 @@ void msim_print_state(struct msim_ctx *ctx)
 	printf("Bank R0       R1       R2       R3       R4       R5       R6       R7\n");
 	printf("0    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->r[0], ctx->r[1], ctx->r[2], ctx->r[3], ctx->r[4], ctx->r[5], ctx->r[6], ctx->r[7]);
-	printf("     R8       R9       R10      R11/AT   R12/IR   R13/SP   R14/LR   R15/PC\n");
+	printf("     R8       R9       R10      R11/SP   R12/LR   R13/IR   R14/SR   R15/PC\n");
 	printf("0    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->r[8], ctx->r[9], ctx->r[10], ctx->r[11], ctx->r[12], ctx->r[13], ctx->r[14], ctx->r[15]);
 		
-	printf("     N Z C V a a a a a a a a a a a a a a a a a a a a a a a a a a a I\n0 PC ");
+	printf("     N Z C V a a a a a a a a a a a a a a a a a a a a a a a a a a a I\n0 SR ");
 	for (i = 31; i >= 0; i--)
-		printf("%s ", (ctx->r[15] & (1<<i)) ? "1" : "0");
+		printf("%s ", (ctx->r[MSIM_SR] & (1<<i)) ? "1" : "0");
 	printf("\n");
 	
 	printf("     R0       R1       R2       R3       R4       R5       R6       R7\n");
 	printf("1    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->ar[0], ctx->ar[1], ctx->ar[2], ctx->ar[3], ctx->ar[4], ctx->ar[5], ctx->ar[6], ctx->ar[7]);
-	printf("     R8       R9       R10      R11/AT   R12/IR   R13/SP   R14/LR   R15/PC\n");
+	printf("     R8       R9       R10      R11/SP   R12/LR   R13/IP   R14/SR   R15/PC\n");
 	printf("1    %08x %08x %08x %08x %08x %08x %08x %08x\n",
 		ctx->ar[8], ctx->ar[9], ctx->ar[10], ctx->ar[11], ctx->ar[12], ctx->ar[13], ctx->ar[14], ctx->ar[15]);
 
-	printf("     N Z C V a a a a a a a a a a a a a a a a a a a a a a a a a a a I\n1 PC ");
+	printf("     N Z C V a a a a a a a a a a a a a a a a a a a a a a a a a a a I\n1 SR ");
 	for (i = 31; i >= 0; i--)
-		printf("%s ", (ctx->ar[15] & (1<<i)) ? "1" : "0");
+		printf("%s ", (ctx->ar[MSIM_SR] & (1<<i)) ? "1" : "0");
 	printf("\n\n");
 }
 
