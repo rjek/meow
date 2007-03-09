@@ -105,11 +105,11 @@ findmemloop	STRLI	R1, R0
 		; the last memory store/load failed, so memory ends 1024 bytes
 		; before the current value of R0.
 		
-		LDI	#1024
 		MOV	R1, R0
-		SUB	R1, IR
 		MOV	SP, R1		; use top of RAM as stack pointer
-		BIC	R1, #27		; clear chip select - size now in R1
+		
+		LSL	R1, #5
+		LSR	R1, #5		; clear chip select - size now in R1
 		
 		LDI	#1
 		LSL	IR, #27
@@ -126,13 +126,73 @@ nextfindmem	LDI	#1024
 		ADD	R0, IR
 		B	<findmemloop
 
-displaybanner
+implementor0	DCB	"Flarn ", #0
+implementorX	DCB	"Unknown", #0
+
+model0.0	DCB	"MSIM", #0
+model0.1	DCB	"MEOW1", #0
 		
-		ADR	R0, >catflapbanner
+		ALIGN	2
+
+displaybanner
+		PUSH	LR
+		
+		MACRO	NEWLINE
+		LDI	#10
+		BNV	#-6
+		ENDMACRO
+		
+		ADR	R0, >banner
 		SYS	OS_Write0
+		
+		ADR	R0, >bannerCPU
+		SYS	OS_Write0
+		
+		BNV	#0		; read CPU information
+		MOV	R0, IR
+		LSR	R0, #24		; get implementor
+		CMP	R0, #0		; is it flarn?
+		BEQ	>flarnCPU
+		
+		ADR	R0, <implementorX
+		SYS	OS_Write0
+		NEWLINE
+		B	>displayRAM
+		
+flarnCPU	ADR	R0, <implementor0
+		SYS	OS_Write0
+
+		BNV	#0
+		LSR	IR, #16
+		CMP	R0, #0
+		ADR	R0, model0.0
+		BNE	>flarnModel
+		ADR	R0, model0.1
+flarnModel	SYS	OS_Write0
+
+		NEWLINE
+		
+displayRAM
+		ADR	R0, >bannerRAM1
+		SYS	OS_Write0
+		
+		SYS	OS_ReadSysInfo	; R0 = memory size
+		MOV	IR, R0
+		LSR	IR, #10
+		BNV	#-8		; print integer in IR
+		ADR	R0, >bannerRAM2
+		SYS	OS_Write0
+		
+		POP	LR
 		MOV	PC, LR
 
-catflapbanner	DCB "Catflap - Copyright (c) 2006, Rob Kendrick", #10, #0
+banner		DCB "Catflap 0.0 - Copyright (c) 2007, Rob Kendrick", #10, #0
+
+bannerCPU	DCB "CPU: ", #0
+
+bannerRAM1	DCB "RAM: ", #0
+bannerRAM2	DCB " kB", #10, #10, #0
+
 		ALIGN 2
 
 Sys_OS_ReadSysInfo
@@ -148,19 +208,22 @@ Sys_OS_WriteC	MOV	IR, R0
 		MOV	PC, LR
 		
 Sys_OS_Write0	PUSH	R0
-		PUSH	R1
+		PUSH	LR
 		
-		MOV	R1, R0
-loop		LDRBI	R0, R1
-		CMP	R0, #0
+		EOR	IR, IR
+		
+loop		LDRBI	IR, R0
+		CMP	IR, #0
 		BEQ	>exit
 
 		; write this byte out
-		SYS	OS_WriteC
+		;SYS	OS_WriteC
+		BNV	#-6		; msim "write character"
 		
 		B	<loop		
 exit		
-		POP	R1
+		POP	LR
 		POP	R0
 		MOV	PC, LR
 
+_main		MOV	PC, LR
