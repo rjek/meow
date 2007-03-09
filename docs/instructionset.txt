@@ -81,7 +81,7 @@ MEOW-specified BNV calls:
 	4               Return from IRQ mode and swap the banks back.
 
 MSIM-specific BNV calls:
-        -2              Quit MSIM
+        -2              Quit MSIM with exit code of IR
 
 	-4              Dump machine state to debug output
 
@@ -89,7 +89,7 @@ MSIM-specific BNV calls:
 
 	-8              Print integer in IR to debug output
 
-	-10             Print integet in IR to debug output as hex
+	-10             Print integer in IR to debug output as hex
 
 Register layouts
 	register        aliases        purpose
