@@ -28,20 +28,20 @@
 		
 		MACRO	PUSH	$0
 		SUB	R13, #2
-		STRHD	$0, R13
-		STRL	$0, R13
+		STRHD	$0, SP
+		STRL	$0, SP
 		ENDMACRO
 		
 		MACRO	POP	$0
-		LDRLI	$0, R13
-		LDRHI	$0, R13
+		LDRLI	$0, SP
+		LDRHI	$0, SP
 		ENDMACRO
 
 		MACRO	SYS $0		; syscall - corrupts IR and LR
 		LDI	$0
-		AND	LR, #0		; clear link register
+		EOR	LR, LR		; clear link register
 		ADD	LR, PC, #4	; point to after our call
-		AND	PC, #0		; clear PC, branch to zero
+		EOR	PC, PC		; clear PC, branch to zero
 		ENDMACRO
 
 
@@ -76,7 +76,7 @@ Sys_OS_Reset	; first of all, find the amount of available RAM, and store
 		; assumed to be a multiple of 1kB.
 		
 		LDI	#1
-		LSL	IR, #28
+		LSL	IR, #27
 		MOV	R0, IR		; pointer to base of RAM in R0
 		
 		LDI	#-1
@@ -97,11 +97,11 @@ findmemloop	STRLI	R1, R0
 		LDI	#1024
 		MOV	R1, R0
 		SUB	R1, IR
-		MOV	R13, R1		; use top of RAM as stack pointer
-		BIC	R1, #28		; clear chip select - size now in R1
+		MOV	SP, R1		; use top of RAM as stack pointer
+		BIC	R1, #27		; clear chip select - size now in R1
 		
 		LDI	#1
-		LSL	IR, #28
+		LSL	IR, #27
 		STRLI	R1, IR
 		STRHD	R1, IR		; store RAM size in first word of RAM
 		
@@ -115,7 +115,7 @@ nextfindmem	LDI	#1024
 
 displaybanner
 		
-		ADR	R1, >catflapbanner
+		ADR	R0, >catflapbanner
 		SYS	OS_Write0
 		MOV	PC, R14
 
@@ -124,7 +124,7 @@ catflapbanner	DCB "Catflap - Copyright (c) 2006, Rob Kendrick", #10, #0
 
 Sys_OS_ReadSysInfo
 		LDI	#1
-		LSL	IR, #28
+		LSL	IR, #27
 		LDRLI	R0, IR
 		LDRHD	R0, IR
 		
@@ -137,8 +137,9 @@ Sys_OS_WriteC	MOV	IR, R0
 Sys_OS_Write0	PUSH	R0
 		PUSH	R1
 		
-loop		LDRBI	R1, R0
-		CMP	R1, #0
+		MOV	R1, R0
+loop		LDRBI	R0, R1
+		CMP	R0, #0
 		BEQ	>exit
 
 		; write this byte out
