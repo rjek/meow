@@ -225,8 +225,9 @@ function meow_op_ldi(info, imm)
 end
 
 local function _mathop(info, is_add, _dest, _source, _value)
-   dest = parse_positional(info, _dest)
-   source = parse_positional(info, _source)
+   local dest = parse_positional(info, _dest)
+   local source = parse_positional(info, _source)
+   local value
    condwhinge(dest.type ~= "register", info, "ADD/SUB require a register as their first argument.")
    condwhinge(dest.alt == true, info, "ADD/SUB cannot use the alternate register bank.")
    if not _value and source.type == "register" then _value = "#0" end
