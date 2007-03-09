@@ -164,7 +164,7 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 	int area = ptr >> 27;
 	
 	if (ctx->areas[area].write == NULL) {
-		fprintf(stderr,
+		fprintf(stdout,
 	"warning: attempt to write to %x, but no device is attached there.\n",
 			ptr);
 		return;
@@ -179,7 +179,7 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 	int area = ptr >> 27;
 	
 	if (ctx->areas[area].read == NULL) {
-		fprintf(stderr,
+		fprintf(stdout,
 	"warning: attempt to read from %x, but no device is attached there.\n",
 			ptr);
 		return 0;

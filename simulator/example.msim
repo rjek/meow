@@ -3,6 +3,6 @@
 
 chip 0 rom ../assembler/masm.out
 
-chip 1 ram 4096
+chip 1 ram 8192
 
 chip 31 sys
