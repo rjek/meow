@@ -116,7 +116,6 @@ function find_label(streampos, str)
    local cand1, cand2
    if do_intermediate() then
       if fc == "<" or fc == ">" then str = string.sub(str, 2) end
-      print("hunt", str)
       return valid_deferred_labels[str]
    end
    if fc == "<" then
@@ -227,7 +226,11 @@ function resolve_stream()
 		  break
 	       end
 	       if repl_v then
-		  res.reservation = string.len(deferred_bytes)
+		  if res.reservation ~= string.len(deferred_bytes) then
+		     res.reservation = string.len(deferred_bytes)
+		     early_exit = true
+		     break
+		  end
 	       end
 	       if string.len(deferred_bytes) < res.reservation then
 		  if not res.warned then
@@ -266,5 +269,15 @@ function dump_stream(f)
 	 f:write(v)
       end
       f:flush()
+   end
+end
+
+function dump_map(f)
+   for i = 0, output_count do
+      if output_labels[i] then
+	 f:write(output_labels[i])
+	 f:write(" @ ")
+	 f:write(string.format("0x%08x\n", i))
+      end
    end
 end

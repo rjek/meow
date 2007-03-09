@@ -17,7 +17,7 @@ local function __do_align(info, streampos, amount, barrier, alignval)
 end
 
 function _do_align(info, streampos, barrier, alignval)
-   return "defer", barrier - math.mod(streampos, barrier), __do_align, barrier, alignval
+   return "defer", math.mod(barrier - math.mod(streampos, barrier),barrier), __do_align, barrier, alignval
 end
 
 function meow_op_align(info, barrier, alignval)

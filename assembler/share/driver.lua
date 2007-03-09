@@ -53,6 +53,9 @@ function masm_main(...)
 	    masm.output_file = argv[i+1]
 	 elseif v == "-c" then
 	    masm.output_intermediate = true
+	 elseif v == "-m" then
+	    ignore[i+1] = true
+	    masm.map_file = argv[i+1]
 	 elseif string.sub(v,1,1) == "-" then
 	    verbose(0, "Unknown argument '`%s`' at position %d.", v, i)
 	    os.exit(1)
@@ -83,6 +86,11 @@ function masm_main(...)
    end
    dump_stream(f)
    f:close()
+   if masm.map_file then
+      f = io.open(masm.map_file, "wb")
+      dump_map(f)
+      f:close()
+   end
    dump_stats()
    verbose(1, "MEOW assembler finished.")
    os.exit(0)
