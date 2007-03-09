@@ -56,6 +56,8 @@ void msim_destroy(struct msim_ctx *ctx)
 	free(ctx);
 }
 
+/* -- BNV handling -------------------------------------------------------- */
+
 void msim_add_bnv(struct msim_ctx *ctx, signed int op, msim_bnvop func,
 			void *fctx)
 {
@@ -136,6 +138,8 @@ void msim_del_builtin_bnvs(struct msim_ctx *ctx)
 		msim_del_bnv(ctx, i);
 }
 
+/* -- Device/Chipselect handling ------------------------------------------ */
+
 void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
  			msim_write_mem write, msim_reset_mem reset, 
  			void *fctx)
@@ -157,7 +161,7 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t,	u_int16_t d)
 {
-	int area = ptr >> 28;
+	int area = ptr >> 27;
 	
 	if (ctx->areas[area].write == NULL) {
 		fprintf(stderr,
@@ -166,13 +170,13 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 		return;
 	}
 
-	ctx->areas[area].write(ptr & ~(15<<28), t, d, ctx->areas[area].ctx);
+	ctx->areas[area].write(ptr & ~(31<<27), t, d, ctx->areas[area].ctx);
 }
 
 u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t)
 {
-	int area = ptr >> 28;
+	int area = ptr >> 27;
 	
 	if (ctx->areas[area].read == NULL) {
 		fprintf(stderr,
@@ -181,8 +185,10 @@ u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 		return 0;
 	}
 	
-	return ctx->areas[area].read(ptr & ~(15<<28), t, ctx->areas[area].ctx);
+	return ctx->areas[area].read(ptr & ~(31<<27), t, ctx->areas[area].ctx);
 }
+
+/* -- Simulator code------------------------------------------------------- */
 
 inline void msim_swap_banks(struct msim_ctx *ctx)
 {	
@@ -876,6 +882,8 @@ void msim_print_state(struct msim_ctx *ctx)
 		printf("%s ", (ctx->ar[15] & (1<<i)) ? "1" : "0");
 	printf("\n\n");
 }
+
+/* -- Simple built-in devices---------------------------------------------- */
 
 struct msim_rom_ctx {
 	unsigned char 	*rom;

@@ -219,7 +219,7 @@ struct msim_ctx {
 		 msim_write_mem	write;
 		 msim_reset_mem reset;
 		 void		*ctx;
-	}		areas[16];
+	}		areas[32];
 	
 	msim_bnvop	bnvops[512];
 	void		*bnvopsctx[512];
