@@ -329,13 +329,14 @@ function meow_op_bit(info, ...)
 end
 
 function meow_op_mem(info, ...)
-   local is_load, is_half, is_low, is_writeback, is_increase = nil, nil, true, false, nil
+   local is_load, is_half, is_low, is_writeback, is_increase, is_word, is_byte = nil, nil, true, false, nil, false, false
    local dest, src, _dest, _src
    for i, v in ipairs({...}) do
       if v == "load" then is_load = true
       elseif v == "store" then is_load = false
       elseif v == "half" then is_half = true
-      elseif v == "byte" then is_half = false
+      elseif v == "byte" then is_byte, is_low = true, false
+      elseif v == "word" then is_word, is_low = true, true
       elseif v == "low" then is_low = true
       elseif v == "high" then is_low = false
       elseif v == "writeback" then is_writeback = true
@@ -359,19 +360,24 @@ function meow_op_mem(info, ...)
    condwhinge(dest == nil, info, "No value register supplied.")
    condwhinge(src == nil, info, "No address register supplied.")
    condwhinge(is_load == nil, info, "Direction not supplied.")
-   condwhinge(is_half == nil, info, "Size of transfer not supplied.")
+   condwhinge(not(is_half or is_byte or is_word), info, "Size of transfer not supplied.")
    condwhinge(is_writeback and is_increase == nil, info, 
 	      "Writeback requested but direction not provided.")
+   condwhinge((is_word and is_byte) or (is_word and is_half) or (is_half and is_byte), info,
+	      "mem can only take one of word, half or byte")
+   condwhinge(is_word and (not is_low), info,
+	      "mem load/store word 'high' has no meaning")
    if do_intermediate() then
       _queue_bytes(info, "\tmem\t", is_load and "load\t" or "store\t")
-      _queue_bytes(info, is_half and "half\t" or "byte\t")
+      _queue_bytes(info, is_half and "half\t" or (is_word and "word\t" or "byte\t"))
       _queue_bytes(info, is_low and "low\t" or "high\t")
       if is_writeback then
 	 _queue_bytes(info, "writeback\t", is_increase and "incrementing\t" or "decrementing\t")
       end
       _queue_bytes(info, _dest, "\t", _src, "\n")
    else
-      _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, dest.value, src.value)
+      typeof = is_half and "half" or (is_word and "word" or "byte")
+      _encode_mem(info, is_load, typeof, is_low, is_writeback, is_increase, dest.value, src.value)
    end
 end
 

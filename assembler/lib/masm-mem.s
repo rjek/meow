@@ -40,6 +40,34 @@
 	mem	load	half	low	writeback	decrementing	$0	$1
 	ENDMACRO
 
+	MACRO	ldr	$0	$1
+	mem	load	word	$0 $1
+	ENDMACRO
+
+	MACRO	ldria	$0	$1
+	mem	load	word	writeback	incrementing	$0	$1
+	ENDMACRO
+
+	MACRO	ldrib	$0	$1
+	add	$1	#4
+	ldr	$0	$1
+	ENDMACRO
+
+	MACRO	ldrda	$0	$1
+	mem	load	word	writeback	decrementing	$0	$1
+	ENDMACRO
+
+	MACRO	ldrdb	$0	$1
+	sub	$1	#4
+	ldr	$0	$1
+	ENDMACRO
+
+	DEFINE	ldrfd	ldria
+
+	MACRO	pop	$0
+	ldrfd	$0	SP
+	ENDMACRO
+	
 	; Store
 
 	MACRO	strb	$0	$1
@@ -78,3 +106,30 @@
 	mem	store	half	low	writeback	decrementing	$0	$1
 	ENDMACRO
 
+	MACRO	str	$0	$1
+	mem	store	word	$0	$1
+	ENDMACRO
+
+	MACRO	stria	$0	$1
+	mem	store	word	writeback	incrementing	$0	$1
+	ENDMACRO
+
+	MACRO	strib	$0	$1
+	add	$1	#4
+	str	$0	$1
+	ENDMACRO
+
+	MACRO	strda	$0	$1
+	mem	store	word	writeback	decrementing	$0	$1
+	ENDMACRO
+
+	MACRO	strdb	$0	$1
+	sub	$1	#4
+	str	$0	$1
+	ENDMACRO
+
+	DEFINE	strfd	strdb
+
+	MACRO	push	$0
+	strfd	$0	SP
+	ENDMACRO

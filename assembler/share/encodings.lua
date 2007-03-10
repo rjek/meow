@@ -81,8 +81,13 @@ function _encode_bit(info, op, inverted, destreg, val_is_reg, val)
 end
 
 
-function _encode_mem(info, is_load, is_half, is_low, is_writeback, is_increase, valreg, addrreg)
+function _encode_mem(info, is_load, typeof, is_low, is_writeback, is_increase, valreg, addrreg)
+   local is_half = typeof == "half"
+   local is_byte = typeof == "byte"
+   local is_word = typeof == "word"
+   condwhinge(not(is_half or is_byte or is_word), info, "Unknown type passed to _encode_mem")
    local upper_bits = "111" .. (is_load and "0" or "1") .. to_bitfield(valreg, 4)
+   -- Because word and high are not permitted, is_low will be true and thus we'll get a word mem op
    local lower_bits = (is_half and "1" or "0") .. (is_low and "1" or "0") .. (is_writeback and ("1" .. (is_increase and "1" or "0")) or "00") .. to_bitfield(addrreg, 4)
    _queue_bytes(info, from_bitfield(lower_bits), from_bitfield(upper_bits))
    stat_increment "instructions"

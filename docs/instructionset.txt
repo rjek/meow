@@ -6,7 +6,9 @@ UNDEF		0001 111i iiii iiii     - bnv UNDEF range
 
 ADD		0011 dddd iiii iiii     - register d = register d + unsigned 8 bit constant
 		0010 dddd iiii ssss     - register d = register s + unsigned 4 bit constant
-					- if 4-bit immediate on second version is 0, then dest += source, otherwise dest = source + immediate
+					- if 4-bit immediate on second version is 0,
+                                            then dest += source,
+                                            otherwise dest = source + immediate
 
 SUB		0101 dddd iiii iiii     - same as above, except subtract.
 		0100 dddd iiii ssss
@@ -43,12 +45,28 @@ BIT		110N dddd oo0- ssss	- register d = register d OP register s
 
 MEM		111L vvvv SHWD aaaa	- L = load/store (1 to store)
                                           S = 8bit/16bit,  (1 for 16 bit)
-                                          H = hi/low half, (1 for low)
+					  S == 0
+					    H = 8bit/32bit, (1 for 32 bit)
+					  S == 1
+                                            H = hi/low half, (1 for low)
                                           W = writeback, (1 for on)
                                           D = direction (1 for increase)
                                           v = register whose contents to write,
                                               or register to write into
                                           a = address to store or read from
+
+Redundant encodings / spare bits we've spotted
+----------------------------------------------
+
+MEM operations when writeback is off has the spare encoding of WD==01 which
+the assembler will not encode for now.
+
+LSH operations when shifting by a register has a spare bit (0) in the upper nibble
+of the lower byte.
+
+CMP/TST when not comparing with a large constant have a spare bit (2) in the upper
+nibble of the lower byte.
+
 
 UNDEF instruction range
 -----------------------
