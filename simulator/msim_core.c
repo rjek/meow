@@ -94,6 +94,7 @@ static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
 static void msim_builtin_exit(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
+	fprintf(stdout, "msim: simulated system called HALT\n");
 	exit(ctx->r[MSIM_IR]);
 }
 
@@ -159,7 +160,7 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 }
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
-			msim_mem_access_type t,	u_int16_t d)
+			msim_mem_access_type t,	u_int32_t d)
 {
 	int area = ptr >> 27;
 	
@@ -173,7 +174,7 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 	ctx->areas[area].write(ptr & ~(31<<27), t, d, ctx->areas[area].ctx);
 }
 
-u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
+u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t)
 {
 	int area = ptr >> 27;
@@ -354,6 +355,11 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 		instr->memdirection = (instrword & 1<<4) ?
 					MSIM_MEM_INCREASE :
 					MSIM_MEM_DECREASE;
+					
+		/* make use of a useless encoding for doing 32 bit accesses */
+		if (instr->memsize == MSIM_ACCESS_BYTE &&
+			instr->memhilo == MSIM_MEM_LO)
+			instr->memsize = MSIM_ACCESS_WORD;
 		break;
 	}
 						
@@ -587,6 +593,10 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				ctx->r[instr->destination] |=
 					((tmp & 0xffff) << 16);	
 			}
+			
+			if (instr->memsize == MSIM_ACCESS_WORD) {
+				ctx->r[instr->destination] = tmp;
+			}
 		} else {
 			if (instr->memsize == MSIM_ACCESS_BYTE &&
 				instr->memhilo == MSIM_MEM_LO) {
@@ -609,13 +619,29 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				tmp = (ctx->r[instr->destination] >> 16) & 
 					0xffff;
 			}
+			
+			if (instr->memsize == MSIM_ACCESS_WORD) {
+				tmp = ctx->r[instr->destination];
+			}
+			
 			msim_memset(ctx, ctx->r[instr->source],
 					instr->memsize, tmp);
 		}
 			
 		if (instr->writeback == true) {
-			int delta = (instr->memsize == MSIM_ACCESS_BYTE)
-					? 1 : 2;
+			int delta;
+			
+			switch (instr->memsize) {
+			case MSIM_ACCESS_BYTE:
+				delta = 1;
+				break;
+			case MSIM_ACCESS_HALFWORD:
+				delta = 2;
+				break;
+			case MSIM_ACCESS_WORD:
+				delta = 4;
+				break;
+			}
 			if (instr->memdirection == MSIM_MEM_DECREASE)
 				delta = -delta;
 			ctx->r[instr->source] += delta;
@@ -666,11 +692,21 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 		u_int16_t i = msim_fetch(ctx);
 		char dis[256];
 		msim_decode(ctx, i, &(ctx->instr));
-		if (trace == true)
-			printf("msim: 0x%08x : %s\t\t\tcycle %d\n",
-				ctx->r[MSIM_PC],
+		if (trace == true) {
+			int b;
+			
+			printf("0x%08x : ", ctx->r[MSIM_PC]);
+			
+			for (b = 15; b >= 0; b--) {
+				printf("%s", (i) & (1<<b) ? "1":"0");
+				if (b % 4 == 0) printf(" ");
+			}
+			
+			printf(": %-30s cycle %d\n",
 				msim_mnemonic(ctx, dis, 256, &(ctx->instr)),
 				ctx->cyclecount);
+		}
+				
 		msim_execute(ctx, &(ctx->instr));
 		ctx->cyclecount++;
 	}
@@ -721,11 +757,11 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 		snprintf(tmp, 256, "\tR%d, ", instr->destination);
 		APPEND(tmp);
 		if (instr->subop == true) {
-			snprintf(tmp, 256, "#%d\t; 0x%08x", instr->immediate,
+			snprintf(tmp, 256, "#%d  ; 0x%08x", instr->immediate,
 							instr->immediate);
 			APPEND(tmp);
 		} else {
-			snprintf(tmp, 256, "R%d, #%d\t; 0x%08x", instr->source,
+			snprintf(tmp, 256, "R%d, #%d  ; 0x%08x", instr->source,
 					instr->immediate, instr->immediate);
 			APPEND(tmp);
 		}
@@ -734,7 +770,7 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 	case MSIM_OPCODE_CMP:
 		if (instr->subop == false) {
 			APPEND("CMP");
-			snprintf(tmp, 256, "\tR%d, #%d\t; 0x%08d",
+			snprintf(tmp, 256, "\tR%d, #%d  ; 0x%08d",
 				instr->destination, instr->immediate,
 				instr->immediate);
 			APPEND(tmp);
@@ -757,31 +793,22 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 		break;
 		
 	case MSIM_OPCODE_MOV:
-		if (instr->destination == 15 &&
-			instr->source == 15 &&
-			instr->destinationbank == MSIM_OTHER_BANK &&
-			instr->sourcebank == MSIM_OTHER_BANK &&
-			instr->halfwordswap == true &&
-			instr->byteswap == true)
-			APPEND("INTRTN");
-		else {
-			if (instr->subop == true) {
-				APPEND("LDI");
-				snprintf(tmp, 256, "\t#%d\t; 0x%08x",
-					instr->immediate,
-					instr->immediate);
-				APPEND(tmp);	
-			} else {
-				APPEND("MOV");
-				if (instr->halfwordswap == true) APPEND("W");
-				if (instr->byteswap == true) APPEND("B");
-				snprintf(tmp, 256, "\t%s%d, %s%d",
-					instr->destinationbank == MSIM_THIS_BANK
-					? "R" : "AR", instr->destination,
-					instr->sourcebank == MSIM_THIS_BANK
-					? "R" : "AR", instr->source);
-				APPEND(tmp);
-			}
+		if (instr->subop == true) {
+			APPEND("LDI");
+			snprintf(tmp, 256, "\t#%d  ; 0x%08x",
+				instr->immediate,
+				instr->immediate);
+			APPEND(tmp);	
+		} else {
+			APPEND("MOV");
+			if (instr->halfwordswap == true) APPEND("W");
+			if (instr->byteswap == true) APPEND("B");
+			snprintf(tmp, 256, "\t%s%d, %s%d",
+				instr->destinationbank == MSIM_THIS_BANK
+				? "R" : "AR", instr->destination,
+				instr->sourcebank == MSIM_THIS_BANK
+				? "R" : "AR", instr->source);
+			APPEND(tmp);
 		}
 	
 		break;
@@ -838,13 +865,15 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 		else
 			APPEND("STR");
 		
-		if (instr->memhilo == MSIM_MEM_HI)
-			APPEND("H");
-		else
-			APPEND("L");
+		if (instr->memsize != MSIM_ACCESS_WORD) {
+			if (instr->memhilo == MSIM_MEM_HI)
+				APPEND("H");
+			else
+				APPEND("L");
 		
-		if (instr->memsize == MSIM_ACCESS_BYTE)
-			APPEND("B");
+			if (instr->memsize == MSIM_ACCESS_BYTE)
+				APPEND("B");
+		}
 			
 		if (instr->writeback == true) {
 			if (instr->memdirection == MSIM_MEM_DECREASE)
@@ -900,26 +929,36 @@ struct msim_rom_ctx {
 	size_t		size;
 };
 
-static u_int16_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
+static u_int32_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
 				void *ctx)
 {
 	struct msim_rom_ctx *mctx = (struct msim_rom_ctx *)ctx;
 	unsigned char *rom = mctx->rom;
+	u_int32_t r;
+	
 	
 	if (ptr > mctx->size)
 		return 0;
 	
-	if (access == MSIM_ACCESS_BYTE) {
-		return rom[ptr];
-	} else {
-		return rom[ptr] | (rom[ptr + 1] << 8);
+	switch (access) {
+	case MSIM_ACCESS_BYTE:
+		r = rom[ptr];
+		break;
+	case MSIM_ACCESS_HALFWORD:
+		r = rom[ptr] | (rom[ptr + 1] << 8);
+		break;
+	case MSIM_ACCESS_WORD:
+		r = rom[ptr] | (rom[ptr + 1] << 8) | (rom[ptr + 2] << 16) |
+			(rom[ptr + 3] << 24);
+		break;
 	}
 	
+	return r;	
 }
 
 static void msim_rom_write(const u_int32_t ptr,
 				const msim_mem_access_type access,
-				const u_int16_t d, void *ctx)
+				const u_int32_t d, void *ctx)
 {
 	fprintf(stderr,
 		"warning: attempt to write value %x into ROM at %x\n", d, ptr);
@@ -965,26 +1004,35 @@ struct msim_ram_ctx {
 	size_t		size;
 };
 
-static u_int16_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
+static u_int32_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
 				void *ctx)
 {
 	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
 	unsigned char *ram = mctx->ram;
+	u_int32_t r;
 	
 	if (ptr > mctx->size)
 		return 0;
 	
-	if (access == MSIM_ACCESS_BYTE) {
-		return ram[ptr];
-	} else {
-		return ram[ptr] | (ram[ptr + 1] << 8);
+	switch (access) {
+	case MSIM_ACCESS_BYTE:
+		r = ram[ptr];
+		break;
+	case MSIM_ACCESS_HALFWORD:
+		r = ram[ptr] | (ram[ptr + 1] << 8);
+		break;
+	case MSIM_ACCESS_WORD:
+		r = ram[ptr] | (ram[ptr + 1] << 8) | (ram[ptr + 2] << 16) |
+			(ram[ptr + 3] << 24);
+		break;
 	}
 	
+	return r;
 }
 
 static void msim_ram_write(const u_int32_t ptr,
 				const msim_mem_access_type access,
-				const u_int16_t d, void *ctx)
+				const u_int32_t d, void *ctx)
 {
 	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
 	unsigned char *ram = mctx->ram;
@@ -992,11 +1040,20 @@ static void msim_ram_write(const u_int32_t ptr,
 	if (ptr > mctx->size)
 		return;
 	
-	if (access == MSIM_ACCESS_BYTE) {
+	switch (access) {
+	case MSIM_ACCESS_BYTE:
 		ram[ptr] = d & 0xff;
-	} else {
+		break;
+	case MSIM_ACCESS_HALFWORD:
 		ram[ptr] = (d & 0xff);
-		ram[ptr + 1] = (d >> 8);
+		ram[ptr + 1] = (d >> 8) & 0xff;
+		break;
+	case MSIM_ACCESS_WORD:
+		ram[ptr] = (d & 0xff);
+		ram[ptr + 1] = (d >> 8) & 0xff;
+		ram[ptr + 2] = (d >> 16) & 0xff;
+		ram[ptr + 3] = (d >> 24) & 0xff;			
+		break;
 	}
 }
 

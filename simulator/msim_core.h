@@ -45,7 +45,7 @@
 #define MSIM_CLEAR_CFLAG(x) ((x) &= ~(1<<29))
 #define MSIM_CLEAR_VFLAG(x) ((x) &= ~(1<<28))
 
-#define MSIM_SIGN_EXTEND(v, t, s) ((v) | (((v) & (1 << ((s)-1)))?(((1<<((t)-(s)))-1)<<(s)):(0)))
+#define MSIM_SIGN_EXTEND(v, t, s) ((v)|(((v)&(1<<((s)-1)))?(((1<<((t)-(s)))-1)<<(s)):(0)))
 
 #define MSIM_GET_SUBOP(i) (((i) >> 12) & 1)
 #define MSIM_GET_DREG(i) (((i) >> 8) & 15)
@@ -55,7 +55,8 @@
 
 typedef enum {
 	MSIM_ACCESS_BYTE = 0,
- 	MSIM_ACCESS_HALFWORD = 1
+ 	MSIM_ACCESS_HALFWORD = 1,
+ 	MSIM_ACCESS_WORD = 2,
 } msim_mem_access_type;
 
 typedef enum {
@@ -192,12 +193,12 @@ struct msim_instr {
 
 struct msim_ctx;
 
-typedef u_int16_t (*msim_read_mem)(const u_int32_t /* ptr */, 
+typedef u_int32_t (*msim_read_mem)(const u_int32_t /* ptr */, 
 					const msim_mem_access_type,
 					void *ctx);
 typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
 				const msim_mem_access_type,
-				const u_int16_t d,
+				const u_int32_t d,
 				void *ctx);
 
 typedef void (*msim_reset_mem)(void *ctx);
@@ -237,8 +238,8 @@ void msim_device_remove(struct msim_ctx *ctx, const int area);
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace);
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
-			msim_mem_access_type t,	u_int16_t d);
-u_int16_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
+			msim_mem_access_type t,	u_int32_t d);
+u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t);
 
 void msim_irq(struct msim_ctx *ctx, int irq);
