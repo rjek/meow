@@ -568,17 +568,9 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 			tmp = msim_memget(ctx, ctx->r[instr->source],
 						instr->memsize);
 		
-			if (instr->memsize == MSIM_ACCESS_BYTE &&
-				instr->memhilo == MSIM_MEM_LO) {
+			if (instr->memsize == MSIM_ACCESS_BYTE) {
 				ctx->r[instr->destination] &= (~0xff);
 				ctx->r[instr->destination] |= tmp & 0xff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_BYTE &&
-				instr->memhilo == MSIM_MEM_HI) {
-				ctx->r[instr->destination] &= (~0xff0000);
-				ctx->r[instr->destination] |=
-					((tmp & 0xff) << 16);
 			}
 			
 			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
@@ -598,15 +590,8 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 				ctx->r[instr->destination] = tmp;
 			}
 		} else {
-			if (instr->memsize == MSIM_ACCESS_BYTE &&
-				instr->memhilo == MSIM_MEM_LO) {
+			if (instr->memsize == MSIM_ACCESS_BYTE) {
 				tmp = ctx->r[instr->destination] & 0xff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_BYTE &&
-				instr->memhilo == MSIM_MEM_HI) {
-				tmp = (ctx->r[instr->destination] >> 16) & 
-					0xff;
 			}
 			
 			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
@@ -866,13 +851,14 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			APPEND("STR");
 		
 		if (instr->memsize != MSIM_ACCESS_WORD) {
-			if (instr->memhilo == MSIM_MEM_HI)
-				APPEND("H");
-			else
-				APPEND("L");
-		
 			if (instr->memsize == MSIM_ACCESS_BYTE)
 				APPEND("B");
+			else {
+				if (instr->memhilo == MSIM_MEM_HI)
+					APPEND("H");
+				else
+					APPEND("L");
+			}
 		}
 			
 		if (instr->writeback == true) {
