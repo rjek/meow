@@ -34,6 +34,42 @@
 
 #include "msim_core.h"
 
+static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	if (argc < 2) {
+		/* just list the breakpoints */
+		int i, t = 0;
+		for (i = 0; i < MSIM_DEBUG_BREAKPOINTS; i++) {
+			if (ctx->breakpoints[i] != -1) {
+				t++;
+				/* TODO: Include disassembly of instruction
+				 * this points to? */
+				printf("%2d: 0x%08x\n", t, ctx->breakpoints[i]);
+			}
+		}
+		
+		if (t == 0)
+			printf("no breakpoints set.\n");
+	
+	} else {
+		u_int32_t a = atoi(argv[1]);
+		
+		if (msim_breakpoint(ctx, a) == true) {
+			msim_breakpoint_del(ctx, a);
+			printf("breakpoint deleted\n");
+			return;
+		}
+		
+		if (msim_breakpoint_add(ctx, a) == true) {
+			printf("breakpoint added\n");
+		} else {
+			printf("maximum of %d breakpoints reached\n",
+				MSIM_DEBUG_BREAKPOINTS);
+		}			
+	}
+}
+
 static void msim_debug_help(void)
 {
 	printf("Commands:\n");
@@ -68,6 +104,7 @@ static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 		/* write memory location contents */
 	} else if (!strcmp(argv[0], "breakpoint")) {
 		/* toggle breakpoint at memory location */
+		msim_debug_breakpoint(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "help")) {
 		/* print out some useful usage information */
 		msim_debug_help();
@@ -151,6 +188,7 @@ void msim_debugger(struct msim_ctx *ctx)
 	el_set(e, EL_ADDFN, "ed-complete", "Complete argument", msim_complete);
 	el_set(e, EL_BIND, "^I", "ed-complete", NULL);
 
+	msim_debug_init(ctx);
 	
 	while (true) {
 		int argc, ln;
@@ -186,7 +224,7 @@ bool msim_breakpoint_add(struct msim_ctx *ctx, u_int32_t address)
 			break;
 	}
 	
-	if (i > MSIM_DEBUG_BREAKPOINTS) return false;
+	if (i >= MSIM_DEBUG_BREAKPOINTS) return false;
 	
 	ctx->breakpoints[i] = address;
 	
