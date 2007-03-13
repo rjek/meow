@@ -29,6 +29,11 @@
 #include <stdbool.h> 
 #include <sys/types.h>
 
+struct msim_ctx;
+struct msim_instr;
+
+#include "msim_debug.h"
+
 #define MSIM_SR_NFLAG(i) (((i) & 1<<31) != 0)
 #define MSIM_SR_ZFLAG(i) (((i) & 1<<30) != 0)
 #define MSIM_SR_CFLAG(i) (((i) & 1<<29) != 0)
@@ -226,6 +231,9 @@ struct msim_ctx {
 	void		*bnvopsctx[512];
 	
 	struct msim_instr instr;
+#ifdef MSIM_DEBUG_CONTEXT
+	MSIM_DEBUG_CONTEXT
+#endif
 };
 
 struct msim_ctx *msim_init(void);
@@ -250,10 +258,6 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 			struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
 inline bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
-
-char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 
-			struct msim_instr *instr);
-void msim_print_state(struct msim_ctx *ctx);
 
 void msim_add_bnv(struct msim_ctx *ctx, signed int op, msim_bnvop func,
 			void *fctx);
