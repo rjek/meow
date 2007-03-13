@@ -30,7 +30,71 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <histedit.h>
+
 #include "msim_core.h"
+
+static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
+						const char *argv[])
+{
+	/* TODO: make this table-driven? */
+	
+	if (argc == 0 || !strcmp(argv[0], "step")) {
+		/* step - default if no command */
+	} else if (!strcmp(argv[0], "run")) {
+		/* run until end or breakpoint */
+	} else if (!strcmp(argv[0], "peak")) {
+		/* display memory location contents */
+	} else if (!strcmp(argv[0], "poke")) {
+		/* write memory location contents */
+	} else if (!strcmp(argv[0], "breakpoint")) {
+		/* toggle breakpoint at memory location */
+	} else if (!strcmp(argv[0], "quit") || !strcmp(argv[0], "exit")) {
+		/* quit the debugger */
+		
+		return true;
+	} else {
+		printf("msim: unknown command '%s'\n", argv[0]);
+	}
+	
+	return false;
+}
+
+static char *el_prompt(EditLine *e)
+{
+	return "(msim) ";
+}
+
+void msim_debugger(struct msim_ctx *ctx)
+{
+	EditLine *e = el_init("msim", stdin, stdout, stderr);
+	History *h = history_init();
+	Tokenizer *t = tok_init(NULL);
+	HistEvent he;
+	
+	history(h, &he, H_SETSIZE, 1024);
+	
+	el_set(e, EL_PROMPT, el_prompt);
+	el_set(e, EL_EDITOR, "emacs");
+	el_set(e, EL_SIGNAL, 1);
+	el_set(e, EL_HIST, history, h);
+	
+	while (true) {
+		int argc, ln;
+		const char **argv, *l = el_gets(e, &ln);
+		
+		if (ln == 0) break;	/* Ctrl-D, or error, etc */
+		history(h, &he, H_ENTER, l);
+		tok_str(t, l, &argc, &argv);
+		if (msim_debug_main(ctx, argc, argv))
+			break;
+		tok_reset(t);
+	}
+	
+	el_end(e);
+	history_end(h);
+	tok_end(t);
+}
 
 void msim_debug_init(struct msim_ctx *ctx)
 {

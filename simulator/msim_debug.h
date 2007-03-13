@@ -33,6 +33,9 @@
 
 #define MSIM_DEBUG_CONTEXT u_int32_t breakpoints[MSIM_DEBUG_BREAKPOINTS];
 
+/* start a debugging session */
+void msim_debugger(struct msim_ctx *ctx);
+
 /* initialise debugging routines */
 void msim_debug_init(struct msim_ctx *ctx);
 

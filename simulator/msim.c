@@ -149,14 +149,14 @@ static bool parse_spec(struct msim_ctx *ctx, const char *specfile)
 
 static void display_help(const char *argv0)
 {
-	printf("Usage: %s [-vh] {-f spec file} [-c cycles]\n", argv0);
+	printf("Usage: %s [-vhi] {-f spec file} [-c cycles]\n", argv0);
 }
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhf:c:";
+	static char optstring[] = "vhif:c:";
 	int optch, cycles = 0;
-	bool verbose = false, opterr = false;
+	bool verbose = false, interactive = false, opterr = false;
 	char *specfile = NULL;
 	struct msim_ctx *ctx;
 	
@@ -180,6 +180,10 @@ int main(int argc, char *argv[])
 		case 'c':
 			cycles = atoi(optarg);
 			break;
+			
+		case 'i':
+			interactive = true;
+			break;
 		}
 	}
 	
@@ -199,16 +203,21 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 	
-	if (cycles == 0) {
-		while(true) {
+	if (interactive == true) {
+		msim_debugger(ctx);
+	} else {
+	
+		if (cycles == 0) {
+			while(true) {
+				msim_run(ctx, 1, verbose);
+				if (verbose) msim_print_state(ctx);
+			}
+		}
+	
+		for (; cycles > 0; cycles--) {
 			msim_run(ctx, 1, verbose);
 			if (verbose) msim_print_state(ctx);
 		}
-	}
-	
-	for (; cycles > 0; cycles--) {
-		msim_run(ctx, 1, verbose);
-		if (verbose) msim_print_state(ctx);
 	}
 	
 	msim_destroy(ctx);
