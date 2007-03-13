@@ -701,6 +701,9 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			struct msim_instr *instr)
 {
 	char tmp[256];
+	static char r[][16] = {
+		"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9",
+		"r10", "sp", "lr", "ir", "sr", "pc" };
 	
 	if (bufl == 0)
 		return buf;
@@ -739,14 +742,15 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 	case MSIM_OPCODE_ADD:
 	case MSIM_OPCODE_SUB:
 		APPEND(instr->opcode == MSIM_OPCODE_ADD ? "ADD" : "SUB");
-		snprintf(tmp, 256, "\tR%d, ", instr->destination);
+		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
 		APPEND(tmp);
 		if (instr->subop == true) {
 			snprintf(tmp, 256, "#%d  ; 0x%08x", instr->immediate,
 							instr->immediate);
 			APPEND(tmp);
 		} else {
-			snprintf(tmp, 256, "R%d, #%d  ; 0x%08x", instr->source,
+			snprintf(tmp, 256, "%s, #%d  ; 0x%08x",
+					r[instr->source],
 					instr->immediate, instr->immediate);
 			APPEND(tmp);
 		}
@@ -755,24 +759,24 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 	case MSIM_OPCODE_CMP:
 		if (instr->subop == false) {
 			APPEND("CMP");
-			snprintf(tmp, 256, "\tR%d, #%d  ; 0x%08d",
-				instr->destination, instr->immediate,
+			snprintf(tmp, 256, "\t%s, #%d  ; 0x%08d",
+				r[instr->destination], instr->immediate,
 				instr->immediate);
 			APPEND(tmp);
 		} else if (instr->istst == true) {
 			APPEND("TST");
-			snprintf(tmp, 256, "\t%s%d, #%d",
+			snprintf(tmp, 256, "\t%s%s, #%d",
 				instr->destinationbank == MSIM_THIS_BANK ?
-				"R" : "AR", instr->destination,
+				"" : "a", r[instr->destination],
 				ffs(instr->immediate));
 			APPEND(tmp);
 		} else {
 			APPEND("CMP");
-			snprintf(tmp, 256, "\t%s%d, %s%d",
+			snprintf(tmp, 256, "\t%s%s, %s%s",
 				instr->destinationbank == MSIM_THIS_BANK ?
-				"R" : "AR", instr->destination,
+				"" : "a", r[instr->destination],
 				instr->sourcebank == MSIM_THIS_BANK ?
-				"R" : "AR", instr->source);
+				"" : "a", r[instr->source]);
 			APPEND(tmp);
 		}
 		break;
@@ -788,11 +792,11 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 			APPEND("MOV");
 			if (instr->halfwordswap == true) APPEND("W");
 			if (instr->byteswap == true) APPEND("B");
-			snprintf(tmp, 256, "\t%s%d, %s%d",
+			snprintf(tmp, 256, "\t%s%s, %s%s",
 				instr->destinationbank == MSIM_THIS_BANK
-				? "R" : "AR", instr->destination,
+				? "" : "a", r[instr->destination],
 				instr->sourcebank == MSIM_THIS_BANK
-				? "R" : "AR", instr->source);
+				? "" : "a", r[instr->source]);
 			APPEND(tmp);
 		}
 	
@@ -816,13 +820,13 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 		if (instr->shiftdirection == MSIM_SHIFT_RIGHT &&
 			instr->roll == true) APPEND("ROR");
 		
-		snprintf(tmp, 256, "\tR%d, ", instr->destination);
+		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
 		APPEND(tmp);
 		
 		if (instr->immver)
 			snprintf(tmp, 256, "#%d", instr->immediate);
 		else
-			snprintf(tmp, 256, "R%d", instr->source);
+			snprintf(tmp, 256, "%s", r[instr->source]);
 		APPEND(tmp);
 	
 		break;
@@ -835,12 +839,12 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 		case MSIM_BITOP_EOR: APPEND("EOR"); break;
 		}
 		if (instr->inverted == true) APPEND(" INVERTED");
-		snprintf(tmp, 256, "\tR%d, ", instr->destination);
+		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
 		APPEND(tmp);
 		if (instr->immver == true)
 			snprintf(tmp, 256, "#%d", ffs(instr->immediate));
 		else
-			snprintf(tmp, 256, "R%d", instr->source);
+			snprintf(tmp, 256, "%s", r[instr->source]);
 		APPEND(tmp);
 		break;
 			
@@ -868,8 +872,8 @@ char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl,
 				APPEND("I");
 		}
 		
-		snprintf(tmp, 256, "\tR%d, R%d", instr->destination,
-							instr->source);
+		snprintf(tmp, 256, "\t%s, %s", r[instr->destination],
+						r[instr->source]);
 		APPEND(tmp);
 		
 		break;
