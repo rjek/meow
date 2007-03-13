@@ -34,6 +34,123 @@
 
 #include "msim_core.h"
 
+static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	msim_mem_access_type t = MSIM_ACCESS_WORD;
+	bool instr = false, str = false;
+	u_int32_t a, d;
+	
+	
+	if (argc < 2) {
+		printf("usage: peek <address> [type]\n");
+		return;
+	}
+	
+	if (argc > 2) {
+		switch (argv[2][0]) {
+		case 'w':
+			t = MSIM_ACCESS_WORD;
+			break;
+		case 'h':
+			t = MSIM_ACCESS_HALFWORD;
+			break;
+		case 'i':
+			t = MSIM_ACCESS_HALFWORD;
+			instr = true;
+			break;
+		case 'b':
+			t = MSIM_ACCESS_BYTE;
+			break;
+		case 's':
+			t = MSIM_ACCESS_BYTE;
+			str = true;
+		default:
+			printf("unknown type '%s'\n", argv[3]);
+			return;
+		}
+	}
+	
+	a = strtol(argv[1], NULL, 0);
+	
+	if (str == true) {
+		int len = 0;
+		
+		printf("0x%08x: '", a);
+		d = msim_memget(ctx, a, t);
+		while (d != 0) {
+			printf("%c", d);
+			a++; len++;
+			d = msim_memget(ctx, a, t);
+		}
+		printf("' (%d characters)\n", len);
+		return;
+	} else if (instr == true) {
+		char mnem[256];
+		struct msim_instr decoded;
+		d = msim_memget(ctx, a, t);
+		
+		msim_decode(ctx, d, &decoded);
+		msim_mnemonic(ctx, mnem, 256, &decoded);
+		printf("0x%08x: %s\n", a, mnem);
+		return;
+	}
+
+	printf("0x%08x: ", a);
+
+	d = msim_memget(ctx, a, t);
+	
+	switch (t) {
+	case MSIM_ACCESS_BYTE:
+		if (d >= 32 && d < 127)
+			printf("'%c' ", d);
+		printf("0x%02x %d\n", d, d);
+		break;
+	case MSIM_ACCESS_HALFWORD:
+		printf("0x%04x %d\n", d, d);
+		break;
+	case MSIM_ACCESS_WORD:
+		printf("0x%08x %d\n", d, d);
+		break;
+	}
+	
+	
+}
+
+static void msim_debug_poke(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	msim_mem_access_type t = MSIM_ACCESS_WORD;
+	u_int32_t a, d;
+	
+	if (argc < 3) {
+		printf("usage: poke <address> <value> [type]\n");
+		return;
+	}
+	
+	if (argc > 3) {
+		switch (argv[3][0]) {
+		case 'w':
+			t = MSIM_ACCESS_WORD;
+			break;
+		case 'h':
+			t = MSIM_ACCESS_HALFWORD;
+			break;
+		case 'b':
+			t = MSIM_ACCESS_BYTE;
+			break;
+		default:
+			printf("unknown type '%s'\n", argv[3]);
+			return;
+		}
+	}
+	
+	a = strtol(argv[1], NULL, 0);
+	d = strtol(argv[2], NULL, 0);
+	
+	msim_memset(ctx, a, t, d);
+}
+
 static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 							const char *argv[])
 {
@@ -60,7 +177,7 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 			printf("no breakpoints set.\n");
 	
 	} else {
-		u_int32_t a = atoi(argv[1]);
+		u_int32_t a = strtol(argv[1], NULL, 0);
 		
 		if (a % 2 != 0) {
 			printf("breakpoints must be at multiples of 2.\n");
@@ -98,7 +215,8 @@ static void msim_debug_help(void)
 	printf("w                Word (default)\n");
 	printf("b                Byte\n");
 	printf("h                Half-word\n");
-	printf("s                C string\n");
+	printf("s                C string (only for reading)\n");
+	printf("i                Instruction (only for reading)\n");
 }
 
 static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
@@ -112,8 +230,10 @@ static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 		/* run until end or breakpoint */
 	} else if (!strcmp(argv[0], "peek")) {
 		/* display memory location contents */
+		msim_debug_peek(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "poke")) {
 		/* write memory location contents */
+		msim_debug_poke(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "breakpoint")) {
 		/* toggle breakpoint at memory location */
 		msim_debug_breakpoint(ctx, argc, argv);
