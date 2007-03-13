@@ -370,7 +370,9 @@ function meow_op_mem(info, ...)
    if do_intermediate() then
       _queue_bytes(info, "\tmem\t", is_load and "load\t" or "store\t")
       _queue_bytes(info, is_half and "half\t" or (is_word and "word\t" or "byte\t"))
-      _queue_bytes(info, is_low and "low\t" or "high\t")
+      if is_half then
+	 _queue_bytes(info, is_low and "low\t" or "high\t")
+      end
       if is_writeback then
 	 _queue_bytes(info, "writeback\t", is_increase and "incrementing\t" or "decrementing\t")
       end
