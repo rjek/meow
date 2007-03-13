@@ -45,7 +45,7 @@ static bool parse_chip_ram(struct msim_ctx *ctx, int lino, int chip)
 	size_t size = 128*1024*1024;	/* default to maximum size */
 	
 	if (b != NULL)
-		size = atoi(b);
+		size = strtol(b, NULL, 0);
 	
 	msim_add_ram(ctx, chip, size);
 	
