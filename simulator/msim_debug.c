@@ -234,7 +234,7 @@ static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 	} else if (!strcmp(argv[0], "poke")) {
 		/* write memory location contents */
 		msim_debug_poke(ctx, argc, argv);
-	} else if (!strcmp(argv[0], "breakpoint")) {
+	} else if (!strcmp(argv[0], "breakpoint") || !strcmp(argv[0], "b")) {
 		/* toggle breakpoint at memory location */
 		msim_debug_breakpoint(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "help")) {
