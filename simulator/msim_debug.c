@@ -42,10 +42,17 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 		int i, t = 0;
 		for (i = 0; i < MSIM_DEBUG_BREAKPOINTS; i++) {
 			if (ctx->breakpoints[i] != -1) {
+				char mnem[256];
+				struct msim_instr instr;
+				u_int16_t instrword = 
+					msim_memget(ctx, ctx->breakpoints[i],
+							MSIM_ACCESS_WORD);
+				
 				t++;
-				/* TODO: Include disassembly of instruction
-				 * this points to? */
-				printf("%2d: 0x%08x\n", t, ctx->breakpoints[i]);
+				msim_decode(ctx, instrword, &instr);
+				msim_mnemonic(ctx, mnem, 256, &instr);
+				printf("%2d: 0x%08x %s\n", t,
+					ctx->breakpoints[i], mnem);
 			}
 		}
 		
@@ -54,6 +61,11 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 	
 	} else {
 		u_int32_t a = atoi(argv[1]);
+		
+		if (a % 2 != 0) {
+			printf("breakpoints must be at multiples of 2.\n");
+			return;
+		}
 		
 		if (msim_breakpoint(ctx, a) == true) {
 			msim_breakpoint_del(ctx, a);
