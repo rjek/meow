@@ -29,10 +29,29 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
-
+#include <ctype.h>
 #include <histedit.h>
 
 #include "msim_core.h"
+
+static void msim_debug_help(void)
+{
+	printf("Commands:\n");
+	printf("step [n]         Perform n cycles, or 1 cycle if omitted\n");
+	printf("run              Run until break point or HALT\n");
+	printf("peek <a> [t]     Display word at a, or optionally other type\n");
+	printf("poke <a> <v> [t] Set word at a, or optionally other type\n");
+	printf("show <r> [t]     Shows the word in register R, or other type\n");
+	printf("breakpoint [a]   Toggles a breakpoint at a, or lists "
+					"current breakpoints\n");
+	printf("help             Shows this help text\n");
+	printf("quit             Quits the simulator\n");
+	printf("\nTypes:\n");
+	printf("w                Word (default)\n");
+	printf("b                Byte\n");
+	printf("h                Half-word\n");
+	printf("s                C string\n");
+}
 
 static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 						const char *argv[])
@@ -43,12 +62,15 @@ static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 		/* step - default if no command */
 	} else if (!strcmp(argv[0], "run")) {
 		/* run until end or breakpoint */
-	} else if (!strcmp(argv[0], "peak")) {
+	} else if (!strcmp(argv[0], "peek")) {
 		/* display memory location contents */
 	} else if (!strcmp(argv[0], "poke")) {
 		/* write memory location contents */
 	} else if (!strcmp(argv[0], "breakpoint")) {
 		/* toggle breakpoint at memory location */
+	} else if (!strcmp(argv[0], "help")) {
+		/* print out some useful usage information */
+		msim_debug_help();
 	} else if (!strcmp(argv[0], "quit") || !strcmp(argv[0], "exit")) {
 		/* quit the debugger */
 		
@@ -65,6 +87,54 @@ static char *el_prompt(EditLine *e)
 	return "(msim) ";
 }
 
+static char *completions[] = {
+	"step ", "run", "peek ", "poke ", "breakpoint ",
+	"help", "quit", "exit",
+	
+	NULL
+};
+
+static unsigned char msim_complete(EditLine *e, int ch)
+{
+        const char *ptr, *answer = NULL;
+        const LineInfo *lf = el_line(e);
+        int len, i = 0;
+        
+        /*
+         * Find the last word and its length
+         */
+        for (ptr = lf->cursor - 1; !isspace(*ptr) && ptr >= lf->buffer; ptr--)
+                continue;
+        len = lf->cursor - ++ptr;
+        
+	if (len == 0) {
+		/* it's not worth bothering */
+		return CC_ERROR;
+	}
+	
+	while(completions[i] != NULL) {
+		if (strncmp(completions[i], ptr, len) == 0) {
+			if (answer != NULL) {
+				/* more than one match - return error */
+				return CC_ERROR;
+			} else {
+				answer = completions[i] + len;
+			}
+		}
+		i++;
+	}
+	
+	if (answer == NULL)
+		return CC_ERROR;
+	
+	if (el_insertstr(e, answer) == -1)
+		return CC_ERROR;
+	else
+		return CC_REFRESH;
+
+        return (CC_ERROR);
+}
+
 void msim_debugger(struct msim_ctx *ctx)
 {
 	EditLine *e = el_init("msim", stdin, stdout, stderr);
@@ -78,6 +148,9 @@ void msim_debugger(struct msim_ctx *ctx)
 	el_set(e, EL_EDITOR, "emacs");
 	el_set(e, EL_SIGNAL, 1);
 	el_set(e, EL_HIST, history, h);
+	el_set(e, EL_ADDFN, "ed-complete", "Complete argument", msim_complete);
+	el_set(e, EL_BIND, "^I", "ed-complete", NULL);
+
 	
 	while (true) {
 		int argc, ln;
