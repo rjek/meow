@@ -5,7 +5,7 @@
 	; Load
 
 	MACRO	ldrb	$0	$1
-	mem	load	byte	low	$0	$1
+	mem	load	byte	$0	$1
 	ENDMACRO
 
 	MACRO	ldrh	$0	$1
@@ -17,11 +17,11 @@
 	ENDMACRO
 
 	MACRO	ldrbi	$0	$1
-	mem	load	byte	low	writeback	incrementing	$0	$1
+	mem	load	byte	writeback	incrementing	$0	$1
 	ENDMACRO
 
 	MACRO	ldrbd	$0	$1
-	mem	load	byte	low 	writeback	decrementing	$0	$1
+	mem	load	byte 	writeback	decrementing	$0	$1
 	ENDMACRO
 
 	MACRO	ldrhi	$0	$1
@@ -71,7 +71,7 @@
 	; Store
 
 	MACRO	strb	$0	$1
-	mem	store	byte	low	$0	$1
+	mem	store	byte	$0	$1
 	ENDMACRO
 
 	MACRO	strh	$0	$1
@@ -83,11 +83,11 @@
 	ENDMACRO
 
 	MACRO	strbi	$0	$1
-	mem	store	byte	low	writeback	incrementing	$0	$1
+	mem	store	byte	writeback	incrementing	$0	$1
 	ENDMACRO
 
 	MACRO	strbd	$0	$1
-	mem	store	byte	low 	writeback	decrementing	$0	$1
+	mem	store	byte 	writeback	decrementing	$0	$1
 	ENDMACRO
 
 	MACRO	strhi	$0	$1
