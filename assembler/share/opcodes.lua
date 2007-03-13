@@ -337,8 +337,8 @@ function meow_op_mem(info, ...)
       elseif v == "half" then is_half = true
       elseif v == "byte" then is_byte, is_low = true, false
       elseif v == "word" then is_word, is_low = true, true
-      elseif v == "low" then is_low = true
-      elseif v == "high" then is_low = false
+      elseif v == "low" then condwhinge(is_half == true, info, "low/high only valid for halfword mem operations") is_low = true
+      elseif v == "high" then condwhinge(is_half == true, info, "low/high only valid for halfword mem operations") is_low = false
       elseif v == "writeback" then is_writeback = true
       elseif v == "incrementing" then is_increase = true
       elseif v == "decrementing" then is_increase = false
