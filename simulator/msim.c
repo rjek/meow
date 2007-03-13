@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
 			opterr = true;
 		case 'h':
 			display_help(argv[0]);
+			exit(0);
 			break;
 			
 		case 'v':
