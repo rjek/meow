@@ -34,14 +34,17 @@
 
 #include "msim_core.h"
 
+static inline void msim_print_next_instruction(struct msim_ctx *ctx)
+{
+	u_int32_t instr = msim_memget(ctx, ctx->r[MSIM_PC],
+					MSIM_ACCESS_HALFWORD);
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr));
+}
+
 static void msim_debug_step(struct msim_ctx *ctx, const int argc,
 							const char *argv[])
 {
 	int cycles = 1;
-	char mnem[256];
-	struct msim_instr decoded;
-	u_int32_t instr;
-
 	
 	if (argc > 1) {
 		cycles = strtol(argv[1], NULL, 0);
@@ -56,21 +59,13 @@ static void msim_debug_step(struct msim_ctx *ctx, const int argc,
 		}
 	}
 	
-	instr = msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
-	msim_decode(ctx, instr, &decoded);
-	msim_mnemonic(ctx, mnem, 256, &decoded);
-	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);
-
+	msim_print_next_instruction(ctx);
 }
 
 static void msim_debug_run(struct msim_ctx *ctx, const int argc,
 							const char *argv[])
 {
-	char mnem[256];
-	struct msim_instr decoded;
-	u_int32_t instr;
-
-	while(true) {
+	while (true) {
 		msim_run(ctx, 1, false);
 		if (msim_breakpoint(ctx, ctx->r[MSIM_PC]) == true) {
 			printf("msim: hit breakpoint at 0x%08x\n",
@@ -79,10 +74,7 @@ static void msim_debug_run(struct msim_ctx *ctx, const int argc,
 		}
 	}
 	
-	instr = msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
-	msim_decode(ctx, instr, &decoded);
-	msim_mnemonic(ctx, mnem, 256, &decoded);
-	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);	
+	msim_print_next_instruction(ctx);
 }
 
 static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
@@ -142,13 +134,8 @@ static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 		printf("' (%d characters)\n", len);
 		return;
 	} else if (instr == true) {
-		char mnem[256];
-		struct msim_instr decoded;
 		d = msim_memget(ctx, a, t);
-		
-		msim_decode(ctx, d, &decoded);
-		msim_mnemonic(ctx, mnem, 256, &decoded);
-		printf("0x%08x: %s\n", a, mnem);
+		printf("0x%08x: %s\n", a, msim_disassemble(d));
 		return;
 	}
 
@@ -338,17 +325,14 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 		int i, t = 0;
 		for (i = 0; i < MSIM_DEBUG_BREAKPOINTS; i++) {
 			if (ctx->breakpoints[i] != -1) {
-				char mnem[256];
-				struct msim_instr instr;
 				u_int16_t instrword = 
 					msim_memget(ctx, ctx->breakpoints[i],
 							MSIM_ACCESS_WORD);
 				
 				t++;
-				msim_decode(ctx, instrword, &instr);
-				msim_mnemonic(ctx, mnem, 256, &instr);
 				printf("%2d: 0x%08x %s\n", t,
-					ctx->breakpoints[i], mnem);
+					ctx->breakpoints[i],
+					msim_disassemble(instrword));
 			}
 		}
 		
@@ -501,6 +485,7 @@ void msim_debugger(struct msim_ctx *ctx)
 	History *h = history_init();
 	Tokenizer *t = tok_init(NULL);
 	HistEvent he;
+	u_int32_t instr;
 	
 	history(h, &he, H_SETSIZE, 1024);
 	
@@ -513,17 +498,9 @@ void msim_debugger(struct msim_ctx *ctx)
 
 	msim_debug_init(ctx);
 	
-	{
-		char mnem[256];
-		struct msim_instr decoded;
-		u_int32_t instr;
-		
-		instr = msim_memget(ctx, ctx->r[MSIM_PC],
-					MSIM_ACCESS_HALFWORD);
-		msim_decode(ctx, instr, &decoded);
-		msim_mnemonic(ctx, mnem, 256, &decoded);
-		printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);
-	}
+	instr = msim_memget(ctx, ctx->r[MSIM_PC],
+				MSIM_ACCESS_HALFWORD);
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr));
 	
 	while (true) {
 		int argc, ln;
@@ -588,6 +565,20 @@ void msim_breakpoint_del(struct msim_ctx *ctx, u_int32_t address)
 			break;
 		}
 	}
+}
+
+const char *msim_disassemble(u_int16_t instrword)
+{
+	static char mnem[256];
+	struct msim_instr decoded;
+	
+	/* we have internal knowledge that neither of these functions require
+	 * an msim context to operate.  Naughty us.
+	 */
+	msim_decode(NULL, instrword, &decoded);
+	msim_mnemonic(NULL, mnem, 256, &decoded);
+	
+	return mnem;
 }
 
 char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 

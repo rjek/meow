@@ -54,6 +54,12 @@ bool msim_breakpoint(struct msim_ctx *ctx, u_int32_t address);
  */
 void msim_breakpoint_del(struct msim_ctx *ctx, u_int32_t address);
 
+/* convience function that decodes and disassembles an instruction, doing
+ * other steps for you.  Returned string points to a static buffer, copy it
+ * before calling again.
+ */
+const char *msim_disassemble(u_int16_t instrword);
+
 /* returns a string with the disassembled code pointed to by a decoded
  * instruction.
  */
