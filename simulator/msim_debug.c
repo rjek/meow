@@ -380,23 +380,23 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 
 static void msim_debug_help(void)
 {
-	printf("Commands:\n");
-	printf("step [n]         Perform n cycles, or 1 cycle if omitted\n");
-	printf("run              Run until break point or HALT\n");
-	printf("peek <a> [t]     Display word at a, or optionally other type\n");
-	printf("poke <a> <v> [t] Set word at a, or optionally other type\n");
-	printf("show <r> [t]     Shows the word in register R, or other type\n");
-	printf("set <r> <v>      Sets the register R to value\n");
-	printf("breakpoint [a]   Toggles a breakpoint at a, or lists "
-					"current breakpoints\n");
-	printf("help             Shows this help text\n");
-	printf("quit             Quits the simulator\n");
-	printf("\nTypes:\n");
-	printf("w                Word (default)\n");
-	printf("b                Byte\n");
-	printf("h                Half-word\n");
-	printf("s                C string (only for reading)\n");
-	printf("i                Instruction (only for reading)\n");
+	puts("Commands:");
+	puts("step [n]         Perform n cycles, or 1 cycle if omitted");
+	puts("run              Run until break point or HALT");
+	puts("peek <a> [t]     Display word at a, or optionally other type");
+	puts("poke <a> <v> [t] Set word at a, or optionally other type");
+	puts("show <r> [t]     Shows the word in register R, or other type");
+	puts("set <r> <v>      Sets the register R to value");
+	puts("breakpoint [a]   Toggles a breakpoint at a, or lists "
+					"current breakpoints");
+	puts("help             Shows this help text");
+	puts("quit             Quits the simulator");
+	puts("\nTypes:");
+	puts("w                Word (default)");
+	puts("b                Byte");
+	puts("h                Half-word");
+	puts("s                C string (only for reading)");
+	puts("i                Instruction (only for reading)");
 }
 
 static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
