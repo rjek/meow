@@ -2,7 +2,7 @@
  * msim_core.c
  * This file is part of MSIM, a MEOW Simulator
  *
- * Copyright (C) 2006 - Rob Kendrick <rjek@rjek.com>
+ * Copyright (C) 2006-2007 - Rob Kendrick <rjek@rjek.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -614,7 +614,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 		}
 			
 		if (instr->writeback == true) {
-			int delta;
+			int delta = 0;
 			
 			switch (instr->memsize) {
 			case MSIM_ACCESS_BYTE:
@@ -709,7 +709,7 @@ static u_int32_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
 {
 	struct msim_rom_ctx *mctx = (struct msim_rom_ctx *)ctx;
 	unsigned char *rom = mctx->rom;
-	u_int32_t r;
+	u_int32_t r = 0;
 	
 	
 	if (ptr > mctx->size)
@@ -784,7 +784,7 @@ static u_int32_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
 {
 	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
 	unsigned char *ram = mctx->ram;
-	u_int32_t r;
+	u_int32_t r = 0;
 	
 	if (ptr > mctx->size)
 		return 0;

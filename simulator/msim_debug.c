@@ -2,7 +2,7 @@
  * msim_debug.c
  * This file is part of MSIM, a MEOW Simulator
  *
- * Copyright (C) 2006 - Rob Kendrick <rjek@rjek.com>
+ * Copyright (C) 2007 - Rob Kendrick <rjek@rjek.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -449,7 +449,7 @@ static char *el_prompt(EditLine *e)
 
 static char *completions[] = {
 	"step ", "run", "peek ", "poke ", "breakpoint ",
-	"help", "quit", "show ", "set ",
+	"help", "quit", "show ", "set ", "dump",
 	
 	NULL
 };
