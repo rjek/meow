@@ -29,6 +29,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "config.h"
+
 #define MSIM_DEBUG_BREAKPOINTS 10		/* max number of breakpoints */
 
 #define MSIM_DEBUG_CONTEXT u_int32_t breakpoints[MSIM_DEBUG_BREAKPOINTS];

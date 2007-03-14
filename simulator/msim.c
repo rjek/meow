@@ -31,6 +31,8 @@
 #include <getopt.h>
 #include <sys/types.h>
 
+#include "config.h"
+
 #include "msim_core.h"
 
 static inline void chomp(char *c)
@@ -203,6 +205,9 @@ int main(int argc, char *argv[])
 		msim_destroy(ctx);
 		exit(2);
 	}
+	
+	printf("msim %s - The MEOW Simulator and Debugger\n", MSIM_VERSION);
+	printf("Copyright (c) 2006-2007 Rob Kendrick\n\n");
 	
 	if (interactive == true) {
 		msim_debugger(ctx);

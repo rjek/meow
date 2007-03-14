@@ -32,6 +32,7 @@
 struct msim_ctx;
 struct msim_instr;
 
+#include "config.h"
 #include "msim_debug.h"
 
 #define MSIM_SR_NFLAG(i) (((i) & 1<<31) != 0)
