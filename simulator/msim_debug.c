@@ -34,6 +34,57 @@
 
 #include "msim_core.h"
 
+static void msim_debug_step(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	int cycles = 1;
+	char mnem[256];
+	struct msim_instr decoded;
+	u_int32_t instr;
+
+	
+	if (argc > 1) {
+		cycles = strtol(argv[1], NULL, 0);
+	}
+
+	for (; cycles > 0; cycles--) {
+		msim_run(ctx, 1, false);
+		if (msim_breakpoint(ctx, ctx->r[MSIM_PC]) == true) {
+			printf("msim: hit breakpoint at 0x%08x\n",
+				ctx->r[MSIM_PC]);
+			break;
+		}
+	}
+	
+	instr = msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
+	msim_decode(ctx, instr, &decoded);
+	msim_mnemonic(ctx, mnem, 256, &decoded);
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);
+
+}
+
+static void msim_debug_run(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	char mnem[256];
+	struct msim_instr decoded;
+	u_int32_t instr;
+
+	while(true) {
+		msim_run(ctx, 1, false);
+		if (msim_breakpoint(ctx, ctx->r[MSIM_PC]) == true) {
+			printf("msim: hit breakpoint at 0x%08x\n",
+				ctx->r[MSIM_PC]);
+			break;
+		}
+	}
+	
+	instr = msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
+	msim_decode(ctx, instr, &decoded);
+	msim_mnemonic(ctx, mnem, 256, &decoded);
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);	
+}
+
 static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 							const char *argv[])
 {
@@ -65,6 +116,7 @@ static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 		case 's':
 			t = MSIM_ACCESS_BYTE;
 			str = true;
+			break;
 		default:
 			printf("unknown type '%s'\n", argv[3]);
 			return;
@@ -79,7 +131,11 @@ static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 		printf("0x%08x: '", a);
 		d = msim_memget(ctx, a, t);
 		while (d != 0) {
-			printf("%c", d);
+			if (d < 32 || d >= 127) {
+				printf("(%02x)", d);
+			} else {
+				printf("%c", d);
+			}
 			a++; len++;
 			d = msim_memget(ctx, a, t);
 		}
@@ -151,6 +207,129 @@ static void msim_debug_poke(struct msim_ctx *ctx, const int argc,
 	msim_memset(ctx, a, t, d);
 }
 
+static void msim_debug_show(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	msim_mem_access_type t = MSIM_ACCESS_WORD;
+	msim_bank_type b = MSIM_THIS_BANK;
+	msim_register reg;
+	char buf[5];
+	char *r = buf;
+	u_int32_t d;
+	
+	if (argc < 2) {
+		printf("usage: show [a][r]<0 .. 15> [type]\n");
+		return;
+	}
+	
+	strncpy(buf, argv[1], 4);
+	
+	if (r[0] == 'a' || r[0] == 'A') {
+		b = MSIM_OTHER_BANK;
+		r++;
+	}
+	
+	if (r[0] == 'r' || r[0] == 'R') {
+		r++;
+	}
+	
+	if (!strcmp(r, "sp") || !strcmp(r, "SP"))
+		reg = MSIM_SP;
+	else if (!strcmp(r, "lr") || !strcmp(r, "LR"))
+		reg = MSIM_LR;
+	else if (!strcmp(r, "ir") || !strcmp(r, "IR"))
+		reg = MSIM_IR;
+	else if (!strcmp(r, "sr") || !strcmp(r, "SR"))
+		reg = MSIM_SR;
+	else if (!strcmp(r, "pc") || !strcmp(r, "PC"))
+		reg = MSIM_PC;
+	else
+		reg = strtol(r, NULL, 0);
+	
+	if (argc > 2) {
+		switch (argv[2][0]) {
+		case 'w':
+			t = MSIM_ACCESS_WORD;
+			break;
+		case 'h':
+			t = MSIM_ACCESS_HALFWORD;
+			break;
+		case 'b':
+			t = MSIM_ACCESS_BYTE;
+			break;
+		default:
+			printf("unknown type '%s'\n", argv[3]);
+			return;
+		}	
+	}
+
+	d = (b == MSIM_THIS_BANK) ? ctx->r[reg] : ctx->ar[reg];
+
+	printf("%sR%d: ", (b == MSIM_THIS_BANK) ? "" : "A", reg);
+
+	switch (t) {
+	case MSIM_ACCESS_BYTE:
+		if (d >= 32 && d < 127)
+			printf("'%c' ", d);
+		printf("0x%02x %d\n", d, d);
+		break;
+	case MSIM_ACCESS_HALFWORD:
+		printf("0x%04x %d\n", d, d);
+		break;
+	case MSIM_ACCESS_WORD:
+		printf("0x%08x %d\n", d, d);
+		break;
+	}
+
+}
+
+static void msim_debug_set(struct msim_ctx *ctx, const int argc,
+							const char *argv[])
+{
+	msim_bank_type b = MSIM_THIS_BANK;
+	msim_register reg;
+	char buf[5];
+	char *r = buf;
+	u_int32_t d;
+	
+	if (argc < 3) {
+		printf("usage: set [a][r]<0 .. 15> <value>\n");
+		return;
+	}
+	
+	strncpy(buf, argv[1], 4);
+	
+	if (r[0] == 'a' || r[0] == 'A') {
+		b = MSIM_OTHER_BANK;
+		r++;
+	}
+	
+	if (r[0] == 'r' || r[0] == 'R') {
+		r++;
+	}
+	
+	if (!strcmp(r, "sp") || !strcmp(r, "SP"))
+		reg = MSIM_SP;
+	else if (!strcmp(r, "lr") || !strcmp(r, "LR"))
+		reg = MSIM_LR;
+	else if (!strcmp(r, "ir") || !strcmp(r, "IR"))
+		reg = MSIM_IR;
+	else if (!strcmp(r, "sr") || !strcmp(r, "SR"))
+		reg = MSIM_SR;
+	else if (!strcmp(r, "pc") || !strcmp(r, "PC"))
+		reg = MSIM_PC;
+	else
+		reg = strtol(r, NULL, 0);
+	
+	d = strtol(argv[2], NULL, 0);
+	
+	if (b == MSIM_THIS_BANK)
+		ctx->r[reg] = d;
+	else
+		ctx->ar[reg] = d;
+
+}
+
 static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 							const char *argv[])
 {
@@ -207,6 +386,7 @@ static void msim_debug_help(void)
 	printf("peek <a> [t]     Display word at a, or optionally other type\n");
 	printf("poke <a> <v> [t] Set word at a, or optionally other type\n");
 	printf("show <r> [t]     Shows the word in register R, or other type\n");
+	printf("set <r> <v>      Sets the register R to value\n");
 	printf("breakpoint [a]   Toggles a breakpoint at a, or lists "
 					"current breakpoints\n");
 	printf("help             Shows this help text\n");
@@ -226,21 +406,32 @@ static bool msim_debug_main(struct msim_ctx *ctx, const int argc,
 	
 	if (argc == 0 || !strcmp(argv[0], "step")) {
 		/* step - default if no command */
+		msim_debug_step(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "run")) {
 		/* run until end or breakpoint */
+		msim_debug_run(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "peek")) {
 		/* display memory location contents */
 		msim_debug_peek(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "poke")) {
 		/* write memory location contents */
 		msim_debug_poke(ctx, argc, argv);
+	} else if (!strcmp(argv[0], "show")) {
+		/* show contents of registers */
+		msim_debug_show(ctx, argc, argv);
+	} else if (!strcmp(argv[0], "set")) {
+		/* set contents of registers */
+		msim_debug_set(ctx, argc, argv);
+	} else if (!strcmp(argv[0], "dump") || !strcmp(argv[0], "d")) {
+		/* dump state */
+		msim_print_state(ctx);
 	} else if (!strcmp(argv[0], "breakpoint") || !strcmp(argv[0], "b")) {
 		/* toggle breakpoint at memory location */
 		msim_debug_breakpoint(ctx, argc, argv);
 	} else if (!strcmp(argv[0], "help")) {
 		/* print out some useful usage information */
 		msim_debug_help();
-	} else if (!strcmp(argv[0], "quit") || !strcmp(argv[0], "exit")) {
+	} else if (!strcmp(argv[0], "quit") || !strcmp(argv[0], "q")) {
 		/* quit the debugger */
 		
 		return true;
@@ -258,7 +449,7 @@ static char *el_prompt(EditLine *e)
 
 static char *completions[] = {
 	"step ", "run", "peek ", "poke ", "breakpoint ",
-	"help", "quit", "exit",
+	"help", "quit", "show ", "set ",
 	
 	NULL
 };
@@ -321,6 +512,18 @@ void msim_debugger(struct msim_ctx *ctx)
 	el_set(e, EL_BIND, "^I", "ed-complete", NULL);
 
 	msim_debug_init(ctx);
+	
+	{
+		char mnem[256];
+		struct msim_instr decoded;
+		u_int32_t instr;
+		
+		instr = msim_memget(ctx, ctx->r[MSIM_PC],
+					MSIM_ACCESS_HALFWORD);
+		msim_decode(ctx, instr, &decoded);
+		msim_mnemonic(ctx, mnem, 256, &decoded);
+		printf("0x%08x\t%s\n", ctx->r[MSIM_PC], mnem);
+	}
 	
 	while (true) {
 		int argc, ln;
