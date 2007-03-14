@@ -202,12 +202,8 @@ inline void msim_swap_banks(struct msim_ctx *ctx)
 	ctx->ar = t;
 }
 
-void msim_irq(struct msim_ctx *ctx, int irq)
+void msim_irq(struct msim_ctx *ctx)
 {
-	/* TODO: design system/interrupt controller, and set the right irq bit
-	 * there.
-	 */
-	 
 	msim_swap_banks(ctx);
 	ctx->r[MSIM_PC] = 32;
 	ctx->nopcincrement = true;

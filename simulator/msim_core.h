@@ -251,7 +251,7 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t);
 
-void msim_irq(struct msim_ctx *ctx, int irq);
+void msim_irq(struct msim_ctx *ctx);
 inline void msim_swap_banks(struct msim_ctx *ctx);
 
 u_int16_t msim_fetch(struct msim_ctx *ctx);
