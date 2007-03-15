@@ -199,15 +199,17 @@ struct msim_instr {
 
 struct msim_ctx;
 
-typedef u_int32_t (*msim_read_mem)(const u_int32_t /* ptr */, 
+typedef u_int32_t (*msim_read_mem)(struct msim_ctx *ctx, const u_int32_t p, 
 					const msim_mem_access_type,
-					void *ctx);
-typedef void (*msim_write_mem)(const u_int32_t /* ptr */,
+					void *fctx);
+typedef void (*msim_write_mem)(struct msim_ctx *ctx, const u_int32_t ptr,
 				const msim_mem_access_type,
 				const u_int32_t d,
-				void *ctx);
+				void *fctx);
 
-typedef void (*msim_reset_mem)(void *ctx);
+typedef void (*msim_reset_mem)(struct msim_ctx *ctx, void *fctx);
+
+typedef void (*msim_device_tick)(struct msim_ctx *ctx, void *fctx);
 
 struct msim_ctx;
 
@@ -226,6 +228,7 @@ struct msim_ctx {
 		 msim_read_mem	read;
 		 msim_write_mem	write;
 		 msim_reset_mem reset;
+		 msim_device_tick tick;
 		 void		*ctx;
 		 u_int32_t	deviceid;
 	}		areas[32];
@@ -244,7 +247,8 @@ void msim_destroy(struct msim_ctx *ctx);
 
 void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
 			msim_read_mem read, msim_write_mem write,
-			msim_reset_mem reset, void *fctx);
+			msim_reset_mem reset, msim_device_tick tick,
+			void *fctx);
 void msim_device_remove(struct msim_ctx *ctx, const int area);
 
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace);

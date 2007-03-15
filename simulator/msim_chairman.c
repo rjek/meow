@@ -72,24 +72,27 @@ static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
 
 }
 
-static u_int32_t msim_sys_read(const u_int32_t ptr, msim_mem_access_type access,
-				void *ctx)
+static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
+				msim_mem_access_type access, void *fctx)
 {
-	struct msim_ctx *c = (struct msim_ctx *)ctx;
-	
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to read non-word from system controller\n");
 	}
 	
+	/* TODO: When we add more functions to this, we should make this
+	 * function table driven rather than an if/else ladder.  The same
+	 * is true of the _write() function below it.
+	 */
+	
 	if (ptr >= 0 && ptr < 0x2000)
-		return msim_sys_read_chip_selects(c, ptr);
+		return msim_sys_read_chip_selects(ctx, ptr);
 	else if (ptr >= 0x2000 && ptr < 0x2400)
-		return msim_sys_read_irq_masks(c, ptr);
+		return msim_sys_read_irq_masks(ctx, ptr);
 	else if (ptr == 0x2400)
-		return msim_sys_read_irqs(c, ptr);
+		return msim_sys_read_irqs(ctx, ptr);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
-		return msim_sys_read_timer(c, ptr);
+		return msim_sys_read_timer(ctx, ptr);
 	else
 		fprintf(stderr, "msim: attempt to read from undefined area in"
 			" system controller\n");
@@ -97,34 +100,37 @@ static u_int32_t msim_sys_read(const u_int32_t ptr, msim_mem_access_type access,
 	return 0;
 }
 
-static void msim_sys_write(const u_int32_t ptr,
+static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 				const msim_mem_access_type access,
-				const u_int32_t d, void *ctx)
+				const u_int32_t d, void *fctx)
 {
-	struct msim_ctx *c = (struct msim_ctx *)ctx;
-	
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to write non-word from system controller\n");
 	}
 	
 	if (ptr >= 0 && ptr < 0x2000)
-		msim_sys_write_chip_selects(c, ptr, d);
+		msim_sys_write_chip_selects(ctx, ptr, d);
 	else if (ptr >= 0x2000 && ptr < 0x2400)
-		msim_sys_write_irq_masks(c, ptr, d);
+		msim_sys_write_irq_masks(ctx, ptr, d);
 	else if (ptr == 0x2400)
-		msim_sys_write_irqs(c, ptr, d);
+		msim_sys_write_irqs(ctx, ptr, d);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
-		msim_sys_write_timer(c, ptr, d);
+		msim_sys_write_timer(ctx, ptr, d);
 	else
 		fprintf(stderr, "msim: attempt to write from undefined area in"
 			" system controller\n");
 }
 
+static void msim_sys_tick(struct msim_ctx *ctx, void *fctx)
+{
+
+}
+
 void msim_add_sys(struct msim_ctx *ctx, int area)
 {
 	msim_device_add(ctx, area, 0x00000002, msim_sys_read, msim_sys_write,
-			NULL, ctx);
+			NULL, msim_sys_tick, NULL);
 }
 
 void msim_del_sys(struct msim_ctx *ctx, int area)

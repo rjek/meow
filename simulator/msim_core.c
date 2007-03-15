@@ -148,11 +148,12 @@ void msim_del_builtin_bnvs(struct msim_ctx *ctx)
 
 void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
 			msim_read_mem read, msim_write_mem write, 
-			msim_reset_mem reset, void *fctx)
+			msim_reset_mem reset, msim_device_tick tick, void *fctx)
 {
 	ctx->areas[area].read = read;
 	ctx->areas[area].write = write;
 	ctx->areas[area].reset = reset;
+	ctx->areas[area].tick = tick;
 	ctx->areas[area].ctx = fctx;
 	ctx->areas[area].deviceid = id;
 }
@@ -162,6 +163,7 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 	ctx->areas[area].read = NULL;
 	ctx->areas[area].write = NULL;
 	ctx->areas[area].reset = NULL;
+	ctx->areas[area].tick = NULL;
 	ctx->areas[area].ctx = NULL;
 	ctx->areas[area].deviceid = 0xffffffff;
 }
@@ -178,7 +180,8 @@ void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
 		return;
 	}
 
-	ctx->areas[area].write(ptr & ~(31<<27), t, d, ctx->areas[area].ctx);
+	ctx->areas[area].write(ctx, 
+				ptr & ~(31<<27), t, d, ctx->areas[area].ctx);
 }
 
 u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
@@ -193,7 +196,8 @@ u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 		return 0;
 	}
 	
-	return ctx->areas[area].read(ptr & ~(31<<27), t, ctx->areas[area].ctx);
+	return ctx->areas[area].read(ctx, 
+				ptr & ~(31<<27), t, ctx->areas[area].ctx);
 }
 
 /* -- Simulator code------------------------------------------------------- */
@@ -707,10 +711,10 @@ struct msim_rom_ctx {
 	size_t		size;
 };
 
-static u_int32_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
-				void *ctx)
+static u_int32_t msim_rom_read(struct msim_ctx *ctx, const u_int32_t ptr,
+				msim_mem_access_type access, void *fctx)
 {
-	struct msim_rom_ctx *mctx = (struct msim_rom_ctx *)ctx;
+	struct msim_rom_ctx *mctx = (struct msim_rom_ctx *)fctx;
 	unsigned char *rom = mctx->rom;
 	u_int32_t r = 0;
 	
@@ -734,9 +738,9 @@ static u_int32_t msim_rom_read(const u_int32_t ptr, msim_mem_access_type access,
 	return r;	
 }
 
-static void msim_rom_write(const u_int32_t ptr,
+static void msim_rom_write(struct msim_ctx *ctx, const u_int32_t ptr,
 				const msim_mem_access_type access,
-				const u_int32_t d, void *ctx)
+				const u_int32_t d, void *fctx)
 {
 	fprintf(stderr,
 		"warning: attempt to write value %x into ROM at %x\n", d, ptr);
@@ -766,7 +770,7 @@ void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
 	fclose(fh);
 	
 	msim_device_add(ctx, area, 0x00000000, msim_rom_read, msim_rom_write,
-			NULL, mctx);
+			NULL, NULL, mctx);
 }
 
 void msim_del_rom(struct msim_ctx *ctx, int area)
@@ -783,10 +787,10 @@ struct msim_ram_ctx {
 	size_t		size;
 };
 
-static u_int32_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
-				void *ctx)
+static u_int32_t msim_ram_read(struct msim_ctx *ctx, const u_int32_t ptr,
+				msim_mem_access_type access, void *fctx)
 {
-	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
+	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)fctx;
 	unsigned char *ram = mctx->ram;
 	u_int32_t r = 0;
 	
@@ -809,11 +813,11 @@ static u_int32_t msim_ram_read(const u_int32_t ptr, msim_mem_access_type access,
 	return r;
 }
 
-static void msim_ram_write(const u_int32_t ptr,
+static void msim_ram_write(struct msim_ctx *ctx, const u_int32_t ptr,
 				const msim_mem_access_type access,
-				const u_int32_t d, void *ctx)
+				const u_int32_t d, void *fctx)
 {
-	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)ctx;
+	struct msim_ram_ctx *mctx = (struct msim_ram_ctx *)fctx;
 	unsigned char *ram = mctx->ram;
 	
 	if (ptr > mctx->size)
@@ -845,7 +849,7 @@ void msim_add_ram(struct msim_ctx *ctx, int area, size_t size)
 	mctx->size = size;
 	
 	msim_device_add(ctx, area, 0x00000001, msim_ram_read, msim_ram_write, 
-			NULL, mctx);
+			NULL, NULL, mctx);
 }
 
 void msim_del_ram(struct msim_ctx *ctx, int area)
