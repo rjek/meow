@@ -115,7 +115,7 @@ static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 		}
 	}
 	
-	a = strtol(argv[1], NULL, 0);
+	a = strtoul(argv[1], NULL, 0);
 	
 	if (str == true) {
 		int len = 0;
@@ -188,8 +188,8 @@ static void msim_debug_poke(struct msim_ctx *ctx, const int argc,
 		}
 	}
 	
-	a = strtol(argv[1], NULL, 0);
-	d = strtol(argv[2], NULL, 0);
+	a = strtoul(argv[1], NULL, 0);
+	d = strtoul(argv[2], NULL, 0);
 	
 	msim_memset(ctx, a, t, d);
 }
@@ -231,7 +231,7 @@ static void msim_debug_show(struct msim_ctx *ctx, const int argc,
 	else if (!strcmp(r, "pc") || !strcmp(r, "PC"))
 		reg = MSIM_PC;
 	else
-		reg = strtol(r, NULL, 0);
+		reg = strtoul(r, NULL, 0);
 	
 	if (argc > 2) {
 		switch (argv[2][0]) {
@@ -306,9 +306,9 @@ static void msim_debug_set(struct msim_ctx *ctx, const int argc,
 	else if (!strcmp(r, "pc") || !strcmp(r, "PC"))
 		reg = MSIM_PC;
 	else
-		reg = strtol(r, NULL, 0);
+		reg = strtoul(r, NULL, 0);
 	
-	d = strtol(argv[2], NULL, 0);
+	d = strtoul(argv[2], NULL, 0);
 	
 	if (b == MSIM_THIS_BANK)
 		ctx->r[reg] = d;
@@ -340,7 +340,7 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 			printf("no breakpoints set.\n");
 	
 	} else {
-		u_int32_t a = strtol(argv[1], NULL, 0);
+		u_int32_t a = strtoul(argv[1], NULL, 0);
 		
 		if (a % 2 != 0) {
 			printf("breakpoints must be at multiples of 2.\n");
