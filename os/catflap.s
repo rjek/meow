@@ -28,17 +28,6 @@
 		
 		GLOBAL	_main
 		
-		MACRO	PUSH	$0
-		SUB	SP, #2
-		STRHD	$0, SP
-		STRL	$0, SP
-		ENDMACRO
-		
-		MACRO	POP	$0
-		LDRLI	$0, SP
-		LDRHI	$0, SP
-		ENDMACRO
-
 		MACRO	SYS $0		; syscall - corrupts IR and LR
 		LDI	$0
 		EOR	LR, LR		; clear link register
@@ -55,15 +44,14 @@ syscall		; main OS entry point
 		; ir = 3 -> write string pointed to by r0 to output
 		
 		CMP	SP, #0		; have we got a stack yet?
-		BEQ	>Sys_Os_Reset	; no stack - we must be resetting.
+		BEQ	>Sys_OS_Reset	; no stack - we must be resetting.
 		
 		PUSH	R1
 		
 		ADR	R1, jumptable
 		LSL	IR, #2
 		ADD	IR, R1
-		LDRLI	R1, IR
-		LDRHD	R1, IR
+		LDR	R1, IR
 		
 		MOV	IR, R1
 		POP	R1
@@ -93,11 +81,8 @@ Sys_OS_Reset	; first of all, find the amount of available RAM, and store
 		LDI	#-1
 		MOV	R1, IR		; 0xffffffff test pattern in R1
 		
-findmemloop	STRLI	R1, R0
-		STRHD	R1, R0		; store in next location
-		
-		LDRLI	R2, R0
-		LDRHD	R2, R0		; load it back again
+findmemloop	STR	R1, R0		; store in next location
+		LDR	R2, R0		; load it back again
 		
 		CMP	R2, R1		; is it the same?
 		BEQ	>nextfindmem	; yes - increase pointer and try next
@@ -113,9 +98,8 @@ findmemloop	STRLI	R1, R0
 		
 		LDI	#1
 		LSL	IR, #27
-		STRLI	R1, IR
-		STRHD	R1, IR		; store RAM size in first word of RAM
 		
+		STR	R1, IR		; store RAM size in first word of RAM
 		
 		BL	>displaybanner
 		BL	_main		; branch to imported main function
@@ -184,9 +168,10 @@ displayRAM
 		SYS	OS_Write0
 		
 		POP	LR
+		BNV	#-16
 		MOV	PC, LR
 
-banner		DCB "Catflap 0.0 - Copyright (c) 2007, Rob Kendrick", #10, #0
+banner		DCB "Catflap 0.1", #10, #0
 
 bannerCPU	DCB "CPU: ", #0
 
@@ -196,19 +181,22 @@ bannerRAM2	DCB " kB", #10, #10, #0
 		ALIGN 2
 
 Sys_OS_ReadSysInfo
+		PUSH	IR
 		LDI	#1
 		LSL	IR, #27
-		LDRLI	R0, IR
-		LDRHD	R0, IR
+		LDR	R0, IR
+		POP	IR
 		
 		MOV	PC, LR
 		
-Sys_OS_WriteC	MOV	IR, R0
+Sys_OS_WriteC	PUSH IR
+		MOV	IR, R0
 		BNV	#-6		; msim "write character"
+		POP	IR
 		MOV	PC, LR
 		
 Sys_OS_Write0	PUSH	R0
-		PUSH	LR
+		PUSH	IR
 		
 		EOR	IR, IR
 		
@@ -222,7 +210,7 @@ loop		LDRBI	IR, R0
 		
 		B	<loop		
 exit		
-		POP	LR
+		POP	IR
 		POP	R0
 		MOV	PC, LR
 
