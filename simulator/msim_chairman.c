@@ -24,11 +24,22 @@
  */
 
 #include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
 
 #include "msim_core.h"
 #include "msim_chairman.h"
 
-static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p)
+struct sys {
+	struct {
+		u_int32_t pending;
+		u_int32_t mask[32];
+	} irq;
+};
+
+static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p,
+						struct sys *s)
 {
 	if (p % 256 == 0) {
 		/* chip select device ID (first word of each 256 byte entry) */
@@ -39,41 +50,44 @@ static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p)
 }
 
 static void msim_sys_write_chip_selects(struct msim_ctx *ctx, u_int32_t p,
-					u_int32_t d)
+					u_int32_t d, struct sys *s)
 {
 	fprintf(stderr, 
 		"msim: attempt to write to chip select table ignored.\n");
 }
 
-static u_int32_t msim_sys_read_irq_masks(struct msim_ctx *ctx, u_int32_t p)
+static u_int32_t msim_sys_read_irq_masks(struct msim_ctx *ctx, u_int32_t p,
+						struct sys *s)
 {
-	return 0;
+	return s->irq.mask[(p >> 2) & 31];
 }
 
 static void msim_sys_write_irq_masks(struct msim_ctx *ctx, u_int32_t p,
-						u_int32_t d)
+						u_int32_t d, struct sys *s)
 {
-
+	s->irq.mask[(p >> 2) & 31] = d;
 }
 
-static u_int32_t msim_sys_read_irqs(struct msim_ctx *ctx, u_int32_t p)
+static u_int32_t msim_sys_read_irqs(struct msim_ctx *ctx, u_int32_t p,
+					struct sys *s)
 {
-	return 0;
+	return s->irq.pending;
 }
 
 static void msim_sys_write_irqs(struct msim_ctx *ctx, u_int32_t p,
-						u_int32_t d)
+						u_int32_t d, struct sys *s)
 {
-
+	s->irq.pending = d;
 }
 
-static u_int32_t msim_sys_read_timer(struct msim_ctx *ctx, u_int32_t p)
+static u_int32_t msim_sys_read_timer(struct msim_ctx *ctx, u_int32_t p,
+					struct sys *s)
 {
 	return 0;
 }
 
 static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
-						u_int32_t d)
+						u_int32_t d, struct sys *s	)
 {
 
 }
@@ -81,6 +95,8 @@ static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
 static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
 				msim_mem_access_type access, void *fctx)
 {
+	struct sys *s = (struct sys *)fctx;
+	
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to read non-word from system controller\n");
@@ -92,13 +108,13 @@ static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
 	 */
 	
 	if (ptr >= 0 && ptr < 0x2000)
-		return msim_sys_read_chip_selects(ctx, ptr);
+		return msim_sys_read_chip_selects(ctx, ptr, s);
 	else if (ptr >= 0x2000 && ptr < 0x2400)
-		return msim_sys_read_irq_masks(ctx, ptr);
+		return msim_sys_read_irq_masks(ctx, ptr, s);
 	else if (ptr == 0x2400)
-		return msim_sys_read_irqs(ctx, ptr);
+		return msim_sys_read_irqs(ctx, ptr, s);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
-		return msim_sys_read_timer(ctx, ptr);
+		return msim_sys_read_timer(ctx, ptr, s);
 	else
 		fprintf(stderr, "msim: attempt to read from undefined area in"
 			" system controller\n");
@@ -110,19 +126,21 @@ static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 				const msim_mem_access_type access,
 				const u_int32_t d, void *fctx)
 {
+	struct sys *s = (struct sys *)fctx;
+	
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to write non-word from system controller\n");
 	}
 	
 	if (ptr >= 0 && ptr < 0x2000)
-		msim_sys_write_chip_selects(ctx, ptr, d);
+		msim_sys_write_chip_selects(ctx, ptr, d, s);
 	else if (ptr >= 0x2000 && ptr < 0x2400)
-		msim_sys_write_irq_masks(ctx, ptr, d);
+		msim_sys_write_irq_masks(ctx, ptr, d, s);
 	else if (ptr == 0x2400)
-		msim_sys_write_irqs(ctx, ptr, d);
+		msim_sys_write_irqs(ctx, ptr, d, s);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
-		msim_sys_write_timer(ctx, ptr, d);
+		msim_sys_write_timer(ctx, ptr, d, s);
 	else
 		fprintf(stderr, "msim: attempt to write from undefined area in"
 			" system controller\n");
@@ -135,11 +153,24 @@ static void msim_sys_tick(struct msim_ctx *ctx, void *fctx)
 
 void msim_add_sys(struct msim_ctx *ctx, int area)
 {
+	struct sys *s = calloc(1, sizeof(struct sys));
+	
 	msim_device_add(ctx, area, 0x00000002, msim_sys_read, msim_sys_write,
-			NULL, msim_sys_tick, NULL);
+			NULL, msim_sys_tick, s);
 }
 
 void msim_del_sys(struct msim_ctx *ctx, int area)
 {
+	free(ctx->areas[area].ctx);
 	msim_device_remove(ctx, area);
+}
+
+void msim_sys_raise_irq(struct msim_ctx *ctx, int irq)
+{
+	/* this is the only place we assume we're chip select 31 */
+	struct sys *s = (struct sys *)ctx->areas[31].ctx;
+	
+	s->irq.pending |= (1 << irq);
+	
+	msim_irq(ctx);
 }
