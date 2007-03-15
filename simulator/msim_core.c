@@ -119,6 +119,8 @@ static void msim_builtin_print(struct msim_ctx *ctx, signed int op,
 	case 1: printf("%d", ctx->r[MSIM_IR]); break;
 	case 2: printf("%x", ctx->r[MSIM_IR]); break;
 	}
+	
+	fflush(stdout);
 }
 
 void msim_add_builtin_bnvs(struct msim_ctx *ctx)
@@ -205,8 +207,6 @@ u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 inline void msim_swap_banks(struct msim_ctx *ctx)
 {	
 	u_int32_t *t;
-	
-	MSIM_LOG("msim: swapping register banks\n");
 	
 	t = ctx->r;
 	ctx->r = ctx->ar;

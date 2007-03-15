@@ -90,9 +90,9 @@ static u_int32_t msim_sys_read_timer(struct msim_ctx *ctx, u_int32_t p,
 					struct sys *s)
 {
 	switch (p) {
-	case 0: return s->timer.frequency;	break;
-	case 4: return s->timer.reload;		break;
-	case 8: return s->timer.state;		break;
+	case 0x2404: return s->timer.frequency;	break;
+	case 0x2408: return s->timer.reload;		break;
+	case 0x240C: return s->timer.state;		break;
 	}
 	return 0;
 }
@@ -101,15 +101,15 @@ static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
 						u_int32_t d, struct sys *s)
 {
 	switch (p) {
-	case 0:
+	case 0x2404:
 		fprintf(stderr,
 			"msim: attempt to write to frequency register.\n");
 		
 		break;
-	case 4:
+	case 0x2408:
 		s->timer.reload = s->timer.state = d;
 		break;
-	case 8:
+	case 0x240C:
 		s->timer.state = d;
 		break;
 	}
@@ -157,7 +157,7 @@ static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 				const u_int32_t d, void *fctx)
 {
 	struct sys *s = (struct sys *)fctx;
-	
+
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to write non-word to system controller\n");

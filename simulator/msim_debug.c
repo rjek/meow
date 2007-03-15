@@ -507,7 +507,8 @@ void msim_debugger(struct msim_ctx *ctx)
 		const char **argv, *l = el_gets(e, &ln);
 		
 		if (ln == 0) break;	/* Ctrl-D, or error, etc */
-		history(h, &he, H_ENTER, l);
+		if (l[0] != '\n' && l[0] != '\r')
+			history(h, &he, H_ENTER, l);
 		tok_str(t, l, &argc, &argv);
 		if (msim_debug_main(ctx, argc, argv))
 			break;
