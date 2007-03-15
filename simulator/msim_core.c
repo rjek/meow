@@ -37,6 +37,7 @@
 struct msim_ctx *msim_init(void)
 {
 	struct msim_ctx *ctx = calloc(1, sizeof(struct msim_ctx));
+	int i;
 	
 	assert(ctx != NULL);
 	
@@ -44,6 +45,10 @@ struct msim_ctx *msim_init(void)
 	ctx->ar = ctx->realar;
 	
 	ctx->ar[MSIM_SR] = 1;	/* set bit indicating interrupt mode */
+	
+	/* set all device IDs to 0xffffffff, meaning "none installed" */
+	for (i = 0; i < 32; i++)
+		ctx->areas[i].deviceid = 0xffffffff;
 	
 	msim_add_builtin_bnvs(ctx);
 	
@@ -141,14 +146,15 @@ void msim_del_builtin_bnvs(struct msim_ctx *ctx)
 
 /* -- Device/Chipselect handling ------------------------------------------ */
 
-void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
- 			msim_write_mem write, msim_reset_mem reset, 
- 			void *fctx)
+void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
+			msim_read_mem read, msim_write_mem write, 
+			msim_reset_mem reset, void *fctx)
 {
 	ctx->areas[area].read = read;
 	ctx->areas[area].write = write;
 	ctx->areas[area].reset = reset;
 	ctx->areas[area].ctx = fctx;
+	ctx->areas[area].deviceid = id;
 }
 
 void msim_device_remove(struct msim_ctx *ctx, const int area)
@@ -157,6 +163,7 @@ void msim_device_remove(struct msim_ctx *ctx, const int area)
 	ctx->areas[area].write = NULL;
 	ctx->areas[area].reset = NULL;
 	ctx->areas[area].ctx = NULL;
+	ctx->areas[area].deviceid = 0xffffffff;
 }
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,
@@ -758,7 +765,8 @@ void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
 	fread(mctx->rom, fs, 1, fh);
 	fclose(fh);
 	
-	msim_device_add(ctx, area, msim_rom_read, msim_rom_write, NULL, mctx);
+	msim_device_add(ctx, area, 0x00000000, msim_rom_read, msim_rom_write,
+			NULL, mctx);
 }
 
 void msim_del_rom(struct msim_ctx *ctx, int area)
@@ -836,7 +844,8 @@ void msim_add_ram(struct msim_ctx *ctx, int area, size_t size)
 	mctx->ram = ram;
 	mctx->size = size;
 	
-	msim_device_add(ctx, area, msim_ram_read, msim_ram_write, NULL, mctx);
+	msim_device_add(ctx, area, 0x00000001, msim_ram_read, msim_ram_write, 
+			NULL, mctx);
 }
 
 void msim_del_ram(struct msim_ctx *ctx, int area)
@@ -847,7 +856,6 @@ void msim_del_ram(struct msim_ctx *ctx, int area)
 	free(ctx->areas[area].ctx);
 	msim_device_remove(ctx, area);
 }
-
 
 #ifdef TEST_RIG
 

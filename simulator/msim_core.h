@@ -221,11 +221,13 @@ struct msim_ctx {
 	u_int32_t	realr[16];
 	u_int32_t	realar[16];
 	unsigned int	cyclecount;
+	
 	struct {
 		 msim_read_mem	read;
 		 msim_write_mem	write;
 		 msim_reset_mem reset;
 		 void		*ctx;
+		 u_int32_t	deviceid;
 	}		areas[32];
 	
 	msim_bnvop	bnvops[512];
@@ -240,10 +242,11 @@ struct msim_ctx {
 struct msim_ctx *msim_init(void);
 void msim_destroy(struct msim_ctx *ctx);
 
-void msim_device_add(struct msim_ctx *ctx, const int area, msim_read_mem read,
- 			msim_write_mem write, msim_reset_mem reset, 
- 			void *fctx);
+void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
+			msim_read_mem read, msim_write_mem write,
+			msim_reset_mem reset, void *fctx);
 void msim_device_remove(struct msim_ctx *ctx, const int area);
+
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace);
 
 void msim_memset(struct msim_ctx *ctx, u_int32_t ptr,

@@ -34,6 +34,7 @@
 #include "config.h"
 
 #include "msim_core.h"
+#include "msim_chairman.h"
 
 static inline void chomp(char *c)
 {
@@ -80,7 +81,7 @@ static bool parse_chip_rom(struct msim_ctx *ctx, int lino, int chip)
 
 static bool parse_chip_sys(struct msim_ctx *ctx, int lino, int chip)
 {
-	/* currently unimplemented */
+	msim_add_sys(ctx, chip);
 	
 	return true;
 }
