@@ -123,6 +123,13 @@ static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
 		"msim: attempt to read non-word from system controller\n");
+		return;
+	}
+	
+	if (p % 4 != 0) {
+		fprintf(stderr,
+		"msim: attempt to write non-word-aligned data to system controller\n");
+		return;
 	}
 	
 	/* TODO: When we add more functions to this, we should make this
@@ -153,7 +160,14 @@ static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 	
 	if (access != MSIM_ACCESS_WORD) {
 		fprintf(stderr,
-		"msim: attempt to write non-word from system controller\n");
+		"msim: attempt to write non-word to system controller\n");
+		return;
+	}
+	
+	if (p % 4 != 0) {
+		fprintf(stderr,
+		"msim: attempt to write non-word-aligned data to system controller\n");
+		return;
 	}
 	
 	if (ptr >= 0 && ptr < 0x2000)
