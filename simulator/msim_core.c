@@ -93,6 +93,7 @@ static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
 	if (MSIM_SR_IRQ(ctx->r[MSIM_SR])) {
 		/* only do the swap if we're in interrupt mode */
 		msim_swap_banks(ctx);
+		ctx->nopcincrement = true;
 	}
 }
 
@@ -215,9 +216,11 @@ inline void msim_swap_banks(struct msim_ctx *ctx)
 
 void msim_irq(struct msim_ctx *ctx)
 {
-	msim_swap_banks(ctx);
-	ctx->r[MSIM_PC] = 32;
-	ctx->nopcincrement = true;
+	if (MSIM_SR_IRQ(ctx->r[MSIM_SR]) == 0) {
+		/* only enter interrupt mode if we're not already there */
+		msim_swap_banks(ctx);
+		ctx->r[MSIM_PC] = 32;
+	}
 }
 
 inline u_int16_t msim_fetch(struct msim_ctx *ctx)
