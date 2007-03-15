@@ -218,5 +218,8 @@ void msim_sys_raise_irq(struct msim_ctx *ctx, int irq)
 	
 	s->irq.pending |= (1 << irq);
 	
-	msim_irq(ctx);
+	if (s->irq.mask[0] && (1 << irq) != 0) {
+		/* the emulated CPU wants to hear about this IRQ */
+		msim_irq(ctx);
+	}
 }
