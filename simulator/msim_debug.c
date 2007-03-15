@@ -29,10 +29,24 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <signal.h>
 #include <ctype.h>
 #include <histedit.h>
 
 #include "msim_core.h"
+
+static bool ctrlc = false;
+
+static void msim_debug_signal(int sig)
+{
+	if (sig == SIGINT) {
+		if (ctrlc == true) {
+			/* the user really wants us to die */
+			exit(1);
+		}		
+		ctrlc = true;
+	}
+}
 
 static inline void msim_print_next_instruction(struct msim_ctx *ctx)
 {
@@ -67,9 +81,15 @@ static void msim_debug_run(struct msim_ctx *ctx, const int argc,
 {
 	while (true) {
 		msim_run(ctx, 1, false);
+
 		if (msim_breakpoint(ctx, ctx->r[MSIM_PC]) == true) {
 			printf("msim: hit breakpoint at 0x%08x\n",
 				ctx->r[MSIM_PC]);
+			break;
+		}		
+		if (ctrlc == true) {
+			ctrlc = false;
+			printf("msim: interrupted\n");
 			break;
 		}
 	}
@@ -502,6 +522,8 @@ void msim_debugger(struct msim_ctx *ctx)
 				MSIM_ACCESS_HALFWORD);
 	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr));
 	
+	signal(SIGINT, msim_debug_signal);
+	
 	while (true) {
 		int argc, ln;
 		const char **argv, *l = el_gets(e, &ln);
@@ -512,6 +534,9 @@ void msim_debugger(struct msim_ctx *ctx)
 		tok_str(t, l, &argc, &argv);
 		if (msim_debug_main(ctx, argc, argv))
 			break;
+			
+		ctrlc = false;
+			
 		tok_reset(t);
 	}
 	
