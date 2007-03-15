@@ -683,6 +683,13 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 	for (; instructions > 0; instructions--) {
 		u_int16_t i = msim_fetch(ctx);
 		char dis[256];
+		int ticks;
+		
+		for (ticks = 0; ticks < 32; ticks++)
+			if (ctx->areas[ticks].tick != NULL)
+				ctx->areas[ticks].tick(ctx,
+					ctx->areas[ticks].ctx);
+		
 		msim_decode(ctx, i, &(ctx->instr));
 		if (trace == true) {
 			int b;
@@ -700,6 +707,7 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 		}
 				
 		msim_execute(ctx, &(ctx->instr));
+		
 		ctx->cyclecount++;
 	}
 }

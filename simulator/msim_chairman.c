@@ -36,6 +36,12 @@ struct sys {
 		u_int32_t pending;
 		u_int32_t mask[32];
 	} irq;
+	
+	struct {
+		u_int32_t frequency;
+		u_int32_t reload;
+		u_int32_t state;
+	} timer;
 };
 
 static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p,
@@ -83,13 +89,30 @@ static void msim_sys_write_irqs(struct msim_ctx *ctx, u_int32_t p,
 static u_int32_t msim_sys_read_timer(struct msim_ctx *ctx, u_int32_t p,
 					struct sys *s)
 {
+	switch (p) {
+	case 0: return s->timer.frequency;	break;
+	case 4: return s->timer.reload;		break;
+	case 8: return s->timer.state;		break;
+	}
 	return 0;
 }
 
 static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
-						u_int32_t d, struct sys *s	)
+						u_int32_t d, struct sys *s)
 {
-
+	switch (p) {
+	case 0:
+		fprintf(stderr,
+			"msim: attempt to write to frequency register.\n");
+		
+		break;
+	case 4:
+		s->timer.reload = s->timer.state = d;
+		break;
+	case 8:
+		s->timer.state = d;
+		break;
+	}
 }
 
 static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
@@ -148,12 +171,22 @@ static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 
 static void msim_sys_tick(struct msim_ctx *ctx, void *fctx)
 {
-
+	struct sys *s = (struct sys *)fctx;
+	
+	if (s->timer.reload != 0) {
+		s->timer.state--;
+		if (s->timer.state == 0) {
+			s->timer.state = s->timer.reload;
+			msim_sys_raise_irq(ctx, 31);
+		}
+	}
 }
 
 void msim_add_sys(struct msim_ctx *ctx, int area)
 {
 	struct sys *s = calloc(1, sizeof(struct sys));
+	
+	s->timer.frequency = 1000000; /* fake 1MHz */
 	
 	msim_device_add(ctx, area, 0x00000002, msim_sys_read, msim_sys_write,
 			NULL, msim_sys_tick, s);
@@ -167,7 +200,6 @@ void msim_del_sys(struct msim_ctx *ctx, int area)
 
 void msim_sys_raise_irq(struct msim_ctx *ctx, int irq)
 {
-	/* this is the only place we assume we're chip select 31 */
 	struct sys *s = (struct sys *)ctx->areas[31].ctx;
 	
 	s->irq.pending |= (1 << irq);
