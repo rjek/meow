@@ -30,13 +30,19 @@
 
 static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p)
 {
+	if (p % 256 == 0) {
+		/* chip select device ID (first word of each 256 byte entry) */
+		return ctx->areas[(p >> 8) & 31].deviceid;
+	}
+	
 	return 0;
 }
 
 static void msim_sys_write_chip_selects(struct msim_ctx *ctx, u_int32_t p,
 					u_int32_t d)
 {
-
+	fprintf(stderr, 
+		"msim: attempt to write to chip select table ignored.\n");
 }
 
 static u_int32_t msim_sys_read_irq_masks(struct msim_ctx *ctx, u_int32_t p)
