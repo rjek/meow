@@ -216,6 +216,7 @@ struct msim_ctx;
 typedef void (*msim_bnvop)(struct msim_ctx *ctx, signed int op, void *bnvctx);
 
 struct msim_ctx {
+	bool		init;
 	bool		irqmode;
 	bool		nopcincrement;
 	u_int32_t	*r;

@@ -680,15 +680,22 @@ inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
 
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 {
+	if (ctx->init == false) {
+		/* the cpu hasn't been reset yet - call device resets */
+		int i;
+		
+		for (i = 0; i < 32; i++) {
+			if (ctx->areas[i].reset != NULL)
+				ctx->areas[i].reset(ctx, ctx->areas[i].ctx);
+		}
+		
+		ctx->init = true;
+	}
+	
 	for (; instructions > 0; instructions--) {
 		u_int16_t i = msim_fetch(ctx);
 		char dis[256];
 		int ticks;
-		
-		for (ticks = 0; ticks < 32; ticks++)
-			if (ctx->areas[ticks].tick != NULL)
-				ctx->areas[ticks].tick(ctx,
-					ctx->areas[ticks].ctx);
 		
 		msim_decode(ctx, i, &(ctx->instr));
 		if (trace == true) {
@@ -707,6 +714,11 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 		}
 				
 		msim_execute(ctx, &(ctx->instr));
+
+		for (ticks = 0; ticks < 32; ticks++)
+			if (ctx->areas[ticks].tick != NULL)
+				ctx->areas[ticks].tick(ctx,
+					ctx->areas[ticks].ctx);
 		
 		ctx->cyclecount++;
 	}
