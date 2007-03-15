@@ -213,10 +213,11 @@ Memory layout:
 	      3 => IOC version 0 (this specification)
 
      0x2000 .. 0x23ff is 32 x 32 bit interrupt masks (one for each CPU).
-       On reset, all interrupts go to CPU0 only.  All other CPU masks disable
-       intterupts.
+       On reset, all interrupts are disabled for all CPUs.  A 1 signifies the
+       CPU wishes to receive the interrupt, a 0 signifies that it wishes to
+       ignore the interrupt.
 
-     0x2400 .. 0x2403 is 32 bit field for pending intterupts.
+     0x2400 .. 0x2403 is 32 bit field for pending interupts.
 
      0x2404 .. 0x240f is the programmable interrupt timer.
             1st word => read-only system controller input clock frequency (Hz)
