@@ -213,17 +213,26 @@ int main(int argc, char *argv[])
 	if (interactive == true) {
 		msim_debugger(ctx);
 	} else {
-	
 		if (cycles == 0) {
-			while(true) {
-				msim_run(ctx, 1, verbose);
-				if (verbose) msim_print_state(ctx);
+			if (verbose) {
+				while (true) {
+					msim_run(ctx, 1, true);
+					msim_print_state(ctx);
+				}
+			} else {
+				while (true) {
+					msim_run(ctx, 1000, false);
+				}
 			}
 		}
 	
-		for (; cycles > 0; cycles--) {
-			msim_run(ctx, 1, verbose);
-			if (verbose) msim_print_state(ctx);
+		if (verbose) {
+			for (; cycles > 0; cycles--) {
+				msim_run(ctx, 1, true);
+				msim_print_state(ctx);
+			}
+		} else {
+			msim_run(ctx, cycles, false);
 		}
 	}
 	
