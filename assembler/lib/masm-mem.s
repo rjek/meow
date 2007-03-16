@@ -68,6 +68,51 @@
 	ldrfd	$0	SP
 	ENDMACRO
 	
+	MACRO	pop2	$0	$1
+	pop	$0
+	pop	$1
+	ENDMACRO
+	
+	MACRO	pop3	$0	$1	$2
+	pop	$0
+	pop	$1
+	pop	$2
+	ENDMACRO
+	
+	MACRO	pop4	$0	$1	$2	$3
+	pop	$0
+	pop	$1
+	pop	$2
+	pop	$3
+	ENDMACRO	
+
+	MACRO	pop5	$0	$1	$2	$3	$4
+	pop	$0
+	pop	$1
+	pop	$2
+	pop	$3
+	pop	$4
+	ENDMACRO
+	
+	MACRO	pop6	$0	$1	$2	$3	$4	$5
+	pop	$0
+	pop	$1
+	pop	$2
+	pop	$3
+	pop	$4
+	pop	$5
+	ENDMACRO
+	
+	MACRO	pop7	$0	$1	$2	$3	$4	$5	$6
+	pop	$0
+	pop	$1
+	pop	$2
+	pop	$3
+	pop	$4
+	pop	$5
+	pop	$6
+	ENDMACRO	
+		
 	; Store
 
 	MACRO	strb	$0	$1
@@ -132,4 +177,55 @@
 
 	MACRO	push	$0
 	strfd	$0	SP
+	ENDMACRO
+	
+	MACRO	push2	$0	$1
+	sub	SP	#4
+	strda	$0	SP
+	str	$1	SP
+	ENDMACRO
+
+	MACRO	push3	$0	$1	$2
+	sub	SP	#4
+	strda	$0	SP
+	strda	$1	SP
+	str	$2	SP
+	ENDMACRO
+
+	MACRO	push4	$0	$1	$2	$3
+	sub	SP	#4
+	strda	$0	SP
+	strda	$1	SP
+	strda	$2	SP
+	str	$3	SP
+	ENDMACRO
+	
+	MACRO	push5	$0	$1	$2	$3	$4
+	sub	SP	#4
+	strda	$0	SP
+	strda	$1	SP
+	strda	$2	SP
+	strda	$3	SP
+	str	$4	SP
+	ENDMACRO
+	
+	MACRO	push6	$0	$1	$2	$3	$4	$5
+	sub	SP	#4
+	strda	$0	SP
+	strda	$1	SP
+	strda	$2	SP
+	strda	$3	SP
+	strda	$4	SP
+	str	$5	SP
+	ENDMACRO
+
+	MACRO	push7	$0	$1	$2	$3	$4	$5	$6
+	sub	SP	#4
+	strda	$0	SP
+	strda	$1	SP
+	strda	$2	SP
+	strda	$3	SP
+	strda	$4	SP
+	strda	$5	SP
+	str	$6	SP
 	ENDMACRO
