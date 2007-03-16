@@ -26,6 +26,8 @@ IrqHandle
 			
 IrqReturn		IRQRTN
 
+PendingAddr		DCD	#0xf8002400
+
 main			
 			; set up the contents of the irq handler's registers,
 			; so it doesn't have to to speed stuff up
@@ -65,6 +67,5 @@ main
 			
 InfLoop			B	InfLoop
 
-PendingAddr		DCD	#0xf8002400
-CPU0Mask		DCD	#0xf8002000			
-TimerReloadAddr		DCD	#0xf8002408			
+CPU0Mask		DCD	#0xf8002000
+TimerReloadAddr		DCD	#0xf8002408
