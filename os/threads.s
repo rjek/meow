@@ -5,9 +5,8 @@
 		B	main
 		ALIGN	32
 
-IrqHandle	; r0 -> thread A's context
-		; r1 -> thread B's context
-		; r2 -> current thread, 0 == A, 1 == B
+IrqHandle	; r0 -> current thread context
+		; r1 -> other thread context
 		
 		; swap the context pointers around
 		EOR    r0, r1
