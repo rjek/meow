@@ -416,10 +416,13 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 		
 	case MSIM_OPCODE_SUB:
 		if (instr->subop == false)
-			ctx->r[instr->destination] = 
-				ctx->r[instr->destination] -
-				ctx->r[instr->source] -
-				instr->immediate;
+		  	if (instr->immediate == 0)
+				ctx->r[instr->destination] -=
+					ctx->r[instr->source];
+			else
+				ctx->r[instr->destination] = 
+					ctx->r[instr->source] -
+					instr->immediate;
 		else
 			ctx->r[instr->destination] = 
 				ctx->r[instr->destination] -
@@ -427,7 +430,7 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 		
 		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
-			
+
 	case MSIM_OPCODE_CMP:
 		if (instr->subop == true && instr->istst == true) {
 			tmp = (instr->destinationbank == MSIM_THIS_BANK)
