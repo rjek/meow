@@ -148,7 +148,7 @@ The top nibble of the address is the peripheral selector.
   
   f => SYS (system controller including interrupts, MCU ID etc)
 
-When the CPU is interrupted, if it is in interrupt mode it resets. Otherwise it enters interrupt mode.
+When the CPU is interrupted it enters interrupt mode.  If it is already in interrupt mode, nothing new happens.
 Entering interrupt mode causes the active bank of registers to switch to the interrupt bank and causes
 PC to be loaded with the address of the interrupt handler. To return from interrupt, you execute 
 BNV #4 (also known as IRQRTN).
@@ -217,7 +217,9 @@ Memory layout:
        CPU wishes to receive the interrupt, a 0 signifies that it wishes to
        ignore the interrupt.
 
-     0x2400 .. 0x2403 is 32 bit field for pending interupts.
+     0x2400 .. 0x2403 is 32 bit field for pending interupts.  When writing,
+                      a 1 in the word you write clears that interrupt.
+                      (ie, register &= ^(written word);)
 
      0x2404 .. 0x240f is the programmable interrupt timer.
             1st word => read-only system controller input clock frequency (Hz)
