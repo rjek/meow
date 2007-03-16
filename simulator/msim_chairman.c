@@ -194,6 +194,15 @@ static void msim_sys_tick(struct msim_ctx *ctx, void *fctx)
 			msim_sys_raise_irq(ctx, 31);
 		}
 	}
+	
+	/* now check the pending interrupts register by ANDing it with the
+	 * the first CPU's (as msim only supports one CPU) mask, and issue
+	 * an interrupt if it's non-zero.
+	 */
+	 
+	if ((s->irq.pending & s->irq.mask[0]) != 0) {
+		msim_irq(ctx);
+	}
 }
 
 void msim_add_sys(struct msim_ctx *ctx, int area)
@@ -218,8 +227,7 @@ void msim_sys_raise_irq(struct msim_ctx *ctx, int irq)
 	
 	s->irq.pending |= (1 << irq);
 	
-	if (s->irq.mask[0] && (1 << irq) != 0) {
-		/* the emulated CPU wants to hear about this IRQ */
-		msim_irq(ctx);
-	}
+	/* our tick function will check if the CPU wants to hear about this
+	 * interrupt, and will call msim_irq() if it does.
+	 */
 }
