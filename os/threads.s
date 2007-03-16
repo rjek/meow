@@ -93,7 +93,9 @@ main		; main entry point - put aside some RAM for the thread contexts
 		MOV	r3, r0
 		ADD	r3, ir
 		ADR	r4, ThreadA
-		STR	r4, r3
+		STR	r4, r3		; we don't strictly need to set up
+					; this for Thread A, as we branch to
+					; it at the end of this routine.
 		
 		MOV	r3, r1
 		ADD	r3, ir
@@ -119,13 +121,13 @@ main		; main entry point - put aside some RAM for the thread contexts
 		LDI	#1000
 		STR	ir, r3		; the counter will now start
 		
-		; we'll just idle here until the first IRQ comes in.  We could
-		; just jump to the thread that'd get scheduled first, but
-		; I'm lazy.
+		; jump to the first thread.  This'll get a bit longer to run
+		; initially, as it'll have nearly 1000 cycles to execute
+		; just it, where future interruptions occur every 1000 cycles
+		; including the number of cycles consumed by the interrupt
+		; handler.
 		
 		B	ThreadA
-		
-loop		B	loop
 
 CPU0IrqMask	DCD	#0xf8002000
 TimerReloadAddr	DCD	#0xf8002408
