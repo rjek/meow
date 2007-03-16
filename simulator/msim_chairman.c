@@ -83,7 +83,7 @@ static u_int32_t msim_sys_read_irqs(struct msim_ctx *ctx, u_int32_t p,
 static void msim_sys_write_irqs(struct msim_ctx *ctx, u_int32_t p,
 						u_int32_t d, struct sys *s)
 {
-	s->irq.pending = d;
+	s->irq.pending &= ^(d);
 }
 
 static u_int32_t msim_sys_read_timer(struct msim_ctx *ctx, u_int32_t p,
