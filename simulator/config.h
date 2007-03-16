@@ -30,12 +30,5 @@
 
 #define MSIM_VERSION "0.0"
 #define MSIM_WITH_LUA
-#define MSIM_WITH_EDITLINE
 
 /* Don't change anything below this line */
-
-#ifndef MSIM_WITH_EDITLINE
-#	error Building without editline is not currently supported
-#endif
-
-#endif
