@@ -275,7 +275,7 @@ function meow_op_shift(info, ...)
 		       "Shifts cannot use the alternate register bank.")
 	 else
 	    condwhinge(value ~= nil, info, "Shifts can only take two arguments.")
-	    _value = value
+	    _value = v
 	    value = parse_positional(info, v)
 	    condwhinge(value.type ~= "constant" and value.type ~= "register", info,
 		       "Shifts expect aregister or a constant as their second argument.")
@@ -283,6 +283,8 @@ function meow_op_shift(info, ...)
       end
    end
    condwhinge(is_left == nil, info, "Shifts needs to be specifically left of right.")
+   condwhinge(value == nil, info, "You did not supply a value to the shift")
+   condwhinge(dest == nil, info, "Destination was not supplied to shift")
    if do_intermediate() then
       _queue_bytes(info, "\tshift\t", is_left and "left\t" or "right\t", is_roll and "roll\t" or "", is_arith and "arithmetic\t" or "", _dest, "\t", _value, "\n")
    else
