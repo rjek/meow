@@ -4,7 +4,8 @@
 
 function verbose(level, ...)
    if masm.verbose >= level then
-      print(string.format(...))
+      io.stderr:write(string.format(...))
+      io.stderr:write "\n"
    end
 end
 
@@ -79,7 +80,11 @@ function masm_main(...)
    resolve_stream()
    -- The stream is resolved, dump it to disk (yay!)
    verbose(3, "Write stream to disk...")
-   f = io.open(masm.output_file, "wb")
+   if (masm.output_file == "-") then
+      f = io.stdout
+   else
+      f = io.open(masm.output_file, "wb")
+   end
    if not f then
       verbose(0, "Unable to open output file '%s'.", masm.output_file)
       os.exit(1)
