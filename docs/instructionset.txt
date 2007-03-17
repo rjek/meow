@@ -223,7 +223,7 @@ Memory layout:
 
      0x2404 .. 0x240f is the programmable interrupt timer.
             1st word => read-only system controller input clock frequency (Hz)
-	    2nd word => timer reload value.  When high-half of register is written, it will cause a timer reset.  If this
+	    2nd word => timer reload value.  When register is written, it will cause a timer reset.  If this
 	                is zero, the timer does not run.  (Default value)
 	    3rd word => current timer value.  When this reaches zero, the system controller's interrupt is asserted.
 	                and the timer is reset.  A timer reset consists of moving the timer reload value into
