@@ -62,8 +62,7 @@ memloop		LDR	r1, r0
 		
 		B	<memloop
 
-memnomore	SUB	r0, ir
-		MOV	asp, r0		; set up IRQ mode SP
+memnomore	MOV	asp, r0		; set up IRQ mode SP
 		LDI	#512		; size of IRQ mode stack
 		SUB	r0, ir
 		MOV	sp, r0		; set up user mode SP
