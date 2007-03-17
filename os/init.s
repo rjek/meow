@@ -51,7 +51,7 @@ Sys_Reset	; first off, mask off all interrupts - if we're being
 		MOV	r0, ir	
 
 memloop		LDR	r1, r0
-		NOT	r1, r1
+		MVN	r1, r1
 		STR	r1, r0
 		LDR	r2, r0
 		CMP	r1, r2
@@ -67,7 +67,7 @@ memnomore	SUB	r0, ir
 		ADD	r0, #512
 		
 		BIC	r0, #27		; clear chipselect bit
-		LDI	ir, #1
+		LDI	#1
 		LSL	ir, #27
 		STR	r0, ir		; store size of ram in first word
 		
