@@ -117,7 +117,7 @@ function meow_op_dcb(info, ...)
       condwhinge(dec.type ~= "constant" and dec.type ~= "string", info,
 		 "DCB only supports immedate constants or literal strings.")
       if do_intermediate() then
-	 _queue_bytes(info, "\t", args[i])
+	 _queue_bytes(info, "\t", dec.type == "string" and string.format("%q", dec.value) or args[i])
       else
 	 if dec.type == "constant" then
 	    if dec.value < -128 or dec.value > 255 then
