@@ -6,17 +6,16 @@ clean:
 	rm -rf catflap.a catflap.s entry.o irq.o syscall.o init.o
 	
 catflap.a: entry.o irq.o syscall.o init.o
-	$(MASM) -c -o catflap.s entry.o irq.s syscall.o init.o
-	grep -v "^;" < catflap.s > catflap.a
+	cat entry.o irq.o syscall.o init.o > catflap.a
 	
 entry.o: entry.s catflap.h
-	$(MASM) -o entry.o -c entry.s
+	$(MASM) -o - -c entry.s | grep -v "^;" > entry.o
 
 irq.o: irq.s catflap.h
-	$(MASM) -o irq.o -c irq.s	
+	$(MASM) -o - -c irq.s | grep -v "^;" > irq.o
 
 syscall.o: syscall.s catflap.h
-	$(MASM) -o syscall.o -c syscall.s
+	$(MASM) -o - -c syscall.s | grep -v "^;" > syscall.o
 
 init.o: init.s catflap.h
-	$(MASM) -o init.o -c init.s
+	$(MASM) -o - -c init.s | grep -v "^;" > init.o
