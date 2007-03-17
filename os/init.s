@@ -31,11 +31,9 @@ Sys_Reset	; first off, mask off all interrupts - if we're being
 		; reset instead of initialised, we don't want to be
 		; interrupted, otherwise things get sticky.  Slight race, here.
 		
-		ADR	r0, CPU0IrqMask
-		LDR	r0, r0
-		
-		EOR	r1, r1		; clears r1, just incase
-		STR	r1, r0		; writes it into the mask register
+		ADR	r1, CPU0IrqMask
+		LDR	r1, r0
+		STR	r0, r1		; writes it into the mask register
 		
 		; we need to find some RAM before we can start calling
 		; subroutines to find and initialise memory, as we'll be
@@ -46,27 +44,32 @@ Sys_Reset	; first off, mask off all interrupts - if we're being
 		; stack pointer to be 512 bytes at the end, and the user
 		; mode's stack pointer to be 1024 bytes before that.
 		
-		LDI	#1
-		LSL	ir, #27
-		MOV	r0, ir	
+		EOR	r0, r0
+		BIS	r0, #27	
+
+		LDI	#1024		; for later
 
 memloop		LDR	r1, r0
 		MVN	r1, r1
 		STR	r1, r0
 		LDR	r2, r0
 		CMP	r1, r2
-		LDI	#1024
 		BNE	>memnomore	; that memory doesn't work
 		ADD	r0, ir
+
+		TST	r0, #28		; have we overflowed into the next CS?
+		BNE	memnomore	; yes - don't dance on this memory
+		
 		B	<memloop
 
 memnomore	SUB	r0, ir
 		MOV	asp, r0		; set up IRQ mode SP
-		SUB	r0, #512
+		LDI	#512		; size of IRQ mode stack
+		SUB	r0, ir
 		MOV	sp, r0		; set up user mode SP
-		ADD	r0, #512
+		ADD	r0, ir
 		
-		BIC	r0, #27		; clear chipselect bit
+		BIC	r0, #27		; clear chip select bit
 		LDI	#1
 		LSL	ir, #27
 		STR	r0, ir		; store size of ram in first word
