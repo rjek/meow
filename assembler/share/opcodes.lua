@@ -3,7 +3,9 @@
 register_stat("align_wastage", "Number of bytes wasted in alignments")
 
 local function __queue_intermediate_label(info, streampos, labelname)
-   _queue_bytes(info, find_label(nil, labelname))
+   local cross_label = find_label(nil, labelname)
+   condwhinge(cross_label == nil, info, "Deferred label resolution for " .. labelname .. " failed")
+   _queue_bytes(info, cross_label);
    return true
 end
 

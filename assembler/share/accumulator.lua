@@ -10,6 +10,9 @@ local global_labels = {}
 
 local function normal_queue_bytes(info, ...)
    -- A sequence of bytes (or strings if wanted) are appended to the output stream
+   if info == nil then
+      error("nil info")
+   end
    for i, v in ipairs({...}) do
       table.insert(output_stream, v)
       table.insert(output_info, info)
@@ -25,6 +28,10 @@ local deferred_bytes = ""
 
 local function deferred_queue_bytes(info, ...)
    -- A sequence of bytes (or strings if wanted) are appended to the output stream
+   if info == nil then
+
+      error("nil info")
+   end
    for i, v in ipairs({...}) do
       if type(v) == "string" then 
 	 deferred_bytes = deferred_bytes .. v
@@ -35,6 +42,9 @@ local function deferred_queue_bytes(info, ...)
 end
 
 local function normal_queue_callback(info, ...)
+   if info == nil then
+      error("nil info")
+   end
    if type(({...})[1]) ~= "function" then
       error("IAE: queue_callback called without a function")
    end
@@ -54,7 +64,7 @@ local function __missing_newline()
    local v = output_stream[table.getn(output_stream)]
    if type(v) == "string" then
       if string.sub(v, -1) == "\n" then return true end
-      _queue_bytes(nil, "\n")
+      _queue_bytes({}, "\n")
    else
       return "defer", 0, __missing_newline
    end
@@ -62,7 +72,7 @@ local function __missing_newline()
 end
 
 function _queue_missing_newline()
-   _queue_callback(nil, __missing_newline)
+   _queue_callback({}, __missing_newline)
 end
 
 local function _define_label(info, stream_pos, str)

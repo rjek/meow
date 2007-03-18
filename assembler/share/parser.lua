@@ -88,7 +88,7 @@ function parse(f, filename)
    parse_level = parse_level + 1
    if do_intermediate() then
       _queue_missing_newline() 
-      _queue_bytes(nil, ";;;", string.rep(" ", parse_level), "> ", filename, "\n")
+      _queue_bytes({}, ";;;", string.rep(" ", parse_level), "> ", filename, "\n")
    end
    table.insert(parser_files, 1, f)
    table.insert(parser_lines, 1, 0)
@@ -110,7 +110,7 @@ function parse(f, filename)
    table.remove(parser_files, 1)
    if do_intermediate() then 
       _queue_missing_newline() 
-      _queue_bytes(nil, ";;;", string.rep(" ", parse_level), "< ", filename, "\n")
+      _queue_bytes({}, ";;;", string.rep(" ", parse_level), "< ", filename, "\n")
    end
    parse_level = parse_level - 1
 end
