@@ -7,6 +7,7 @@ clean:
 	
 catflap.a: entry.o irq.o syscall.o init.o
 	cat entry.o irq.o syscall.o init.o > catflap.a
+	$(MASM) -o catflap.rom catflap.a
 	
 entry.o: entry.s catflap.h
 	$(MASM) -o - -c entry.s | grep -v "^;" > entry.o

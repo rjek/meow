@@ -25,6 +25,8 @@
 		
 		EXPORT	syscallDispatch
 		EXPORT	Sys_ReadSysInfo
+		
+		IMPORT	Sys_Reset
 
 syscallUnknown	BIS	sp, vbit
 		MOV	pc, lr		

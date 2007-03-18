@@ -32,7 +32,7 @@ Sys_Reset	; first off, mask off all interrupts - if we're being
 		; interrupted, otherwise things get sticky.  Slight race, here.
 		
 		ADR	r1, CPU0IrqMask
-		LDR	r1, r0
+		LDR	r1, r1
 		STR	r0, r1		; writes it into the mask register
 		
 		; we need to find some RAM before we can start calling
@@ -55,26 +55,35 @@ memloop		LDR	r1, r0
 		LDR	r2, r0
 		CMP	r1, r2
 		BNE	>memnomore	; that memory doesn't work
-		ADD	r0, ir
+		ADD	r0, ir		; move on 1024 bytes
 
 		TST	r0, #28		; have we overflowed into the next CS?
 		BNE	memnomore	; yes - don't dance on this memory
 		
 		B	<memloop
 
-memnomore	MOV	asp, r0		; set up IRQ mode SP
-		LDI	#512		; size of IRQ mode stack
+memnomore	SUB	r0, ir		; step back 1kB
+		ADD	r0, #4		; we're a full decending stack!
+		MOV	asp, r0		; set up IRQ mode SP
+		LDI	IRQStackSize	; size of IRQ mode stack
 		SUB	r0, ir
 		MOV	sp, r0		; set up user mode SP
 		ADD	r0, ir
+		SUB	r0, #4		; take account of FD-nature
 		
 		BIC	r0, #27		; clear chip select bit
 		LDI	#1
 		LSL	ir, #27
 		STR	r0, ir		; store size of ram in first word
 		
-		; now we can start initialising hardware
+		; now we can start initialising hardware.  Iterate through
+		; each of the System Controller's chip select info regions,
+		; and see if we recognise any of the hardware.
 		
+		LDI	#31
+		LSL	ir, #27
+		MOV	r2, ir
 		
+deviceloop	LDR	r1, r2		; read device id
 		
 		

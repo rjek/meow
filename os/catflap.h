@@ -25,5 +25,23 @@
 		DEFINE	IMPORT	GLOBAL
 		DEFINE	EXPORT	GLOBAL
 		
+		DEFINE	nbit	#31
+		DEFINE	zbit	#30
+		DEFINE	cbit	#29
+		DEFINE	vbit	#28
+		
+		MACRO	SYS	$0	; syscall corrupts IR and LR
+		LDI	$0
+		ADD	lr, pc, #4
+		EOR	pc, pc
+		ENDMACRO
+		
+		; stack sizes
+		DEFINE	IRQStackSize	#512
+		DEFINE	USRStackSize	#1024
+		
 		; syscall numbers
 		DEFINE	OS_Reset	#0
+		DEFINE	OS_ReadSysInfo	#1
+		
+		DEFINE	OS_Last		#1
