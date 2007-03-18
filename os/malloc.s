@@ -1,4 +1,4 @@
-; syscall.s
+; malloc.s
 ; This file is part of Catflap, an OS for MEOW
 ;
 ; Copyright (C) 2007 - Rob Kendrick <rjek@rjek.com>
@@ -23,51 +23,18 @@
 
 		INCLUDE	catflap.h
 		
-		EXPORT	syscallDispatch
-		EXPORT	Sys_ReadSysInfo
+		EXPORT	initMalloc
+		EXPORT	Sys_Malloc
+		EXPORT	Sys_Free
 		
-		IMPORT	Sys_Reset
-		IMPORT	Sys_Malloc
-		IMPORT	Sys_Free
-		IMPORT	Sys_NewThread
-		IMPORT	Sys_DestroyThread
-		IMPORT	Sys_PutC
-		IMPORT	Sys_GetC
-		IMPORT	Sys_PutS
-		IMPORT	Sys_GetS
+initMalloc	
+		MOV	pc, lr
 
-syscallUnknown	BIS	sp, vbit
-		MOV	pc, lr		
-
-syscallDispatch	CMP	ir, OS_Last
-		BGT	<syscallUnknown
-		PUSH	r1
-
-		ADR	r1, syscallTable
-		LSL	ir, #2
-		ADD	ir, r1
-		LDR	ir, ir
-		
-		POP	ir
-
-		MOV	pc, ir
-
-syscallTable
-		DCD	Sys_Reset
-		DCD	Sys_ReadSysInfo
-		DCD	Sys_Malloc
-		DCD	Sys_Free
-		DCD	Sys_NewThread
-		DCD	Sys_DestroyThread
-		DCD	Sys_PutC
-		DCD	Sys_GetC
-		DCD	Sys_PutS
-		DCD	Sys_GetS
-
-Sys_ReadSysInfo
-		EOR	r0, r0
-		BIS	r0, #27
-		LDR	r0, r0		; load memory size
+Sys_Malloc	; -> r0 == size needed
+		; <- r1 == pointer to new block, or -1 for error
 		
 		MOV	pc, lr
 		
+Sys_Free	; -> r1 == pointer to block to free
+
+		MOV	pc, lr

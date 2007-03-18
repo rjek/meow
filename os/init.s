@@ -24,6 +24,10 @@
 		INCLUDE	catflap.h
 
 		EXPORT	Sys_Reset
+		IMPORT	initMalloc
+		IMPORT	initIO
+		IMPORT	initThreads
+		IMPORT	_main
 
 CPU0IrqMask	DCD	#0xf8002000
 		
@@ -80,10 +84,63 @@ memnomore	SUB	r0, ir		; step back 1kB
 		; each of the System Controller's chip select info regions,
 		; and see if we recognise any of the hardware.
 		
-		LDI	#31
+initdevices	LDI	#31
 		LSL	ir, #27
-		MOV	r2, ir
+		MOV	r0, ir		; r0 == base of system controller
 		
-deviceloop	LDR	r1, r2		; read device id
+		EOR	r4, r4
+		BIS	r4, #13		; 8192
+		ADD	r4, r0		; r4 == top of chip select table
 		
+		LDI	#-1
+		LSL	ir, #16
+		MOV	r3, ir		; r3 == 0xffff0000, ie, vendor mask
+		
+deviceloop	LDR	r1, r0		; read chip select id
+		MOV	r2, r1
+		ORR	r2, r3
+		LSR	r2, #16		; r2 == vendor id
+		BIC	r1, r3		; r1 == device id
+		
+		CMP	r2, vendor_flarn
+		BEQ	>flarndevice	; it's one of ours, go process it
+nextdevice
+		LDI	#256
+		ADD	r0, ir		; next device?
+		CMP	r0, r4
+		BLE	<deviceloop	; we've not run out yet
+		
+		; we've initialised all our devices now.
+		
+		B	>continit
+
+flarndevice	; r1 == device ID
+
+		CMP	r1, #2
+		BLT	<nextdevice	; ram and rom require no init
+		BEQ	>init_flarn_chairman
+		
+		B	<nextdevice	; unknown device id
+
+init_flarn_chairman
+		; chairman may require initialising in the future, but not
+		; now - the important stuff's already been done. (ie, set the
+		; cpu0 IRQ mask to all zeros.)
+		B	<nextdevice		
+
+		; having set up the hardware devices, we need to initialise
+		; other parts of the OS, like memory manager and threading.
+continit
+
+		BL	initMalloc
+		BL	initIO
+		BL	initThreads
+		
+		; Finally, create a new thread for _main, the OS's entry point
+		
+		ADR	r0, _main
+		SYS	OS_NewThread	; r1 will now be the thread's ID, but
+					; we know this will be 0, as it's the
+					; first one.
+		B	_main		; branch to _main
 		

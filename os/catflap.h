@@ -22,26 +22,51 @@
 ; IN THE SOFTWARE.
 
 		; useful macros
-		DEFINE	IMPORT	GLOBAL
-		DEFINE	EXPORT	GLOBAL
-		
-		DEFINE	nbit	#31
-		DEFINE	zbit	#30
-		DEFINE	cbit	#29
-		DEFINE	vbit	#28
-		
+
 		MACRO	SYS	$0	; syscall corrupts IR and LR
 		LDI	$0
 		ADD	lr, pc, #4
 		EOR	pc, pc
 		ENDMACRO
 		
+		DEFINE	IMPORT			GLOBAL
+		DEFINE	EXPORT			GLOBAL
+		
+		DEFINE	nbit			#31
+		DEFINE	zbit			#30
+		DEFINE	cbit			#29
+		DEFINE	vbit			#28
+				
 		; stack sizes
-		DEFINE	IRQStackSize	#512
-		DEFINE	USRStackSize	#1024
+		DEFINE	IRQStackSize		#512
+		DEFINE	USRStackSize		#1024
+		
+		; OS limits
+		DEFINE	MaxThreads		#16
+		
+		; vendor ids
+		DEFINE	vendor_none		#-1
+		DEFINE	vendor_flarn		#0
+		
+		DEFINE	device_none		#-1
+		
+		; flarn device ids
+		DEFINE	device_flarn_rom	#0
+		DEFINE	device_flarn_ram	#1
+		DEFINE	device_flarn_chairman	#2
+		DEFINE	device_flarn_ioc	#3
 		
 		; syscall numbers
-		DEFINE	OS_Reset	#0
-		DEFINE	OS_ReadSysInfo	#1
+		DEFINE	OS_Reset		#0
+		DEFINE	OS_ReadSysInfo		#1
+		DEFINE	OS_Malloc		#2
+		DEFINE	OS_Free			#3
+		DEFINE	OS_NewThread		#4
+		DEFINE	OS_DestroyThread	#5
 		
-		DEFINE	OS_Last		#1
+		DEFINE	OS_PutC			#6	; put char
+		DEFINE	OS_GetC			#7	; get char
+		DEFINE	OS_PutS			#8	; put C string
+		DEFINE	OS_GetS			#9	; get C string
+		
+		DEFINE	OS_Last			#9
