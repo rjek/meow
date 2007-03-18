@@ -1,7 +1,7 @@
 ; msim machine specification
 ; lines that begin with ; are ignored, as are empty lines.
 
-chip 0 rom ../assembler/masm.out
+chip 0 rom ../os/catflap.rom
 
 chip 1 ram 8192
 

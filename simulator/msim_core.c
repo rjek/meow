@@ -239,7 +239,7 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 		instr->condition = (instrword >> 9) & 15;
 		instr->immediate =
 			MSIM_SIGN_EXTEND(
-				(instrword & (~(127<<9))), 16, 9) * 2;
+				(instrword & (~(127<<9))), 32, 9) * 2;
 		
 		break;
 		
@@ -309,7 +309,7 @@ void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
 		} else {
 			instr->destination = MSIM_IR;
 			instr->immediate = MSIM_SIGN_EXTEND(
-				instrword & (~(15<<12)), 16, 12);
+				instrword & (~(15<<12)), 32, 12);
 		}
 		break;
 			
