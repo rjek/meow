@@ -162,7 +162,7 @@ struct msim_instr {
 	msim_register		source;
 	msim_bank_type		destinationbank;
 	msim_bank_type		sourcebank;
-	int16_t			immediate;
+	int32_t			immediate;
 	bool			immver;		/* gerenic flag to say if this
 						is the immediate version of
 						some instructions
