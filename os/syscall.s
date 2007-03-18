@@ -24,6 +24,32 @@
 		INCLUDE	catflap.h
 		
 		EXPORT	syscallDispatch
+		EXPORT	Sys_ReadSysInfo
+
+syscallUnknown	BIS	sp, vbit
+		MOV	pc, lr		
+
+syscallDispatch	CMP	ir, OS_Last
+		BGT	<syscallUnknown
+		PUSH	r1
+
+		ADR	r1, syscallTable
+		LSL	ir, #2
+		ADD	ir, r1
+		LDR	ir, ir
 		
-syscallDispatch
+		POP	ir
+
+		MOV	pc, ir
+
+syscallTable
+		DCD	Sys_Reset
+		DCD	Sys_ReadSysInfo
+
+Sys_ReadSysInfo
+		EOR	r0, r0
+		BIS	r0, #27
+		LDR	r0, r0		; load memory size
+		
 		MOV	pc, lr
+		
