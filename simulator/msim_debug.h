@@ -31,15 +31,22 @@
 
 #include "config.h"
 
-#define MSIM_DEBUG_BREAKPOINTS 10		/* max number of breakpoints */
+#ifdef MSIM_WITH_LUA
+#include MSIM_LUA_INCLUDE(lua.h)
+#include MSIM_LUA_INCLUDE(lauxlib.h)
+#endif
 
-#define MSIM_DEBUG_CONTEXT u_int32_t breakpoints[MSIM_DEBUG_BREAKPOINTS];
+#define MSIM_DEBUG_BREAKPOINTS 10		/* max number of breakpoints */
+#define MSIM_DEBUG_WATCHPOINTS 10		/* max number of watchpoints */
 
 /* start a debugging session */
 void msim_debugger(struct msim_ctx *ctx);
 
 /* initialise debugging routines */
 void msim_debug_init(struct msim_ctx *ctx);
+
+/* finalise the debugging routines */
+void msim_debug_fin(struct msim_ctx *ctx);
 
 /* add a breakpoint at a specific address.  does nothing if there is already
  * a breakpoint at that location.  returns true on success.
@@ -53,6 +60,17 @@ bool msim_breakpoint(struct msim_ctx *ctx, u_int32_t address);
  * one to start with.
  */
 void msim_breakpoint_del(struct msim_ctx *ctx, u_int32_t address);
+
+/* add a watchpoint.  returns true on success */
+bool msim_watchpoint_add(struct msim_ctx *ctx, const char *expr);
+
+/* check if a watchpoint has fired for the current state.  returns a pointer
+ * to a string describing the watchpoint if so, or NULL if not.
+ */
+const char *msim_watchpoint(struct msim_ctx *ctx);
+
+/* delete a numbered watchpoint */
+void msim_watchpoint_del(struct msim_ctx *ctx, int watchpoint);
 
 /* convience function that decodes and disassembles an instruction, doing
  * other steps for you.  Returned string points to a static buffer, copy it

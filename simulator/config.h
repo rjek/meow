@@ -30,6 +30,7 @@
 
 #define MSIM_VERSION "0.0"
 #define MSIM_WITH_LUA
+#define MSIM_LUA_INCLUDE(X) <lua5.1/X>
 
 /* Don't change anything below this line */
 

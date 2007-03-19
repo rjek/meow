@@ -6,7 +6,7 @@ clean:
 	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim.o
 
 msim: msim_core.o msim_chairman.o msim_debug.o msim.o
-	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim.o -ledit
+	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim.o -ledit -llua5.1
 
 msim_core.o: msim_core.c msim_core.h config.h
 	$(CC) $(CFLAGS) -c msim_core.c -o msim_core.o

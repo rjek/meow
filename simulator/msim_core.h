@@ -238,8 +238,13 @@ struct msim_ctx {
 	void		*bnvopsctx[512];
 	
 	struct msim_instr instr;
-#ifdef MSIM_DEBUG_CONTEXT
-	MSIM_DEBUG_CONTEXT
+	
+	/* debugger state */
+	u_int32_t breakpoints[MSIM_DEBUG_BREAKPOINTS];
+#ifdef MSIM_WITH_LUA
+	char *watchpoints[MSIM_DEBUG_WATCHPOINTS];
+	bool watching;
+	lua_State *l;
 #endif
 };
 
