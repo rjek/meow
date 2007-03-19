@@ -84,9 +84,47 @@ static int l_msim_getar(lua_State *L)
 	return 1;
 }
 
+static int l_msim_getword(lua_State *L)
+{
+	u_int32_t a = luaL_checknumber(L, 1);
+	struct msim_ctx *ctx = lua_touserdata(L, 2);
+	u_int32_t d = msim_memget(ctx, a, MSIM_ACCESS_WORD);
+	
+	lua_pushnumber(L, d);
+
+	return 1;
+}
+
+static int l_msim_gethalf(lua_State *L)
+{
+	u_int32_t a = luaL_checknumber(L, 1);
+	struct msim_ctx *ctx = lua_touserdata(L, 2);
+	u_int32_t d = msim_memget(ctx, a, MSIM_ACCESS_HALFWORD);
+	
+	lua_pushnumber(L, d);
+
+	return 1;
+}
+
+static int l_msim_getbyte(lua_State *L)
+{
+	u_int32_t a = luaL_checknumber(L, 1);
+	struct msim_ctx *ctx = lua_touserdata(L, 2);
+	u_int32_t d = msim_memget(ctx, a, MSIM_ACCESS_BYTE);
+	
+	lua_pushnumber(L, d);
+
+	return 1;
+}
+
+static int l_msim_error(lua_State *L)
+{
+	return lua_error(L);
+}
+
 static void msim_lua_init(struct msim_ctx *ctx)
 {
-	ctx->l = luaL_newstate();
+	lua_State *L = ctx->l = luaL_newstate();
 	
 	lua_pushlightuserdata(ctx->l, ctx);
 	lua_setglobal(ctx->l, "ctx");
@@ -96,6 +134,23 @@ static void msim_lua_init(struct msim_ctx *ctx)
 	
 	lua_pushcfunction(ctx->l, l_msim_getar);
 	lua_setglobal(ctx->l, "getar");
+	
+	lua_pushcfunction(ctx->l, l_msim_getword);
+	lua_setglobal(ctx->l, "getword");
+	
+	lua_pushcfunction(ctx->l, l_msim_gethalf);
+	lua_setglobal(ctx->l, "gethalf");
+	
+	lua_pushcfunction(ctx->l, l_msim_getbyte);
+	lua_setglobal(ctx->l, "getbyte");	
+	
+	luaopen_base(ctx->l);
+	
+	lua_pushcfunction(ctx->l, l_msim_error);
+	lua_setglobal(ctx->l, "error");
+	
+#include "msim_watchpoints.c"
+
 }
 
 static void msim_lua_fin(struct msim_ctx *ctx)
@@ -131,10 +186,21 @@ static void msim_debug_watchpoint(struct msim_ctx *ctx, const int argc,
 	if (!strcmp(argv[1], "help")) {
 		puts("watchpoint <command> <param>");
 		puts("command is:");
-		puts("           list     List current watchpoints");
-		puts("           add      Add new, <param> is expression");
-		puts("           delete   Remove watchpoint. <param> is watchpoint");
+		puts("     list     List current watchpoints");
+		puts("     add      Add new, <param> is expression");
+		puts("     delete   Remove watchpoint. <param> is watchpoint");
 		puts("                       number from list command");
+		puts("");
+		puts("A watchpoint expression is a Lua expression, and the");
+		puts("following tables are defined to return values:");
+		puts("     r[x]     Contents of register x");
+		puts("     ar[x]    Contents of register x in alt bank");
+		puts("     word[x]  Word at address x");
+		puts("     half[x]  Half-word at address x");
+		puts("     byte[x]  Byte at address x");
+		puts("If an expression returns true, the watchpoint fires");
+		puts("And the program is interrupted.  Example:");
+		puts("     watchpoint add r[1] == 0xdeadbeef and word[0x8000] == 0");
 		
 		return;
 	}
@@ -156,14 +222,21 @@ static void msim_debug_watchpoint(struct msim_ctx *ctx, const int argc,
 		strcpy(lua, "return ");
 		strncat(lua, expr, strlen(expr) - 1);
 		
-		error = luaL_loadbuffer(ctx->l, lua, strlen(lua), "watchpoint")
-			|| lua_pcall(ctx->l, 0, 0, 0);;
+		error = luaL_loadbuffer(ctx->l, lua, strlen(lua), "line");
 		if (error) {
 			const char *err = strstr(lua_tostring(ctx->l, -1), 
 								"1:") + 3;
 			printf("bad watchpoint: %s\n", err);
 			lua_pop(ctx->l, 1);
 			return;
+		}
+		
+		error = lua_pcall(ctx->l, 0, 0, 0);
+		if (error) {
+			const char *err = lua_tostring(ctx->l, -1);
+			printf("bad watchpoint: %s\n", err);
+			lua_pop(ctx->l, 1);
+			return;			
 		}
 		
 		if (msim_watchpoint_add(ctx, lua) == false) {
@@ -216,7 +289,7 @@ static void msim_debug_step(struct msim_ctx *ctx, const int argc,
 		if (ctx->watching == true) {
 			wp = msim_watchpoint(ctx);
 			if (wp != NULL) {
-				printf("msim: hit watchpoint: %s\n", wp);
+				printf("msim: hit watchpoint '%s': \n", wp);
 				break;
 			}
 		}

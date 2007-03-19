@@ -34,6 +34,7 @@
 #ifdef MSIM_WITH_LUA
 #include MSIM_LUA_INCLUDE(lua.h)
 #include MSIM_LUA_INCLUDE(lauxlib.h)
+#include MSIM_LUA_INCLUDE(lualib.h)
 #endif
 
 #define MSIM_DEBUG_BREAKPOINTS 10		/* max number of breakpoints */
