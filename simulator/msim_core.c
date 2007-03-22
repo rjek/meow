@@ -657,11 +657,16 @@ void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
 
 inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
 {
-	bool nflag = MSIM_SR_NFLAG(sr);
-	bool zflag = MSIM_SR_ZFLAG(sr);
-	bool cflag = MSIM_SR_CFLAG(sr);
-	bool vflag = MSIM_SR_VFLAG(sr);
+	bool nflag, zflag, cflag, vflag;
 	
+	if (condition == MSIM_COND_AL)
+		return true;
+
+	nflag = MSIM_SR_NFLAG(sr);
+        zflag = MSIM_SR_ZFLAG(sr);
+        cflag = MSIM_SR_CFLAG(sr);
+        vflag = MSIM_SR_VFLAG(sr);
+
 	switch (condition) {
 	case MSIM_COND_EQ: return zflag == true;
 	case MSIM_COND_NE: return zflag == false;
@@ -679,9 +684,8 @@ inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
 	case MSIM_COND_LE: return (nflag != vflag) || (zflag == true);
 	case MSIM_COND_AL: return true;
 	case MSIM_COND_NV: return false;
+	default: return false;
 	}
-	
-	return false;
 }
 
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
