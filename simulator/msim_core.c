@@ -663,9 +663,9 @@ inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
 		return true;
 
 	nflag = MSIM_SR_NFLAG(sr);
-        zflag = MSIM_SR_ZFLAG(sr);
-        cflag = MSIM_SR_CFLAG(sr);
-        vflag = MSIM_SR_VFLAG(sr);
+	zflag = MSIM_SR_ZFLAG(sr);
+	cflag = MSIM_SR_CFLAG(sr);
+	vflag = MSIM_SR_VFLAG(sr);
 
 	switch (condition) {
 	case MSIM_COND_EQ: return zflag == true;
