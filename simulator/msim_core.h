@@ -234,6 +234,13 @@ struct msim_ctx {
 		 u_int32_t	deviceid;
 	}		areas[32];
 	
+	/* we also keep a pre-compiled non-sparse list of the tick functions
+	 * as iterating through the above array for every cycle is expensive.
+	 */
+	msim_device_tick stick[32]; 	/* actual short list */
+	unsigned int sticka[31]; 	/* shortlist entry's area numbers */
+	unsigned int sticks; 		/* size of shortlist */
+	
 	msim_bnvop	bnvops[512];
 	void		*bnvopsctx[512];
 	
@@ -251,11 +258,12 @@ struct msim_ctx {
 struct msim_ctx *msim_init(void);
 void msim_destroy(struct msim_ctx *ctx);
 
-void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
-			msim_read_mem read, msim_write_mem write,
-			msim_reset_mem reset, msim_device_tick tick,
-			void *fctx);
-void msim_device_remove(struct msim_ctx *ctx, const int area);
+void msim_device_add(struct msim_ctx *ctx, const unsigned int area, 
+			const u_int32_t id, msim_read_mem read,
+			msim_write_mem write, msim_reset_mem reset, 
+			msim_device_tick tick, void *fctx);
+			
+void msim_device_remove(struct msim_ctx *ctx, const unsigned int area);
 
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace);
 

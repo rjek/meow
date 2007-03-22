@@ -149,9 +149,10 @@ void msim_del_builtin_bnvs(struct msim_ctx *ctx)
 
 /* -- Device/Chipselect handling ------------------------------------------ */
 
-void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
-			msim_read_mem read, msim_write_mem write, 
-			msim_reset_mem reset, msim_device_tick tick, void *fctx)
+void msim_device_add(struct msim_ctx *ctx, const unsigned int area, 
+			const u_int32_t id, msim_read_mem read,
+			msim_write_mem write, msim_reset_mem reset, 
+			msim_device_tick tick, void *fctx)
 {
 	ctx->areas[area].read = read;
 	ctx->areas[area].write = write;
@@ -159,10 +160,36 @@ void msim_device_add(struct msim_ctx *ctx, const int area, const u_int32_t id,
 	ctx->areas[area].tick = tick;
 	ctx->areas[area].ctx = fctx;
 	ctx->areas[area].deviceid = id;
+	
+	if (tick != NULL) {
+		assert(ctx->sticks < 31);
+		ctx->stick[ctx->sticks] = tick;
+		ctx->sticka[ctx->sticks] = area;
+		ctx->sticks++;
+	}
 }
 
-void msim_device_remove(struct msim_ctx *ctx, const int area)
+void msim_device_remove(struct msim_ctx *ctx, const unsigned int area)
 {
+	if (ctx->areas[area].tick != NULL) {
+		/* we need to remove it from the ticker shortlist.
+		 * first of all, find out which one in the short list it is
+		 */
+		 int a, i;
+		 
+		 for (a = 0; a < ctx->sticks; a++) {
+		 	if (ctx->sticka[a] == area) break;
+		 }
+		 
+		 /* shuffle all the others down */
+		 for (i = a; i < ctx->sticks; i++) {
+		 	ctx->stick[i] = ctx->stick[i + 1];
+		 	ctx->sticka[i] = ctx->sticka[i + 1];
+		 }
+		 
+		 ctx->sticks--;
+	}
+
 	ctx->areas[area].read = NULL;
 	ctx->areas[area].write = NULL;
 	ctx->areas[area].reset = NULL;
@@ -725,11 +752,14 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 				
 		msim_execute(ctx, &(ctx->instr));
 
-		for (ticks = 0; ticks < 32; ticks++)
-			if (ctx->areas[ticks].tick != NULL)
-				ctx->areas[ticks].tick(ctx,
-					ctx->areas[ticks].ctx);
-		
+		/* run the tickers in our ticker shortlist */
+		if (ctx->sticks != 0) {
+			for (ticks = 0; ticks < ctx->sticks; ticks++) {
+				unsigned int a = ctx->sticka[ticks];
+				ctx->stick[ticks](ctx, ctx->areas[a].ctx);
+			}
+		}
+	
 		ctx->cyclecount++;
 	}
 }
