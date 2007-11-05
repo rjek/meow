@@ -228,3 +228,19 @@ Memory layout:
 	    3rd word => current timer value.  When this reaches zero, the system controller's interrupt is asserted.
 	                and the timer is reset.  A timer reset consists of moving the timer reload value into
 			the current timer value register.
+			
+C code ABI
+----------
+
+r0		Function return value
+r0-r3		Argument passing, rest on stack
+r4-r9		Function local variables
+r10/at		C compiler/assembler temp
+r11/sp		Stack pointer
+r12/lr		Link register
+r13/ir		Immediate register
+r14/sr		Status register
+r15/pc		Program counter
+
+Functions should preserve any registers they corrupt other than r0, and only
+if they return a value.
