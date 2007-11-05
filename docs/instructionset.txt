@@ -242,5 +242,5 @@ r13/ir		Immediate register
 r14/sr		Status register
 r15/pc		Program counter
 
-Functions should preserve any registers they corrupt other than r0, and only
-if they return a value.
+Functions should preserve any function-local registers they corrupt.  They may
+corrupt the argument/result-passing registers, as this can reduce stacking.
