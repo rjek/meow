@@ -1,12 +1,12 @@
 -------------------------------------------------------------------------------
 -- Title      : MEOW Condition Decoder -- Behavioural test
--- Project    : 
+-- Project    :
 -------------------------------------------------------------------------------
 -- File       : conddecoder.vhdl<2>
 -- Author     : Daniel Silverstone  <dsilvers@digital-scurf.org>
--- Company    : 
+-- Company    :
 -- Last update: 2006/10/15
--- Platform   : 
+-- Platform   :
 -------------------------------------------------------------------------------
 -- Description: Test the condition decoder
 -------------------------------------------------------------------------------
@@ -53,15 +53,42 @@ begin  -- Behavioural
   -- The actual test bench...
   process
     variable err_cnt : integer := 0;
+    type vector_lines is array (0 to 255) of std_logic;
+    variable test_vector : vector_lines := (
+   --  EQ   NE   CS   CC   MI   PL   VS   VC   HI   LS   GE   LT   GT   LE   AL   NV       N Z C V
+       '0', '1', '0', '1', '0', '1', '0', '1', '0', '1', '1', '0', '1', '0', '1', '0' , -- 0 0 0 0
+       '0', '1', '0', '1', '0', '1', '1', '0', '0', '1', '0', '1', '0', '1', '1', '0' , -- 0 0 0 1
+       '0', '1', '1', '0', '0', '1', '0', '1', '1', '0', '1', '0', '1', '0', '1', '0' , -- 0 0 1 0
+       '0', '1', '1', '0', '0', '1', '1', '0', '1', '0', '0', '1', '0', '1', '1', '0' , -- 0 0 1 1
+       '1', '0', '0', '1', '0', '1', '0', '1', '0', '1', '1', '0', '0', '1', '1', '0' , -- 0 1 0 0
+       '1', '0', '0', '1', '0', '1', '1', '0', '0', '1', '0', '1', '0', '1', '1', '0' , -- 0 1 0 1
+       '1', '0', '1', '0', '0', '1', '0', '1', '0', '1', '1', '0', '0', '1', '1', '0' , -- 0 1 1 0
+       '1', '0', '1', '0', '0', '1', '1', '0', '0', '1', '0', '1', '0', '1', '1', '0' , -- 0 1 1 1
+       '0', '1', '0', '1', '1', '0', '0', '1', '0', '1', '0', '1', '0', '1', '1', '0' , -- 1 0 0 0
+       '0', '1', '0', '1', '1', '0', '1', '0', '0', '1', '1', '0', '1', '0', '1', '0' , -- 1 0 0 1
+       '0', '1', '1', '0', '1', '0', '0', '1', '1', '0', '0', '1', '0', '1', '1', '0' , -- 1 0 1 0
+       '0', '1', '1', '0', '1', '0', '1', '0', '1', '0', '1', '0', '1', '0', '1', '0' , -- 1 0 1 1
+       '1', '0', '0', '1', '1', '0', '0', '1', '0', '1', '0', '1', '0', '1', '1', '0' , -- 1 1 0 0
+       '1', '0', '0', '1', '1', '0', '1', '0', '0', '1', '1', '0', '0', '1', '1', '0' , -- 1 1 0 1
+       '1', '0', '1', '0', '1', '0', '0', '1', '0', '1', '0', '1', '0', '1', '1', '0' , -- 1 1 1 0
+       '1', '0', '1', '0', '1', '0', '1', '0', '0', '1', '1', '0', '0', '1', '1', '0'   -- 1 1 1 1
+      );
+    variable test_counter : std_logic_vector(7 downto 0) := "00000000";
+    variable test_counter_num : integer := 0;
   begin
-    test_flags <= "0000";
-    test_condition <= "1110";
-    wait for 10ns;
-    assert test_result = '1' report "Failed";
-    if test_result /= '1' then
-      err_cnt := err_cnt + 1;
+    test_flags <= test_counter(7 downto 4);
+    test_condition <= test_counter(3 downto 0);
+    wait for 10 ns;
+    assert test_result = test_vector(test_counter_num) report "Failed";
+    wait for 10 ns;
+    test_counter := test_counter + 1;
+    test_counter_num := test_counter_num + 1;
+    wait for 10 ns;
+    if test_counter_num = 256 then
+      test_counter_num := 0;
     end if;
+    assert test_counter_num >= 0 and test_counter_num <= 255 report "Counter out of range?!";
   end process;
-  
+
 end Behavioural;
 
