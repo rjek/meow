@@ -1,5 +1,5 @@
 /*
- * string.h
+ * rand_r.c
  * This file is part of MEOW libc, a compact, non-complete C standard library
  *
  * Copyright (C) 2007 - Rob Kendrick <rjek@rjek.com>
@@ -23,34 +23,11 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef _STRING_H
-#define _STRING_H
-
 #include "stdlib.h"
 
-extern void *memcpy(void *dest, const void *src, size_t n);
-extern void *memmove(void *dest, const void *src, size_t n);
-extern void *memchr(const void *s, int c, size_t n);
-//extern int memcmp(const void *s1, const void *s2, size_t n);
-//extern void *memset(void *, int, size_t);
+int rand_r(unsigned int *next)
+{
+	*next *= 1103515245 + 12345;
+	return ((unsigned)(*next / 65536) % 32768);
+}
 
-extern char *strcat(char *dest, const char *src);
-//extern char *strncat(char *, const char *, size_t);
-extern char *strchr(const char *s, int c);
-extern int strcmp(const char *s1, const char *s2);
-extern int strncmp(const char *s1, const char *s2, size_t n);
-//extern int strcoll(const char *, const char *);
-extern char *strcpy(char *dest, const char *src);
-extern char *strncpy(char *dest, const char *src, size_t n);
-//extern char *strerror(int);
-extern size_t strlen(const char *s);
-//extern size_t strspn(const char *s, const char *accept);
-//extern size_t strcspn(const char *s, const char *reject);
-//extern char *strpbrk(const char *s, const char *accept);
-//extern char *strstr(const char *haystack, const char *needle);
-//extern char *strtok(char *, const char *);
-//extern size_t strxfrm(char *dest, const char *src, size_t n);
-
-//extern char *strdup(const char *);
-
-#endif
