@@ -27,9 +27,6 @@
 
 long int labs(long int i)
 {
-	if (i < 0)
-		return i - (i * 2);
-	else
-		return i;
+	return (i < 0) ? -i : i;
 }
 
