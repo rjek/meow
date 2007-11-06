@@ -9,6 +9,8 @@ STRING_OBJS=	string/memchr.o \
 		string/strncmp.o \
 		string/strncpy.o
 
+CTYPE_OBJS=	ctype.o
+
 STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/rand_r.o \
 		stdlib/srand.o \
@@ -16,7 +18,7 @@ STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/labs.o
 
 all: string.a ctype.a stdlib.a
-	
+	$(AR) r libc.a $(STDLIB_OBJS) $(STRING_OBJS) $(CTYPE_OBJS)	
 
 clean:
 	rm -rf $(STRING_OBJS) $(STDLIB_OBJS) string.a ctype.a stdlib.a
