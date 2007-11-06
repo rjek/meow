@@ -11,13 +11,15 @@ STRING_OBJS=	string/memchr.o \
 
 STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/rand_r.o \
-		stdlib/srand.o
+		stdlib/srand.o \
+		stdlib/abs.o \
+		stdlib/labs.o
 
 all: string.a ctype.a stdlib.a
 	
 
 clean:
-	rm -rf $(STRING_OBJS) string.a ctype.a stdlib.a
+	rm -rf $(STRING_OBJS) $(STDLIB_OBJS) string.a ctype.a stdlib.a
 
 string.a: $(STRING_OBJS)
 	$(AR) r string.a $(STRING_OBJS)
