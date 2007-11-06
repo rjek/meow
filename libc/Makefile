@@ -1,3 +1,5 @@
+CFLAGS=-I. -fno-builtin 
+
 STRING_OBJS=	string/memchr.o \
 		string/memcpy.o \
 		string/memmove.o \
@@ -15,7 +17,12 @@ STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/rand_r.o \
 		stdlib/srand.o \
 		stdlib/abs.o \
-		stdlib/labs.o
+		stdlib/labs.o \
+		stdlib/atexit_table.o \
+		stdlib/atexit.o \
+		stdlib/exit.o \
+		stdlib/getenv.o \
+		stdlib/system.o
 
 all: string.a ctype.a stdlib.a
 	$(AR) r libc.a $(STDLIB_OBJS) $(STRING_OBJS) $(CTYPE_OBJS)	

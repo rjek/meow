@@ -52,10 +52,10 @@ void strand(unsigned int seed);
 //void *realloc(void *ptr, size_t size);
 
 //void abort(void);
-//void atexit(void (*func)(void));
-//void exit(int status);
-//char *getenv(const char *name);
-//int system(const char *com);
+void atexit(void (*func)(void));
+void exit(int status);
+char *getenv(const char *name);
+int system(const char *com);
 
 //void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
 //		int (*compare)(const void *, const void *));
