@@ -4,6 +4,10 @@ MEOW Application Binary Interface
 Given MEOW is partially inspired by ARM, its ABI is partially inspired by
 ARM's ABI, called APCS.
 
+The MEOW abi (mabi) only covers the active register set. If an operation
+switches the register banks (E.g. taking an interrupt) then the other register
+set has its own set of argument, scratch, etc registers.
+
  Integer Registers
  -----------------
 
@@ -29,7 +33,7 @@ ARM's ABI, called APCS.
    pc     15       program counter
 
  These registers fall into three main groups:
-   * four arguement registers which can also be used as scratch registers,
+   * four argument registers which can also be used as scratch registers,
      or as caller-saved register variables;
 
    * six callee-saved registers, typically used for register variables;
@@ -73,13 +77,14 @@ ARM's ABI, called APCS.
  -------------------
 
   The first four arguments are placed in a1 to a4.  Any additional arguments
-  are pushed onto the stack in the order they are mentioned in the source
-  program.
+  are pushed onto the stack in such an order that in increasing memory locations
+  they are ordered as they are mentioned in the source program.
+  Thusly they are pushed in reverse order onto the stack.
 
   A callee is at liberty to corrupt its arguments, regardless of how they are
   delivered.
 
-  All arguements are passed as 32 bit values, although they may only contain
+  All arguments are passed as 32 bit values, although they may only contain
   16 or 8 bits of meaningful data, as well as 32 bits.
 
  Function call return
@@ -90,11 +95,22 @@ ARM's ABI, called APCS.
     * sp, and v1-v6 must have the same values as they did the instant before
       the function call;
 
-    * if the function returns a single result, it shall be returned in a1.
+    * if the function returns a result, it shall be returned in a1.
 
  Non-simple return values
  ------------------------
 
   A non-simple return value is one that will not fit into a word, such as
   a structure.  XXX TODO: We havn't decided how to do these yet.
+
+  Most likely this will be done by passing a pseudo-argument of somewhere to
+  write the result. Transforming code of the form:
+
+    struct blah = get_a_blah(args);
+
+  into:
+
+    struct blah; get_a_blah(&blah, args);
+
+  But if done, this will be part of the compiler.
 
