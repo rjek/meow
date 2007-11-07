@@ -47,7 +47,7 @@ static void target(Node);
 static int      bitcount       (unsigned);
 static Symbol   argreg         (int, int, int, int, int);
 
-static Symbol ireg[16];
+static Symbol ireg[32];
 static Symbol iregw;
 static int tmpregs[] = {3, 9, 10};
 static Symbol blkreg;
@@ -215,6 +215,7 @@ static int cseg;
 %term LOADU2=2278
 %term LOADU4=4326
 %%
+
 reg:  INDIRI1(VREGP)     "# read register\n"
 reg:  INDIRU1(VREGP)     "# read register\n"
 
@@ -237,151 +238,23 @@ stmt: ASGNI4(VREGP,reg)  "# write register\n"
 stmt: ASGNP4(VREGP,reg)  "# write register\n"
 stmt: ASGNU4(VREGP,reg)  "# write register\n"
 
-con: CNSTI1  "%a"
-con: CNSTU1  "%a"
+reg: ADDRGP4 "\tadr\tat, %a\n"
 
-con: CNSTI2  "%a"
-con: CNSTU2  "%a"
+reg: ADDRFP4 "\t; Get value from frame offset %a\n"
 
-con: CNSTI4  "%a"
-con: CNSTU4  "%a"
-con: CNSTP4  "%a"
+reg: INDIRI4(reg) "\tldr\t%0, at\n"
 
-stmt: reg  ""
-acon: con     "%0"
-acon: ADDRGP4  "%a"
-addr: ADDI4(reg,acon)  "%1($%0)"
-addr: ADDU4(reg,acon)  "%1($%0)"
-addr: ADDP4(reg,acon)  "%1($%0)"
-addr: acon  "%0"
-addr: reg   "($%0)"
-addr: ADDRFP4  "%a+%F($sp)"
-addr: ADDRLP4  "%a+%F($sp)"
-reg: addr  "\tadr\t%c, %0\n"  1
-reg: CNSTI1  "# reg\n"  range(a, 0, 0)
-reg: CNSTI2  "# reg\n"  range(a, 0, 0)
-reg: CNSTI4  "# reg\n"  range(a, 0, 0)
-reg: CNSTU1  "# reg\n"  range(a, 0, 0)
-reg: CNSTU2  "# reg\n"  range(a, 0, 0)
-reg: CNSTU4  "# reg\n"  range(a, 0, 0)
-reg: CNSTP4  "# reg\n"  range(a, 0, 0)
-stmt: ASGNI1(addr,reg)  "sb $%1,%0\n"  1
-stmt: ASGNU1(addr,reg)  "sb $%1,%0\n"  1
-stmt: ASGNI2(addr,reg)  "sh $%1,%0\n"  1
-stmt: ASGNU2(addr,reg)  "sh $%1,%0\n"  1
-stmt: ASGNI4(addr,reg)  "sw $%1,%0\n"  1
-stmt: ASGNU4(addr,reg)  "sw $%1,%0\n"  1
-stmt: ASGNP4(addr,reg)  "sw $%1,%0\n"  1
-reg:  INDIRI1(addr)     "lb $%c,%0\n"  1
-reg:  INDIRU1(addr)     "lbu $%c,%0\n"  1
-reg:  INDIRI2(addr)     "lh $%c,%0\n"  1
-reg:  INDIRU2(addr)     "lhu $%c,%0\n"  1
-reg:  INDIRI4(addr)     "INDIRI4 lw $%c,%0\n"  1
-reg:  INDIRU4(addr)     "INDIRU4 lw $%c,%0\n"  1
-reg:  INDIRP4(addr)     "INDIRP4 lw $%c,%0\n"  1
+stmt: ARGP4(reg) "\tmov\t%0, at\n"
+stmt: ARGI4(reg) "\tmov\t%0, at\n"
 
-reg:  CVII4(INDIRI1(addr))     "lb $%c,%0\n"  1
-reg:  CVII4(INDIRI2(addr))     "lh $%c,%0\n"  1
-reg:  CVUU4(INDIRU1(addr))     "lbu $%c,%0\n"  1
-reg:  CVUU4(INDIRU2(addr))     "lhu $%c,%0\n"  1
-reg:  CVUI4(INDIRU1(addr))     "lbu $%c,%0\n"  1
-reg:  CVUI4(INDIRU2(addr))     "lhu $%c,%0\n"  1
-reg:  INDIRF4(addr)     "l.s $f%c,%0\n"  1
-stmt: ASGNF4(addr,reg)  "s.s $f%1,%0\n"  1
-reg: DIVI4(reg,reg)  "div $%c,$%0,$%1\n"   1
-reg: DIVU4(reg,reg)  "divu $%c,$%0,$%1\n"  1
-reg: MODI4(reg,reg)  "rem $%c,$%0,$%1\n"   1
-reg: MODU4(reg,reg)  "remu $%c,$%0,$%1\n"  1
-reg: MULI4(reg,reg)  "mul $%c,$%0,$%1\n"   1
-reg: MULU4(reg,reg)  "mul $%c,$%0,$%1\n"   1
-rc:  con            "%0"
-rc:  reg            "$%0"
+stmt: CALLI4(reg) "\tadd\tlr, pc, #4\n\tmov\tpc, %0\n"
 
-reg: ADDI4(reg,rc)   "addu $%c,$%0,%1\n"  1
-reg: ADDP4(reg,rc)   "addu $%c,$%0,%1\n"  1
-reg: ADDU4(reg,rc)   "addu $%c,$%0,%1\n"  1
-reg: BANDI4(reg,rc)  "and $%c,$%0,%1\n"   1
-reg: BORI4(reg,rc)   "or $%c,$%0,%1\n"    1
-reg: BXORI4(reg,rc)  "xor $%c,$%0,%1\n"   1
-reg: BANDU4(reg,rc)  "and $%c,$%0,%1\n"   1
-reg: BORU4(reg,rc)   "or $%c,$%0,%1\n"    1
-reg: BXORU4(reg,rc)  "xor $%c,$%0,%1\n"   1
-reg: SUBI4(reg,rc)   "subu $%c,$%0,%1\n"  1
-reg: SUBP4(reg,rc)   "subu $%c,$%0,%1\n"  1
-reg: SUBU4(reg,rc)   "subu $%c,$%0,%1\n"  1
-rc5: CNSTI4         "%a"                range(a,0,31)
-rc5: reg            "$%0"
+reg: CNSTI4 "\tldi\t#%a\n\tmov\tat, ir\n"
 
-reg: LSHI4(reg,rc5)  "sll $%c,$%0,%1\n"  1
-reg: LSHU4(reg,rc5)  "sll $%c,$%0,%1\n"  1
-reg: RSHI4(reg,rc5)  "sra $%c,$%0,%1\n"  1
-reg: RSHU4(reg,rc5)  "srl $%c,$%0,%1\n"  1
-reg: BCOMI4(reg)  "not $%c,$%0\n"   1
-reg: BCOMU4(reg)  "not $%c,$%0\n"   1
-reg: NEGI4(reg)   "negu $%c,$%0\n"  1
-reg: LOADI1(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADU1(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADI2(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADU2(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADI4(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADP4(reg)  "move $%c,$%0\n"  move(a)
-reg: LOADU4(reg)  "move $%c,$%0\n"  move(a)
-reg: ADDF4(reg,reg)  "add.s $f%c,$f%0,$f%1\n"  1
-reg: DIVF4(reg,reg)  "div.s $f%c,$f%0,$f%1\n"  1
-reg: MULF4(reg,reg)  "mul.s $f%c,$f%0,$f%1\n"  1
-reg: SUBF4(reg,reg)  "sub.s $f%c,$f%0,$f%1\n"  1
-reg: LOADF4(reg)     "mov.s $f%c,$f%0\n"       move(a)
-reg: NEGF4(reg)      "neg.s $f%c,$f%0\n"       1
-reg: CVII4(reg)  "sll $%c,$%0,8*(4-%a); sra $%c,$%c,8*(4-%a)\n"  2
-reg: CVUI4(reg)  "and $%c,$%0,(1<<(8*%a))-1\n"  1
-reg: CVUU4(reg)  "and $%c,$%0,(1<<(8*%a))-1\n"  1
-reg: CVFF4(reg)  "cvt.s.d $f%c,$f%0\n"  1
-reg: CVIF4(reg)  "mtc1 $%0,$f%c; cvt.s.w $f%c,$f%c\n"  2
-reg: CVFI4(reg)  "trunc.w.s $f2,$f%0,$%c; mfc1 $%c,$f2\n"  (a->syms[0]->u.c.v.i==4?2:LBURG_MAX)
-reg: CVFI4(reg)  "trunc.w.d $f2,$f%0,$%c; mfc1 $%c,$f2\n"  (a->syms[0]->u.c.v.i==8?2:LBURG_MAX)
-stmt: LABELV  "%a\n"
-stmt: JUMPV(acon)  "b %0\n"   1
-stmt: JUMPV(reg)   ".cpadd $%0\nj $%0\n"  !pic
-stmt: JUMPV(reg)   "j $%0\n"  pic
-stmt: EQI4(reg,reg)  "beq $%0,$%1,%a\n"   1
-stmt: EQU4(reg,reg)  "beq $%0,$%1,%a\n"   1
-stmt: GEI4(reg,reg)  "bge $%0,$%1,%a\n"   1
-stmt: GEU4(reg,reg)  "bgeu $%0,$%1,%a\n"  1
-stmt: GTI4(reg,reg)  "bgt $%0,$%1,%a\n"   1
-stmt: GTU4(reg,reg)  "bgtu $%0,$%1,%a\n"  1
-stmt: LEI4(reg,reg)  "ble $%0,$%1,%a\n"   1
-stmt: LEU4(reg,reg)  "bleu $%0,$%1,%a\n"  1
-stmt: LTI4(reg,reg)  "blt $%0,$%1,%a\n"   1
-stmt: LTU4(reg,reg)  "bltu $%0,$%1,%a\n"  1
-stmt: NEI4(reg,reg)  "bne $%0,$%1,%a\n"   1
-stmt: NEU4(reg,reg)  "bne $%0,$%1,%a\n"   1
-stmt: EQF4(reg,reg)  "c.eq.s $f%0,$f%1; bc1t %a\n"  2
-stmt: LEF4(reg,reg)  "c.ule.s $f%0,$f%1; bc1t %a\n"  2
-stmt: LTF4(reg,reg)  "c.ult.s $f%0,$f%1; bc1t %a\n"  2
-stmt: GEF4(reg,reg)  "c.lt.s $f%0,$f%1; bc1f %a\n"  2
-stmt: GTF4(reg,reg)  "c.le.s $f%0,$f%1; bc1f %a\n"  2
-stmt: NEF4(reg,reg)  "c.eq.s $f%0,$f%1; bc1f %a\n"  2
-ar:   ADDRGP4     "%a"
+stmt: RETI4(reg) "\tmov\t%0, at\n\tmov\tpc, lr\n"
 
-reg:  CALLF4(ar)  "\tbl\t%0\n"  1
-reg:  CALLI4(ar)  "\tbl\t%0\n"  1
-reg:  CALLP4(ar)  "\tbl\t%0\n"  1
-reg:  CALLU4(ar)  "\tbl\t%0\n"  1
-stmt: CALLV(ar)   "\tbl\t%0\n"  1
-ar: reg    "$%0"
-ar: CNSTP4  "%a"   range(a, 0, 0x0fffffff)
-stmt: RETF4(reg)  "# ret\n"  1
-stmt: RETI4(reg)  "# ret\n"  1
-stmt: RETU4(reg)  "# ret\n"  1
-stmt: RETP4(reg)  "# ret\n"  1
-stmt: RETV(reg)   "# ret\n"  1
-stmt: ARGF4(reg)  "# arg\n"  1
-stmt: ARGI4(reg)  "# arg\n"  1
-stmt: ARGP4(reg)  "# arg\n"  1
-stmt: ARGU4(reg)  "# arg\n"  1
+stmt: LABELV "%a\n"
 
-stmt: ARGB(INDIRB(reg))       "# argb %0\n"      1
-stmt: ASGNB(reg,INDIRB(reg))  "# asgnb %0 %1\n"  1
 %%
 static void progend(void){}
 static void progbeg(int argc, char *argv[]) {
@@ -713,22 +586,26 @@ static void function(Symbol f, Symbol caller[], Symbol callee[], int ncalls) {
 
 static void defconst(int suffix, int size, Value v) {
         if (suffix == F && size == 4) {
+		assert(0); /*
                 float f = v.d;
                 print(".word 0x%x\n", *(unsigned *)&f);
+		*/
         }
         else if (suffix == F && size == 8) {
+		assert(0); /*
                 double d = v.d;
                 unsigned *p = (unsigned *)&d;
                 print(".word 0x%x\n.word 0x%x\n", p[swap], p[!swap]);
+		*/
         }
         else if (suffix == P)
-                print(".word 0x%x\n", (unsigned int)v.p);
+                print("\tDCD\t#0x%x\n", (unsigned int)v.p);
         else if (size == 1)
-                print(".byte 0x%x\n", (unsigned int)((unsigned char)(suffix == I ? v.i : v.u)));
+                print("\tDCB\t#0x%x\n", (unsigned int)((unsigned char)(suffix == I ? v.i : v.u)));
         else if (size == 2)
-                print(".half 0x%x\n", (unsigned int)((unsigned short)(suffix == I ? v.i : v.u)));
+                print("\tDCH\t#0x%x\n", (unsigned int)((unsigned short)(suffix == I ? v.i : v.u)));
         else if (size == 4)
-                print(".word 0x%x\n", (unsigned int)(suffix == I ? v.i : v.u));
+                print("\tDCD\t#0x%x\n", (unsigned int)(suffix == I ? v.i : v.u));
 }
 
 static void defaddress(Symbol p) {
@@ -829,8 +706,7 @@ static void segment(int n) {
 }
 
 static void space(int n) {
-        if (cseg != BSS)
-                print(".space %d\n", n);
+	print("\tALIGN\t%d\n", n);
 }
 
 static void blkloop(int dreg, int doff, int sreg, int soff, int size, int tmps[]) {
