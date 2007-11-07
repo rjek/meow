@@ -12,6 +12,7 @@ STRING_OBJS=	string/memchr.o \
 		string/strncpy.o
 
 CTYPE_OBJS=	ctype.o
+ERRNO_OBJS=	errno.o
 
 STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/rand_r.o \
@@ -22,19 +23,29 @@ STDLIB_OBJS=	stdlib/rand.o \
 		stdlib/atexit.o \
 		stdlib/exit.o \
 		stdlib/getenv.o \
-		stdlib/system.o
+		stdlib/system.o \
+		stdlib/qsort.o \
+		stdlib/bsearch.o \
+		stdlib/strtol.o \
+		stdlib/atoi.o \
+		stdlib/atol.o
 
-all: string.a ctype.a stdlib.a
-	$(AR) r libc.a $(STDLIB_OBJS) $(STRING_OBJS) $(CTYPE_OBJS)	
+all: string.a ctype.a stdlib.a errno.a
+	$(AR) r libc.a $(STDLIB_OBJS) $(STRING_OBJS) $(CTYPE_OBJS) \
+			$(ERRNO_OBJS)
 
 clean:
-	rm -rf $(STRING_OBJS) $(STDLIB_OBJS) string.a ctype.a stdlib.a
+	rm -rf $(STRING_OBJS) $(STDLIB_OBJS) $(CTYPE_OBJS) $(ERRNO_OBJS) \
+		string.a ctype.a stdlib.a errno.a libc.a
 
 string.a: $(STRING_OBJS)
 	$(AR) r string.a $(STRING_OBJS)
 
 ctype.a: ctype.o
 	$(AR) r ctype.a ctype.o
+	
+errno.a: errno.o
+	$(AR) r errno.a errno.o
 
 stdlib.a: $(STDLIB_OBJS)
 	$(AR) q stdlib.a $(STDLIB_OBJS)
