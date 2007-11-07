@@ -1,0 +1,100 @@
+MEOW Application Binary Interface
+---------------------------------
+
+Given MEOW is partially inspired by ARM, its ABI is partially inspired by
+ARM's ABI, called APCS.
+
+ Integer Registers
+ -----------------
+
+   Name   Number   MABI purpose
+   ----------------------------
+   a1     0        argument 1 / integer return / scratch register
+   a2     1        argument 2 / scratch register
+   a3     2        argument 3 / scratch register
+   a4     3        argument 4 / scratch register
+
+   v1     4        register variable
+   v2     5        register variable
+   v3     6        register variable
+   v4     7        register variable
+   v5     8        register variable
+   v6     9        register variable
+
+   at     10       compiler and assembler temporary / scratch register
+   sp     11       stack pointer
+   lr     12       link register / scratch register
+   ir     13       immediate register / scratch register
+   sr     14       status register
+   pc     15       program counter
+
+ These registers fall into three main groups:
+   * four arguement registers which can also be used as scratch registers,
+     or as caller-saved register variables;
+
+   * six callee-saved registers, typically used for register variables;
+
+   * and 6 registers that have dedicated use, at least some of the time.
+
+
+ Floating Point Registers
+ ------------------------
+  
+  MEOW currently has no support for floating point in hardware.  It is
+  suggested that float-point be implemented using function calls, but
+  this has not yet been specified.
+
+
+ Stack
+ -----
+
+  A full-decending stack is provided in sp(r11).  It is assumed that it
+  provides enough storage for the running program: no checks are made
+  as to if it has over-flowed.
+
+  It is suggested that function local variables be allocated on the stack
+  and used through it as to provide re-entrancy.
+
+
+ Function call arrival
+ ---------------------
+  
+  A function call can expect the following to be true:
+    * pc(r15) shall contain the address of the function's first instruction;
+
+    * sp(r11) shall point to a full-decending stack ready for use;
+
+    * lr(r12) shall contain the address that the function should return to;
+
+    * function arguments will be available in the structure described below;
+
+ 
+ Function arguments
+ -------------------
+
+  The first four arguments are placed in a1 to a4.  Any additional arguments
+  are pushed onto the stack in the order they are mentioned in the source
+  program.
+
+  A callee is at liberty to corrupt its arguments, regardless of how they are
+  delivered.
+
+  All arguements are passed as 32 bit values, although they may only contain
+  16 or 8 bits of meaningful data, as well as 32 bits.
+
+ Function call return
+ --------------------
+
+  When a function returns to its caller by placing lr(r12) into pc(r15), the
+  following must be true:
+    * sp, and v1-v6 must have the same values as they did the instant before
+      the function call;
+
+    * if the function returns a single result, it shall be returned in a1.
+
+ Non-simple return values
+ ------------------------
+
+  A non-simple return value is one that will not fit into a word, such as
+  a structure.  XXX TODO: We havn't decided how to do these yet.
+
