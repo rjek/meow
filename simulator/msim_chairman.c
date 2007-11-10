@@ -28,6 +28,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+#include <sys/select.h>		/* needed for serial port emulation */
+
 #include "msim_core.h"
 #include "msim_chairman.h"
 
@@ -42,6 +44,11 @@ struct sys {
 		u_int32_t reload;
 		u_int32_t state;
 	} timer;
+	
+	struct {
+		u_int32_t flags;
+		u_int32_t input;
+	} serial;
 };
 
 static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p,
@@ -115,6 +122,57 @@ static void msim_sys_write_timer(struct msim_ctx *ctx, u_int32_t p,
 	}
 }
 
+static u_int32_t msim_sys_read_serial(struct msim_ctx *ctx, u_int32_t p,
+					struct sys *s)
+{
+	struct timeval tv;
+	fd_set rfds;
+
+	/* check to see if there are any bytes waiting on the console */
+	
+	tv.tv_sec = 0;
+	tv.tv_usec = 50;
+	
+	FD_ZERO(&rfds);
+	FD_SET(0, &rfds);
+//	fprintf(stderr, "Checking console...\n");
+	setvbuf(stdin, NULL, _IONBF, 0);
+	if (select(1, &rfds, NULL, NULL, &tv) > 0) {
+		s->serial.flags = 1;	/* set fresh bit */
+		s->serial.input = getc(stdin);
+//		fprintf(stderr, "Read fresh byte %d.\n", s->serial.input);
+	} else {
+//		fprintf(stderr, "No fresh byte.\n");
+	}
+	
+	switch (p) {
+	case 0x2410: return s->serial.flags;
+	case 0x2414: return s->serial.input;
+	case 0x2418: 
+		fprintf(stderr,
+			"msim: attempt to read from serial output register.\n");
+		break;
+	}
+	
+	return 0;
+}
+
+static void msim_sys_write_serial(struct msim_ctx *ctx, u_int32_t p,
+						u_int32_t d, struct sys *s)
+{
+	switch (p) {
+	case 0x2410:
+	case 0x2414:
+		fprintf(stderr,
+				"msim: attempt to write to serial flag/in.\n");
+		break;
+	case 0x2418:
+		putc(d, stdout);
+		fflush(stdout);
+		break;
+	}
+}
+
 static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
 				msim_mem_access_type access, void *fctx)
 {
@@ -145,6 +203,8 @@ static u_int32_t msim_sys_read(struct msim_ctx *ctx, const u_int32_t ptr,
 		return msim_sys_read_irqs(ctx, ptr, s);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
 		return msim_sys_read_timer(ctx, ptr, s);
+	else if (ptr >= 0x2410 && ptr < 0x241c)
+		return msim_sys_read_serial(ctx, ptr, s);
 	else
 		fprintf(stderr, "msim: attempt to read from undefined area in"
 			" system controller\n");
@@ -178,6 +238,8 @@ static void msim_sys_write(struct msim_ctx *ctx, const u_int32_t ptr,
 		msim_sys_write_irqs(ctx, ptr, d, s);
 	else if (ptr >= 0x2404 && ptr < 0x2410)
 		msim_sys_write_timer(ctx, ptr, d, s);
+	else if (ptr >= 0x2410 && ptr < 0x241c)
+		msim_sys_write_serial(ctx, ptr, d, s);
 	else
 		fprintf(stderr, "msim: attempt to write from undefined area in"
 			" system controller\n");

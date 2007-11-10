@@ -229,6 +229,15 @@ Memory layout:
 	                and the timer is reset.  A timer reset consists of moving the timer reload value into
 			the current timer value register.
 			
+     0x2410 .. 0x240c is the simple serial console device.
+            1st word => read-only flags word.  bit 1 = byte in input is fresh
+            2nd word => read-only input byte.  Returns most recently read byte.
+                        When byte is read, the fresh bit in the flags is
+                        cleared.  When a new byte arrives, the fresh bit is set.
+            3rd word => write-only output byte.  Write a single byte here to
+                        output it.
+                 
+			
 C code ABI
 ----------
 
