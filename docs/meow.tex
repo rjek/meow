@@ -29,7 +29,10 @@
     executable.
     
     This reference guide describes \emph{MEOW v0}, the initial version of
-    the architecture.
+    the architecture.  It also describes its system controller, Chairman,
+    which provides several built-in devices as well as managing connected
+    devices, and the mail-box system.  We also discuss the suggested ABI,
+    which is used by our own C compiler.
   
   \chapter{Registers}
     MEOW uses 4 bits to describe registers in its instructions, and thus has
@@ -45,8 +48,9 @@
     
     \emph{R0 $\to$ R12} are completely general-purpose.  The CPU has no
     specific use for them, and the programmer is free to use them entirely as
-    they wish.  Any operating system or calling standard may of course
-    specify uses for them, but that is out of the scope of this document.
+    they wish.  Any operating system, calling standard or ABI may of course
+    specify uses for them however.  We discuss a suggested ABI, MABI towards
+    the end of this document.
     
     \emph{R11 $\to$ R15} vary between recommended usage, and specific purpose.
     \begin{figure}[h]
@@ -479,6 +483,49 @@
       
       
     \section{Bit Manipulation - BIT}
+      The BIT instruction is one of the most expressive, and most assemblers
+      should provide macros that make it more usable, much like the bit shift
+      and rotate instruction discussed in the previous section does.
+      
+      By immediate value:\\*
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+        \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{0} &
+        \bitbox{1}{N} &
+        \bitbox{4}{\emph{Rd}} &
+        \bitbox{2}{OP} &
+        \bitbox{1}{1} &
+        \bitbox{5}{immed}
+      \end{bytefield}\end{center}
+
+      By value in register:\\*
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+        \bitbox[ltb]{1}{1} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{0} &
+        \bitbox{1}{N} &
+        \bitbox{4}{\emph{Rd}} &
+        \bitbox{2}{OP} &
+        \bitbox{1}{0} &
+        \bitbox{1}{0} &
+        \bitbox{4}{\emph{Rs}}
+      \end{bytefield}\end{center}
+      
+      If the N bit is set to 1, the value of the operand is negated before
+      the operation is performed.  It does not alter the value in the register
+      if the register form is used.
+      
+      \begin{center}\begin{figure}[h]
+        \begin{tabular}{c c l}
+          Bits & Meaning & Operation\\
+          \hline
+          00 & NOT & \emph{Rd} $\gets$ NOT (operand)\\
+          01 & AND & \emph{Rd} $\gets$ \emph{Rd} AND (operand)\\
+          10 & OR  & \emph{Rd} $\gets$ \emph{Rd} OR (operand)\\
+          11 & EOR & \emph{Rd} $\gets$ \emph{Rd} EOR (operand)
+        \end{tabular}
+        \caption{Operations performed by the BIT instruction}
+      \end{figure}\end{center}
+  
     \section{Memory Access - MEM}
   
   \chapter{Memory Layout}
@@ -487,6 +534,103 @@
     \section{Chip-select information table}
     \section{Interrupt controller}
     \section{Programmable interrupt timer}
+    \section{Trivial console serial port}
+    
+  \chapter{MEOW C ABI}
+    \section{Introduction}
+      Given MEOW is partially inspired by ARM, its ABI is partially inspired by
+      ARM's ABI, called APCS.
+
+      The MEOW ABI (MABI) only covers the active register set. If an operation
+      switches the register banks (E.g. taking an interrupt) then the other
+      register set has its own set of argument, scratch, etc registers.
+    
+    \section{Register use}
+      MABI defines uses for all of MEOW's registers.  The registers are grouped
+      into three main flavors:
+      \begin{enumerate}
+        \item four argument registers which can also be used as scratch 
+          registers, or as caller-saved register variables;
+        \item six callee-saved registers, typically used for register variables;
+        \item and 6 registers that have dedicated use, at least some of
+          the time.
+      \end{enumerate}
+      
+      \begin{tabular}{c c l}
+        Name & Number & MABI Purpose\\
+        \hline
+        a1 & 0 & argument 1 / integer return / scratch register\\
+        a2 & 1 & argument 2 / scratch register\\
+        a3 & 2 & argument 3 / scratch register\\
+        a4 & 3 & argument 4 / scratch register\\
+        \\
+        v1 & 4 & variable register\\
+        v2 & 5 & variable register\\
+        v3 & 6 & variable register\\
+        v4 & 7 & variable register\\
+        v5 & 8 & variable register\\
+        v6 & 9 & variable register\\
+        \\
+        at & 10 & compiler and assembler temporary / scratch register\\
+        sp & 11 & stack pointer\\
+        lr & 12 & link register / scratch register\\
+        ir & 13 & immediate register / scratch register\\
+        sr & 14 & CPU status register\\
+        pc & 15 & program counter
+      \end{tabular}
+          
+    \section{Floating Point registers}
+      MEOW currently has no support for floating point in hardware.  It is
+      suggested that float-point be implemented using function calls, but
+      this has not yet been specified.
+    
+    \section{Stack}
+      A full-decending stack is provided in sp(r11).  It is assumed that it
+      provides enough storage for the running program: no checks are made
+      as to if it has over-flowed.
+
+      It is suggested that function local variables be allocated on the stack
+      and used through it as to provide re-entrancy.
+    
+    \section{Function calls}
+      \subsection{Function call arrival}
+        A function can expect the following to be true when it is called:
+        \begin{itemize}
+          \item \emph{pc} shall contain the address of the function's
+            first instruction;
+          \item \emph{sp} shall point to a fill-decending stack ready for use;
+          \item \emph{lr} shall contain the address that the function should
+            return to;
+          \item function arguments will be available in the strucure described
+            in the next section.
+        \end{itemize}
+
+      \subsection{Function call arguments}
+        The first four arguments are placed in a1 to a4.  Any additional
+        arguments are pushed onto the stack in such an order that in increasing
+        memory locations they are ordered as they are mentioned in the source
+        program.  Thus, they are pushed in reverse order onto the stack.
+
+        A callee is at liberty to corrupt its arguments, regardless of how they
+        are delivered.
+
+        All arguments are passed as 32 bit values, although they may only
+        contain 16 or 8 bits of meaningful data, as well as 32 bits.
+        
+      \subsection{Function call return}
+          When a function returns to its caller by placing \emph{lr} into
+          \emph{pc}, the following must be true:
+          \begin{itemize}
+            \item \emph{ap} and \emph{v1} - \emph{v6} must have the same values
+              as they did the instant before the function call;
+
+            \item if the function returns a result, it shall be returned in
+              \emph{a1}.
+          \end{itemize}
+
+        \subsubsection{Non-simple return types}
+          A non-simple return value is one that will not fit into a word, such
+          as a structure.  XXX TODO: We havn't decided how to do these yet.
 
 \end{document}
 
