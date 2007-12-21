@@ -49,8 +49,10 @@ MEM		111L vvvv SHWD aaaa	- L = load/store (1 to store)
 					    H = 8bit/32bit, (1 for 32 bit)
 					  S == 1
                                             H = hi/low half, (1 for low)
-                                          W = writeback, (1 for on)
-                                          D = direction (1 for increase)
+                                          WD = 00 = no write back
+					       01 = decrease before
+					       10 = decrease after
+					       11 = increase after
                                           v = register whose contents to write,
                                               or register to write into
                                           a = address to store or read from
