@@ -7,11 +7,12 @@
 
 \pagestyle{headings}
 \usepackage{bytefield}
-\usepackage[pdftex]{hyperref} % must be last thing in document preamble.
 
 % let's make this document not look repugnant
 \usepackage{a4wide}
 \usepackage{palatino}
+
+\usepackage[pdftex]{hyperref} % must be last thing in document preamble.
 
 \begin{document}
   \tableofcontents{}
@@ -94,6 +95,8 @@
         The status register contains flags describing the current state of
         the MCU.  These include the condition flags used for deciding if a
         branch should be taken, and if we are in interrupt mode.
+	
+	\setlength{\bitwidth}{1em}
 
         \begin{figure}[h]
           \begin{bytefield}{32}
@@ -529,9 +532,67 @@
         \end{tabular}
         \caption{Operations performed by the BIT instruction}
       \end{figure}\end{center}
+
+      Several ARM-like instructions can be constructed using this opcode past the obvious
+      \emph{NOT, AND, OR,} and \emph{EOR}.  Suggested ones are:
+
+      \begin{tabular}{c l l }
+        Mnemonic & Meaning & Bits set\\
+	\hline
+	NOT & Negate register & N $\Leftarrow$ 0, OP $\Leftarrow$ 00, both registers the same\\
+	MVN & Move negative value into register & N $\Leftarrow$ 0, OP $\Leftarrow$ 00, registers differ\\
+	AND & Bitwise AND & N $\Leftarrow$ 0, OP $\Leftarrow$ 01\\
+	ORR & Bitwise OR & N $\Leftarrow$ 0, OP $\Leftarrow$ 10\\
+	BIS & Set a bit & N $\Leftarrow$ 0, OP $\Leftarrow$ 10\\
+	EOR & Bitwise EOR & N $\Leftarrow$ 0, OP $\Leftarrow$ 11\\
+	BIC & Clear a bit & N $\Leftarrow$ 1, OP $\Leftarrow$ 01
+      \end{tabular}
   
     \section{Memory Access - MEM}
-  
+      The MEM instruction allows for the transfer of data between registers and
+      memory.  It also provides functionality for adjusting the address register
+      after the access.  It operates on two registers: one containing the address
+      to read from or write to, and another that stores the result or the data to
+      write.  All memory accesses must be aligned to their size.
+
+      \begin{center}\begin{bytefield}{16}
+        \bitheader[b]{0, 3, 4, 5, 6, 7, 8, 11, 12, 13, 15}\\
+	\bitbox[ltb]{1}{1} & \bitbox[tb]{1}{1} & \bitbox[tb]{1}{1} &
+	\bitbox{1}{L} &
+	\bitbox{4}{\emph{Rv}} &
+	\bitbox{2}{S} &
+	\bitbox{2}{W} &
+	\bitbox{4}{\emph{Ra}}
+      \end{bytefield}\end{center}
+
+      \emph{Rv} is the register containing the value to write, or the register into
+      which to load.  \emph{Ra} is the register containing the address to act on.
+      \\
+      \begin{tabular}{c l}
+         Bit & Meaning\\
+         \hline
+	 L & 1 $\Rightarrow$ load, 0 $\Rightarrow$ store\\
+	 S & 00 $\Rightarrow$ 8 bit access\\
+	   & 01 $\Rightarrow$ 32 bit access\\
+	   & 10 $\Rightarrow$ 16 bit access, into high half of register\\
+	   & 11 $\Rightarrow$ 16 bit access, into low half of register\\
+	 W & 00 $\Rightarrow$ No action\\
+	   & 01 $\Rightarrow$ UNDEFINED\\
+	   & 10 $\Rightarrow$ Decrease address register by access size after access\\
+	   & 11 $\Rightarrow$ Increase address register by access size after access
+      \end{tabular}
+
+      \subsection*{Syntax}
+        \texttt{LDR[\emph{S}][\emph{W}] \emph{Rv}, \emph{Ra}\\
+	        STR[\emph{S}][\emph{W}] \emph{Rv}, \emph{Ra}}\\
+	
+	\emph{S} may be one of \emph{B, H, L,} or omitted, meaning 8 bit, high 16 bit,
+	low 16 bit, and 32 bit respectively.
+
+	\emph{W} may be one of \emph{D, I,} or omitted, meaning decrease after access,
+	increase after access, or no write back, respectively.
+    
+
   \chapter{Memory Layout}
   
   \chapter{System Controller}
