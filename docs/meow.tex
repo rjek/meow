@@ -589,8 +589,29 @@
 	\emph{S} may be one of \emph{B, H, L,} or omitted, meaning 8 bit, high 16 bit,
 	low 16 bit, and 32 bit respectively.
 
-	\emph{W} may be one of \emph{D, I,} or omitted, meaning decrease after access,
-	increase after access, or no write back, respectively.
+	\emph{W} may be one of \emph{D, I, S, } or omitted, meaning decrease after access,
+	increase after access, decrease before access, or no write back,
+	respectively.
+
+	\subsection*{Examples}
+	  \begin{tabular}{l l}
+            \texttt{LDR r0, r1} & Load 32 bit word pointed to by r1 into r0. \\
+	    \texttt{LDRH r4, r10} & Load the high 16 bit half-word pointed to
+	                            by r10 into the high half of r4. \\
+            \texttt{LDRBD r1, r2} & Load the 8 bits pointed to by r2 into r1,
+	                            and add one (byte) to r2 afterwards. \\
+            \texttt{LDRS r6, r10} & Add 4 (a 32 bit word) to r10, and then load
+	                            the 32 bit value stored at the new address
+				    into r6. \\
+	    \texttt{LDRD r0, r0}  & \emph{UNDEFINED} as writeback is enabled
+	                            and destination is the same as source
+				    address. \\
+	    \texttt{LDR r0, r0}   & Load 32 bit word pointed to by r0 into r0.
+	  \end{tabular}
+          \\
+	  \\
+	  Similar combinations are possible with \texttt{STR} to store instead
+	  of load.
     
 
   \chapter{Memory Layout}
