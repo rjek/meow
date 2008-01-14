@@ -3,3 +3,5 @@ docs/meow.log
 docs/meow.out
 docs/meow.pdf
 docs/meow.toc
+simulator/msim
+simulator/msim_watchpoints.c
