@@ -5,3 +5,4 @@ docs/meow.pdf
 docs/meow.toc
 simulator/msim
 simulator/msim_watchpoints.c
+os/catflap.rom
