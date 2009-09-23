@@ -273,13 +273,13 @@ u_int32_t msim_memget(struct msim_ctx *ctx, u_int32_t ptr,
 			msim_mem_access_type t);
 
 void msim_irq(struct msim_ctx *ctx);
-inline void msim_swap_banks(struct msim_ctx *ctx);
+void msim_swap_banks(struct msim_ctx *ctx);
 
 u_int16_t msim_fetch(struct msim_ctx *ctx);
 void msim_decode(struct msim_ctx *ctx, u_int16_t instrword, 
 			struct msim_instr *instr);
 void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr);
-inline bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
+bool msim_cond_match(u_int32_t pc, msim_condition_type condition);
 
 void msim_add_bnv(struct msim_ctx *ctx, signed int op, msim_bnvop func,
 			void *fctx);
