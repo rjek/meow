@@ -156,8 +156,8 @@ function meow_op_mov(info, ...)
    end
    dest = parse_positional(info, args[1])
    source = parse_positional(info, args[2])
-   condwhinge(dest.type ~= "register", info, "Source was a %s, expecting register.", dest.type)
-   condwhinge(source.type ~= "register", info, "Destination was a %s, expecting register.", dest.type)
+   condwhinge(source.type ~= "register", info, "Source was a %s, expecting register.", dest.type)
+   condwhinge(dest.type ~= "register", info, "Destination was a %s, expecting register.", dest.type)
    -- We can always encode a mov at this point
    if do_intermediate() then
       _queue_bytes(info, "\tmov\t", table.concat(args2,"\t"), "\n")
