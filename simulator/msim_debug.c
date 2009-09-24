@@ -629,6 +629,7 @@ static void msim_debug_help(void)
 	puts("poke <a> <v> [t] Set word at a, or optionally other type");
 	puts("show <r> [t]     Shows the word in register R, or other type");
 	puts("set <r> <v>      Sets the register R to value");
+	puts("dump             Shows the values of all registers and status");
 	puts("breakpoint [a]   Toggles a breakpoint at a, or lists "
 					"current breakpoints");
 #ifdef MSIM_WITH_LUA
