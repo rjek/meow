@@ -1,0 +1,23 @@
+0:80000000
+1234567:89abcdee
+ffffffff:80000002
+fedcba98:76543211
+80000000:0
+fffffffe:0
+12345678:9abcdef0
+ffffffff:fffffff8
+0:8
+0:123456
+1234567:89abcd00
+1
+-1
+-1
+-1
+1
+ffffffff:fffffffb
+0:fffffff0
+-1985229329
+1234568:89abcdef
+0:ffffffff
+80000001:0
+exit 0

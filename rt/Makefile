@@ -1,6 +1,6 @@
 MAS = ../as/mas
 
-OBJS = crt0.o mul.o div.o msim.o
+OBJS = crt0.o mul.o div.o ll.o msim.o
 
 all: $(OBJS)
 

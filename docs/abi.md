@@ -129,8 +129,12 @@ The division routines take the divisor first, as Arm's `__rt_sdiv` does,
 because that is the order compilers find convenient to evaluate the
 operands in.  Both quotient and remainder come back, so `x / y` and
 `x % y` share one call.
-| `__mul64`, `__div64`, `__udiv64`, `__mod64`, `__umod64` | 64-bit versions taking two-word operands in a1:a2 and a3:a4 |
-| `__lsl64`, `__lsr64`, `__asr64` | 64-bit shifts of a1:a2 by a3 |
+| `_ll_add`, `_ll_sub`, `_ll_rsb`, `_ll_mul`, `_ll_and`, `_ll_or`, `_ll_eor` | 64-bit a OP b, a in a1:a2 and b in a3:a4, low word first; `rsb` is b - a |
+| `_ll_udiv`, `_ll_urem`, `_ll_sdiv`, `_ll_srem` | 64-bit a / b and a % b; `_ll_urdv`, `_ll_urrem`, `_ll_srdv`, `_ll_srrem` compute b / a and b % a |
+| `_ll_not`, `_ll_neg` | 64-bit complement and negation of a1:a2 |
+| `_ll_shift_l`, `_ll_ushift_r`, `_ll_sshift_r` | 64-bit shifts of a1:a2 by a3 |
+| `_ll_cmpeq`, `_ll_cmpne`, `_ll_ucmpgt`, `_ll_ucmpge`, `_ll_ucmplt`, `_ll_ucmple`, `_ll_scmpgt`, `_ll_scmpge`, `_ll_scmplt`, `_ll_scmple` | 64-bit comparisons of a with b, 0 or 1 in a1 |
+| `_ll_from_l`, `_ll_from_u`, `_ll_to_l` | Widen a1 to a1:a2 with or without sign, and narrow back |
 | `__memcpy`, `__memset` | Block copy and fill with the C semantics |
 
 Division by zero is undefined; the library may trap or return anything.
