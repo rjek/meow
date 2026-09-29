@@ -4,8 +4,9 @@ A proposal.  Catflap gives a MEOW microcontroller threads, processes,
 devices and a file system, in C with assembly where the machine demands
 it.  This document says what the hardware allows, what the system looks
 like as a result, and in what order to build it.  `os/` is the
-implementation, stage by stage as section 12 lists; `attic/os/` is the
-2007 attempt in assembler and this supersedes it.
+implementation, stage by stage as section 12 lists, and where this
+document and the code differ the code is what was learnt; `attic/os/`
+is the 2007 attempt in assembler and this supersedes it.
 
 ## 1. What the machine dictates
 
@@ -69,12 +70,16 @@ the dozen platform functions calling the kernel instead of `msim`.
 ## 3. Memory layout
 
 ```
-  0x00000000  ROM   reset vector, interrupt vector at 32, system call
-                    table at 64, kernel code and read-only data, romfs
-  0x08000000  RAM   kernel .data and .bss
-                    kernel heap: control blocks, stacks, buffers
-                    process images and heaps, from the same allocator
-                    interrupt stack (2 KB), at the top
+  0x00000000  ROM   reset vector, interrupt vector at 32, kernel code,
+                    the shared C library's code, read-only data, the
+                    initial values of .data; then the library's
+                    relocation list and the romfs, found by their
+                    position after the image
+  0x08000000  RAM   kernel .data and .bss, the library's data and bss
+                    kernel heap: control blocks, stacks, buffers,
+                    process images, heaps and library data copies
+                    interrupt stack (4 KB) and the boot thread's (4 KB),
+                    at the top
 ```
 
 The kernel learns the RAM size from the Chairman as `crt0` does now.
@@ -102,15 +107,17 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
   halts under `msim` when nothing else can run, so that an idle system
   costs nothing.
 - **Context switch.**  Always from interrupt mode.  A voluntary switch
-  (block, yield, exit) is a call into the kernel that ends by raising a
-  software request the timer handler also serves: the kernel sets a
-  flag and busy-waits for the next tick at worst, or, better, the
-  Chairman's timer current-value register is written to 1 so the tick
-  comes at once.  The handler then does the whole switch in the
-  interrupt bank: save `ar0` to `ar14` and `apc` into the current
-  block, pick the next, load, `IRQRTN`.  One switch path, one place
-  where registers are saved, and no thread ever runs with interrupts
-  off.
+  (block, yield, exit) sets `switch_wanted` and writes 1 to the
+  Chairman's timer current-value register, so the tick fires after the
+  next instruction; the handler then does the whole switch in the
+  interrupt bank: save `ar0` to `apc` into the current block, pick the
+  next, load, `IRQRTN`.  One switch path, one place where registers are
+  saved, and no thread ever runs with interrupts off.  A tick that finds
+  the kernel entered only counts itself; the kernel does the tick's
+  work (waking sleepers, polling the console, ending a slice) when the
+  call returns, and if that work queued the returning thread behind
+  another it makes the timer fire again at once rather than running on
+  from inside the ready queue, which is the bug the first version had.
 - **Blocking.**  A thread blocks on a semaphore, a message queue, a
   sleep, or a vnode (a read from the console with nothing there).  Each
   has a wait queue; a wakeup moves the thread to the run queue and
@@ -158,78 +165,71 @@ followed by `exit`.
 
 ## 6. System calls
 
-A table of branch targets at ROM address 64, one word each, indexed by
-call number; an entry is a plain MABI function.  The libc platform layer
-calls through it:
-
-```
-; int sys_write(int fd, const void *buf, unsigned len)
-        LDR     ir, =64 + 4 * SYS_WRITE
-        LDR     pc, [ir]        ; with lr set by the caller as usual
-```
-
-A stub per call, four halfwords, in `libc/catflap/functions/sys.s`.
-Being function calls, they run on the caller's stack in the caller's
-thread and can block.  The kernel is not preemptible: a thread inside a
+A system call is a call to the kernel's own function by its address in
+ROM.  The kernel is linked first, as an ELF executable as well as the
+image, and `mld -S catflap.elf` makes every global symbol of it an
+absolute one when a program is linked: `vfs_write` in a program is the
+kernel's `vfs_write`, no stub, no table, no number.  `os/include/catflap.h`
+declares the calls a program may make and the constants and layouts
+they share with `os/kernel/kernel.h`.  Being function calls, they run on
+the caller's stack in the caller's thread and can block.  The table of
+branch targets at a fixed address that this document first proposed is
+what to add if a program must ever outlive the kernel it was linked
+against; nothing needs it yet.  The kernel is not preemptible: a thread inside a
 system call is not switched away from until it blocks or returns, and a
 tick that arrives meanwhile only notes that a switch is wanted.  One
 counter says whether the kernel is entered; no lock, no mask fiddling,
 and console latency bounded by the longest system call, which is fine
 for a machine like this.
 
-The initial set, thirty or so: `exit`, `spawn`, `wait`, `getpid`,
-`thread_create`, `thread_exit`, `thread_join`, `yield`, `sleep`,
-`sem_init`, `sem_wait`, `sem_post`, `mq_open`, `mq_send`, `mq_receive`,
-`mq_close`, `open`, `close`, `read`, `write`, `seek`, `stat`, `readdir`,
-`mkdir`, `unlink`, `rename`, `pipe`, `dup2`, `chdir`, `ioctl`, `mount`,
-`sbrk`, `time`, `uptime`.  Errors return negative `errno` values; libc
-turns them into `-1` and `errno`.
-
-The table is the ABI.  Numbers are never reused, new calls go on the
-end, and a program built for one kernel runs on the next.
+The initial set: `process_spawn`, `process_exit`, `process_wait`,
+`process_pid`, `process_sbrk`, `thread_sleep`, `thread_yield`,
+`ticks_now`, `kernel_time`, and `vfs_open`, `vfs_close`, `vfs_read`,
+`vfs_write`, `vfs_seek`, `vfs_readdir`, `vfs_stat`, `vfs_ioctl`.  Errors
+return negative `errno` values; libc turns them into `-1` and `errno`.
 
 ## 6a. The shared C library
 
 A library that runs for every process at once with one copy of its code
 must reach a different copy of its data for each.  `nmcc` addresses a
 static by its absolute address, so the library is compiled in a new
-mode, `-zsb`, in which the address of any variable in the library's own
-data or bss is formed as a base register plus the offset:
+mode, `-zsb`, in which the address of a variable in data or bss is the
+address as linked plus a displacement, read from one word in kernel
+RAM, `__client_sb`, through the backend's scratch register:
 
 ```
-        LDR     r0, =off_stdout         ; the address as linked, with data at 0
-        ADD     r0, sb                  ; sb: this process's copy
+        LDR     r0, =stdout             ; the address as linked
+        LDR     ir, =__client_sb
+        LDR     ir, [ir]                ; this process's displacement
+        ADD     r0, ir
 ```
 
-`sb` is `v6`, kept out of allocation in that mode, and a function that
-touches static data loads it on entry from one word in kernel RAM,
-`__client_sb`, which the scheduler sets whenever it switches to a thread
-of another process.  Nothing else changes: the calling convention is
-the same, a callee that took `sb` from the word and kept it in `v6`
-keeps the right value across a preemption because its registers are
-its own, and the client program never knows.
+Four instructions instead of one where a static's address is formed,
+and nothing else changes: no register is reserved, the prologue is the
+same, the address is a constant the compiler hoists out of loops like
+any other, and a thread preempted between the load and the add keeps
+its registers.  Functions, constant data and anything declared `const`
+are addressed as they always were, since they stay in ROM.  The
+scheduler writes `__client_sb` whenever it switches to a thread of
+another process; the kernel's own threads have a displacement of 0.
 
-The library is linked with its data based at 0, so every data address
-is an offset.  A process is given a copy of the library's `.data` and
-zeroed `.bss` at `spawn`, and the words in that copy that hold data
-addresses (`stdout` pointing at its `FILE`, a table of strings) are
-adjusted by the copy's address, from a list `mld` writes alongside the
-library.  RISC OS calls the same thing relocation offsets.
+The library is linked into the kernel image after two marker objects,
+with `mld -B` laying bss out backwards so that the library's data and
+bss are one range, `__libc_data_start` to `__libc_data_end`.  At
+`spawn` a process is given a copy of that range, and the words in the
+copy that pointed into the range (`stdout` at its `FILE`, the `FILE` at
+its buffer) are moved along by the same displacement, from a list
+`mld -R` writes and the ROM carries after the image.  RISC OS calls the
+same thing relocation offsets.  Programs reach the library as they
+reach the kernel, by absolute address (section 6).
 
-Programs call library functions by their ROM addresses.  The library's
-link map becomes an object of absolute symbols that programs link
-against, so a call costs nothing over a call into the program itself;
-the whole ROM is built as one, which is what a microcontroller does.
-Should the library ever need to change under a program that has not
-been rebuilt, the same generated object can point at a jump table
-instead.
-
-What it costs: two instructions on entry to a library function that
-uses static data, one on each static access, and `v6`.  What it saves:
-the 18 KB a trivial program otherwise carries, and all of the 200 KB of
-the library that Lua would, per process, in ROM and in RAM.  The kernel
-work is a few hundred bytes; the compiler work is in `gen.c` where
-addresses of data symbols are formed and in the prologue.
+What it costs: three instructions on each static address formation and
+a 19 KB copy of the library's data per process, which is the tables
+that PDCLib keeps (`printf`'s, the locale's, the time zone's) and
+worth shrinking.  What it saves: the 18 KB a trivial program otherwise
+carries, and all of the library that Lua would, per process, in ROM
+and in RAM.  The compiler change is thirty lines in `gen.c`; the
+kernel's is a hundred in `process.c`.
 
 ## 7. Devices and drivers
 
@@ -278,12 +278,12 @@ of those.
 
 File systems, in the order they are needed:
 
-- **romfs.**  Read-only, built into the ROM image by a host tool
-  (`mkromfs`, in C, under `tools/`) from a directory tree: a header, a
-  sorted table of names with offsets and sizes, then the data.  Lookup
-  is a binary search; `read` is `memcpy` from ROM.  Holds `/bin` and
-  `/etc`.  This is what makes the system usable before any other file
-  system exists.
+- **romfs.**  Read-only, appended to the ROM image by a host tool
+  (`mkromfs`, in C, under `os/tools/`) from a directory tree: a header,
+  a sorted table of full paths with offsets and sizes, then the data.
+  Lookup is a binary search; `read` is `memcpy` from ROM.  Holds `/bin`
+  and `/etc`.  The kernel finds it after its own image, so programs can
+  be linked against the kernel and packed without relinking it.
 - **devfs.**  `/dev`: the driver table presented as a directory.
 - **ramfs.**  `/tmp`: files in heap-allocated blocks, for a program's
   scratch.  Directories are lists.
@@ -355,24 +355,19 @@ Each stage runs under `msim` with a test in `tests/os/` before the next
 begins; the test harness is the existing one, standard input in and
 output compared.
 
-1. **Boot and threads.**  `boot.s`, the allocator, the scheduler, the
-   tick, `kprintf` to the console.  Test: three threads printing in
-   turn with sleeps.
-2. **Synchronisation and IPC.**  Semaphores, mutexes, message queues,
-   the console driver thread.  Test: producer and consumer.
-3. **VFS and romfs.**  `mkromfs`, the vnode layer, `open` to `readdir`,
-   devfs.  Test: `cat` a file from romfs to the console, from kernel
-   code.
-4. **Processes.**  `mld -r`, the loader, `spawn`, `wait`, `exit`, the
-   system call table, `libc/catflap/`.  Test: `init` spawns `hello`
-   from romfs.
+1. **Boot and threads.**  Done: `boot.s`, the allocator, the scheduler,
+   the tick, `kprintf`.  `tests/os/threads.c`.
+2. **Synchronisation and IPC.**  Done: semaphores, mutexes, message
+   queues, the console polled by the tick.  `tests/os/sync.c`.
+3. **VFS and romfs.**  Done: `mkromfs`, the vnode layer, devfs.
+   `tests/os/vfs.c`.
+4. **Processes and the shared library.**  Done: `mld -f cfx`, `-S`,
+   `-B`, `-R`; the loader; `spawn`, `wait`, `exit`; `nmcc -zsb`; the
+   library in the image with `libc/catflap/`.  `tests/os/proc.c` and
+   `prog.c`: two processes use `printf`, `strtod`, `fopen`, `malloc`,
+   `setjmp` and `atexit` at once from one copy of the library.
 5. **Shell, pipes, ramfs, utilities.**  Test: a scripted shell session.
 6. **hostfs and Lua.**  Test: Lua runs a script from `/host`.
-
-Stages 1 to 3 need no changes to the toolchain.  Stage 4 needs `mld -r`
-and is where the design meets reality; if load-time relocation proves
-awkward, the fallback is to link each program at its own fixed address
-and lose the ability to run two at once, which a shell can live with.
 
 ## 13. Decisions taken, and open ones
 
