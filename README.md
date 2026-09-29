@@ -16,6 +16,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/simulator.md](docs/simulator.md) | The `msim` simulator and debugger |
 | [docs/libc.md](docs/libc.md) | The C library: building against it, the platform layer, what was patched |
 | [docs/lua.md](docs/lua.md) | Lua on MEOW: building it, running it, what it took |
+| [docs/catflap.md](docs/catflap.md) | Catflap, a proposed operating system: architecture and plan |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 
 ## Layout

@@ -1,0 +1,348 @@
+# Catflap: an operating system for MEOW
+
+A proposal.  Catflap gives a MEOW microcontroller threads, processes,
+devices and a file system, in C with assembly where the machine demands
+it.  This document says what the hardware allows, what the system looks
+like as a result, and in what order to build it.  Nothing here is
+implemented; `attic/os/` is the 2007 attempt in assembler and this
+supersedes it.
+
+## 1. What the machine dictates
+
+Five facts about MEOW decide most of the design.
+
+- **No memory management and no privilege modes.**  Every instruction can
+  reach every address.  A process cannot be protected from another, or
+  the kernel from either.  `fork` is impossible, since an address space
+  cannot be copied and moved, and a "process" is a bookkeeping unit
+  rather than a boundary.  Isolation is by convention and by the
+  compiler, exactly as on a Cortex-M0 or an AVR.
+- **Two register banks, swapped by interrupt.**  An interrupt swaps banks
+  and starts the handler at address 32; the handler can read and write
+  every register of the interrupted bank as `ar0` to `apc`, and `IRQRTN`
+  resumes wherever `apc` points.  A context switch is therefore sixteen
+  `MOV`s into a control block, sixteen out, and `IRQRTN`.  The interrupt
+  bank's own registers persist, so it keeps its stack pointer between
+  interrupts for free.
+- **No trap instruction.**  There is nothing a program can execute to
+  enter the kernel other than a branch.  Since there is no privilege to
+  gain, a system call is a function call; the only question is how a
+  separately linked program finds the kernel, and the answer is a jump
+  table at a fixed address in ROM.
+- **Devices are discovered, not assumed.**  The Chairman's chip-select
+  table names every device and its size.  Interrupts are one pending
+  word and a mask; the timer is source 31; the console has no interrupt
+  and must be polled.
+- **Small.**  A useful machine has 64 KB to 1 MB of RAM and a ROM.  The
+  kernel must fit in tens of KB, a thread must cost a few hundred bytes
+  plus its stack, and nothing may assume memory is plentiful.
+
+Everything below follows from these.
+
+## 2. Shape
+
+```
+  +-----------------------------------------------------------------+
+  |  programs: init, sh, ls, cat, lua ...   (ELF loaded from romfs)  |
+  |  libc (PDCLib + musl maths) with a Catflap platform layer        |
+  +-----------------------------------------------------------------+
+  |  system call jump table (ROM, fixed address)                     |
+  +-----------------------------------------------------------------+
+  |  VFS: vnodes, mounts, fds, pipes    |  process: image, heap,    |
+  |  romfs  devfs  ramfs  hostfs        |  fds, threads, exit        |
+  +-------------------------------------+---------------------------+
+  |  threads: scheduler, sleep, semaphores, message queues, timers   |
+  +-----------------------------------------------------------------+
+  |  devices: console, timer, memory; interrupt dispatch             |
+  +-----------------------------------------------------------------+
+  |  boot, context switch, interrupt entry              (assembler)  |
+  +-----------------------------------------------------------------+
+```
+
+One kernel image in ROM, one address space, preemptive threads, and
+processes as the unit of loading and of resource ownership.  Programs
+are ordinary `nmcc` output linked against the same C library as today,
+with the dozen platform functions calling the kernel instead of `msim`.
+
+## 3. Memory layout
+
+```
+  0x00000000  ROM   reset vector, interrupt vector at 32, system call
+                    table at 64, kernel code and read-only data, romfs
+  0x08000000  RAM   kernel .data and .bss
+                    kernel heap: control blocks, stacks, buffers
+                    process images and heaps, from the same allocator
+                    interrupt stack (2 KB), at the top
+```
+
+The kernel learns the RAM size from the Chairman as `crt0` does now.
+One allocator serves everything, a first-fit list with a 16-byte header
+carrying the owning process, so that a process's exit frees whatever it
+leaked.  dlmalloc is 6 KB of code and wants `sbrk`; the kernel's own
+allocator should be under 1 KB.  Programs get `malloc` from libc, which
+takes its arena from the kernel in large pieces.
+
+There is no protection, so stacks carry a guard word at the bottom that
+the scheduler checks at every switch, and a thread that has overrun is
+killed with a message rather than silently corrupting its neighbour.
+
+## 4. Threads
+
+The kernel's unit of execution.  A thread control block holds the
+sixteen registers, the state, priority, the process it belongs to, what
+it is waiting for, a wakeup time, and links for the run and wait queues:
+about 96 bytes.  Stacks come from the heap, 1 KB by default.
+
+- **Scheduler.**  Fixed priorities, eight levels, round robin within a
+  level.  The timer ticks at 100 Hz (10000 instructions under `msim`);
+  a tick ends the running thread's slice if another of its priority is
+  ready.  Priority 0 is the idle thread, which polls the console and
+  halts under `msim` when nothing else can run, so that an idle system
+  costs nothing.
+- **Context switch.**  Always from interrupt mode.  A voluntary switch
+  (block, yield, exit) is a call into the kernel that ends by raising a
+  software request the timer handler also serves: the kernel sets a
+  flag and busy-waits for the next tick at worst, or, better, the
+  Chairman's timer current-value register is written to 1 so the tick
+  comes at once.  The handler then does the whole switch in the
+  interrupt bank: save `ar0` to `ar14` and `apc` into the current
+  block, pick the next, load, `IRQRTN`.  One switch path, one place
+  where registers are saved, and no thread ever runs with interrupts
+  off.
+- **Blocking.**  A thread blocks on a semaphore, a message queue, a
+  sleep, or a vnode (a read from the console with nothing there).  Each
+  has a wait queue; a wakeup moves the thread to the run queue and
+  requests a switch if it outranks the running thread.
+- **Synchronisation.**  Counting semaphores and mutexes with priority
+  inheritance in their simplest form (the holder runs at the waiter's
+  priority until release).  Message queues in the POSIX mould, fixed
+  message size, bounded depth, blocking or not, are the IPC: they are
+  what a driver thread and a client want, and they are what `mq_open`
+  and friends map onto in libc.  No condition variables, no
+  reader-writer locks; if they are wanted later they sit on top.
+- **Interrupts.**  Handlers run in the interrupt bank, short, on the
+  interrupt stack, and communicate with threads only by signalling a
+  semaphore or posting to a queue.  A driver's real work is in a thread.
+
+## 5. Processes
+
+A process owns a loaded image, a heap, a table of open files, a working
+directory, a name, an exit status and one or more threads.  It is
+created by `spawn(path, argv)`, never by `fork`; `exec` is `spawn`
+followed by `exit`.
+
+- **Image format.**  Programs are ELF as `mld` writes it, linked with a
+  new `-r` option that keeps the `ABS32`, `ABS16` and `ABS8` relocations
+  and the section table.  The loader allocates one block for text, data
+  and bss, copies, zeroes, and applies the relocations, which with three
+  types is a hundred lines.  There is no shared library and no dynamic
+  linking: every program carries its own libc, which the archive
+  linking keeps to what it uses (`hello` is 18 KB).  Position-dependent
+  code with load-time relocation beats fixed load addresses, which would
+  make two programs at once impossible, and beats position-independent
+  code, which `nmcc` does not produce.
+- **Resources.**  Files are reference-counted vnodes; the fd table is
+  per process, 16 entries, inherited by `spawn` for 0, 1 and 2 only.
+  Memory is tagged by owner as above.  Threads are the process's; when
+  the last exits, or any calls `exit`, the process ends and the kernel
+  closes its files, frees its memory and wakes whoever is waiting in
+  `wait`.
+- **The kernel is process 0**, with no image, whose threads are the idle
+  thread and the drivers'.  `init` is process 1, loaded from
+  `/bin/init` in romfs, and runs a shell on the console.
+
+## 6. System calls
+
+A table of branch targets at ROM address 64, one word each, indexed by
+call number; an entry is a plain MABI function.  The libc platform layer
+calls through it:
+
+```
+; int sys_write(int fd, const void *buf, unsigned len)
+        LDR     ir, =64 + 4 * SYS_WRITE
+        LDR     pc, [ir]        ; with lr set by the caller as usual
+```
+
+A stub per call, four halfwords, in `libc/catflap/functions/sys.s`.
+Being function calls, they run on the caller's stack in the caller's
+thread, take interrupts, and can block.  Kernel state is protected by
+disabling the tick around short critical sections (writing the Chairman
+mask), or by a kernel mutex for the long ones such as the VFS.
+
+The initial set, thirty or so: `exit`, `spawn`, `wait`, `getpid`,
+`thread_create`, `thread_exit`, `thread_join`, `yield`, `sleep`,
+`sem_init`, `sem_wait`, `sem_post`, `mq_open`, `mq_send`, `mq_receive`,
+`mq_close`, `open`, `close`, `read`, `write`, `seek`, `stat`, `readdir`,
+`mkdir`, `unlink`, `rename`, `pipe`, `dup2`, `chdir`, `ioctl`, `mount`,
+`sbrk`, `time`, `uptime`.  Errors return negative `errno` values; libc
+turns them into `-1` and `errno`.
+
+The table is the ABI.  Numbers are never reused, new calls go on the
+end, and a program built for one kernel runs on the next.
+
+## 7. Devices and drivers
+
+At boot the kernel walks the chip-select table and binds a driver to
+each device ID it knows: ROM and RAM become memory regions, the Chairman
+gives the timer and console, an IOC when one is specified gives whatever
+it gives.  A driver is a vnode with `read`, `write`, `ioctl` and an
+optional thread, registered under `/dev`.
+
+- **Console.**  No interrupt, so the idle thread polls the flags register
+  and posts each byte to a 64-byte queue; `read` on `/dev/console` takes
+  from the queue, blocking.  Output is direct, with a mutex.  Under
+  `msim`, output goes to the Chairman's serial register like everywhere
+  else; the `BNV` calls are for the toolchain's tests, not the OS.
+- **Timer.**  Source 31, the tick.  Sleeping threads sit in a list
+  ordered by wakeup time; the tick pops what is due.  `uptime` counts
+  ticks; `time` is uptime plus whatever `settime` was told.
+- **Interrupt dispatch.**  The vector at 32 reads the pending word, masks
+  it with what is enabled, and calls the handler for each set bit from
+  a 32-entry table, then clears those bits and returns.  Timer first.
+
+## 8. The virtual file system
+
+Vnodes, as in every Unix since 4.3BSD, because it is the smallest
+interface that lets `open` not care what is behind it.
+
+```
+struct vnode_ops {
+    int (*lookup)(struct vnode *dir, const char *name, struct vnode **out);
+    int (*read)(struct vnode *, void *buf, unsigned len, unsigned off);
+    int (*write)(struct vnode *, const void *buf, unsigned len, unsigned off);
+    int (*readdir)(struct vnode *, unsigned index, struct dirent *out);
+    int (*create)(struct vnode *dir, const char *name, int type, struct vnode **out);
+    int (*unlink)(struct vnode *dir, const char *name);
+    int (*ioctl)(struct vnode *, int req, void *arg);
+    void (*release)(struct vnode *);
+};
+```
+
+A vnode is 32 bytes: the ops, a type, a size, a reference count, the
+mount it belongs to and a word for the file system's use.  Path walking
+is one function in the VFS that calls `lookup` a component at a time
+and crosses mount points from a table of eight.  An open file is a
+vnode, an offset and flags; an fd is an index into the process's table
+of those.
+
+File systems, in the order they are needed:
+
+- **romfs.**  Read-only, built into the ROM image by a host tool
+  (`mkromfs`, in C, under `tools/`) from a directory tree: a header, a
+  sorted table of names with offsets and sizes, then the data.  Lookup
+  is a binary search; `read` is `memcpy` from ROM.  Holds `/bin` and
+  `/etc`.  This is what makes the system usable before any other file
+  system exists.
+- **devfs.**  `/dev`: the driver table presented as a directory.
+- **ramfs.**  `/tmp`: files in heap-allocated blocks, for a program's
+  scratch.  Directories are lists.
+- **pipes.**  A 256-byte ring with a reader's and a writer's semaphore,
+  created by `pipe` and used through the ordinary `read` and `write`.
+  The shell's `|`.
+- **hostfs.**  Development only: `/host` reaches the host's file system
+  through new `msim` `BNV` calls (open, read, write, close, readdir),
+  so that a program under test can read a script or write results
+  without building a ROM.  Not part of the machine; a real MEOW would
+  have an IOC with storage and a file system on it later.
+
+`stdin`, `stdout` and `stderr` are fds 0, 1 and 2 on `/dev/console`
+unless the shell redirected them.  libc's `fopen` maps onto `open`,
+`fread` onto `read`, and the platform layer shrinks to those calls.
+
+## 9. Userland
+
+- **libc/catflap/**: a second platform layer beside `libc/meow/`, same
+  PDCLib and musl, with `_PDCLIB_open` and the rest calling the kernel,
+  `malloc` on `sbrk`, `setjmp` shared, and the POSIX-flavoured extras
+  (`spawn`, `wait`, `mq_*`, `sem_*`, `thread_*`) in a `<catflap.h>`.
+  One `libc.a` per platform.
+- **init**: mounts `/dev` and `/tmp`, opens the console, spawns the
+  shell, respawns it if it dies.
+- **sh**: a small shell, commands with arguments, `|`, `<` and `>`,
+  `&`, `cd`, `exit`, and nothing else.
+- **utilities**: `ls`, `cat`, `echo`, `ps`, `free`, `mount`, `uptime`,
+  `kill`.  Each a page of C.
+- **lua**: the interpreter as built now, relinked against the Catflap
+  libc, becomes the scripting language of the system and a test of it,
+  and `io.open` starts to work.
+
+## 10. What is in assembler
+
+As little as possible, and all in one file, `boot.s`:
+
+- the reset vector: set the interrupt bank's `sp`, copy `.data`, clear
+  `.bss`, set up the Chairman, jump to `kmain`;
+- the interrupt vector at 32: save nothing (the bank swap did), call the
+  C dispatcher, and the switch path: the sixteen `MOV`s each way and
+  `IRQRTN`;
+- the system call table at 64, `DCD` per entry;
+- `IRQRTN`, mask writes and the other things C cannot express, as short
+  functions.
+
+Everything else, drivers included, is C99 compiled by `nmcc`.  The
+kernel does not use libc; it has its own `kprintf`, `memcpy` and string
+functions in a few hundred lines, so that its size is its own and its
+behaviour under interrupt is known.
+
+## 11. Budget
+
+| | Target |
+|---|---|
+| Kernel code | 24 KB, 32 KB with hostfs and ramfs |
+| Kernel data and bss | 4 KB |
+| Thread control block | 96 bytes |
+| Default thread stack | 1 KB; interrupt stack 2 KB |
+| Process overhead | 128 bytes plus image plus heap |
+| Context switch | about 60 instructions |
+| System call | 8 instructions on top of the function |
+| Smallest useful machine | 64 KB RAM: kernel, init, shell, one utility |
+| Comfortable | 256 KB: the above plus Lua |
+
+## 12. Order of work
+
+Each stage runs under `msim` with a test in `tests/os/` before the next
+begins; the test harness is the existing one, standard input in and
+output compared.
+
+1. **Boot and threads.**  `boot.s`, the allocator, the scheduler, the
+   tick, `kprintf` to the console.  Test: three threads printing in
+   turn with sleeps.
+2. **Synchronisation and IPC.**  Semaphores, mutexes, message queues,
+   the console driver thread.  Test: producer and consumer.
+3. **VFS and romfs.**  `mkromfs`, the vnode layer, `open` to `readdir`,
+   devfs.  Test: `cat` a file from romfs to the console, from kernel
+   code.
+4. **Processes.**  `mld -r`, the loader, `spawn`, `wait`, `exit`, the
+   system call table, `libc/catflap/`.  Test: `init` spawns `hello`
+   from romfs.
+5. **Shell, pipes, ramfs, utilities.**  Test: a scripted shell session.
+6. **hostfs and Lua.**  Test: Lua runs a script from `/host`.
+
+Stages 1 to 3 need no changes to the toolchain.  Stage 4 needs `mld -r`
+and is where the design meets reality; if load-time relocation proves
+awkward, the fallback is to link each program at its own fixed address
+and lose the ability to run two at once, which a shell can live with.
+
+## 13. Decisions taken, and open ones
+
+Taken, for the reasons above: no `fork`; one address space and one
+allocator; system calls as function calls through a ROM table; every
+context switch from the interrupt bank; message queues rather than
+signals; romfs before any writable file system; C everywhere but
+`boot.s`.
+
+Open:
+
+- **A trap instruction.**  A `BNV` operand that swaps banks like an
+  interrupt would give a real system call entry and a place to put a
+  future privilege bit.  It is not needed for this design and adding it
+  would be a change to the architecture, to be decided on its own.
+- **Preemption of kernel code.**  The proposal disables the tick around
+  short critical sections and takes a mutex for long ones.  Making the
+  whole kernel non-preemptible is simpler and would cost console
+  latency only when a thread is deep in the VFS; worth measuring.
+- **Whether `at` and `ir` are safe across a system call.**  They are
+  caller-saved in MABI, so yes, but the stubs must not assume otherwise.
+- **Multiprocessor.**  The Chairman has masks for 32 CPUs and `BNV #2`
+  reports a bus ID.  Nothing here precludes one thread per CPU later,
+  and nothing here supports it.
