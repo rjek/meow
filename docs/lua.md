@@ -40,9 +40,30 @@ input run with `-i`.
 | The sieve test | 27 million instructions |
 
 Integers are 64 bits and numbers are doubles, both in software, which is
-most of the cost.  `LUA_32BITS` in `luaconf.h` would make both 32-bit
-and the interpreter faster and smaller, and it is left off: the point is
-to run the real thing.
+a good part of the cost.  `LUA_32BITS` in `luaconf.h` makes integers
+32-bit and numbers single-precision floats.  Measured with it on:
+
+| | 64-bit | `LUA_32BITS` | |
+|---|---|---|---|
+| Code | 369400 | 313428 | -15% |
+| Read-only data | 21920 | 9584 | -56% |
+| Heap after 2000 short strings, KB | 94.3 | 83.8 | -11% |
+| `fib(25)` | 857 M | 584 M | -32% |
+| 300000 integer multiply-adds | 518 M | 386 M | -26% |
+| 100000 float divide-adds | 654 M | 566 M | -14% |
+| Sort 10000 integers | 119 M | 77 M | -35% |
+| 20000 `tostring` and lengths | 440 M | 412 M | -6% |
+| `gsub` over 4000 bytes, 20 times | 49 M | 43 M | -13% |
+| 3000 `string.format` and a `concat` | 84 M | 73 M | -13% |
+
+Integer-heavy code gains a third, string code around a tenth; the float
+saving is small because the soft-float library's single precision is
+not much cheaper than its double.  The price is the language: integers
+wrap at 2^31, so `2147483647 + 1` is negative, `1 << 40` is 0, and
+numbers carry seven digits, so `1666683333.3333` prints as
+`1.666665e+09`.  The stock 64-bit build stays the default: the point is
+to run the real thing, and the tests compare against host Lua, which
+`LUA_32BITS` output would not match.
 
 ## What works and what does not
 
