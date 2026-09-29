@@ -4,6 +4,7 @@
         EXPORT  puts
         EXPORT  print_int
         EXPORT  print_hex
+        EXPORT  getchar
 
 putchar MOV     ir, r0
         BNV     #-6
@@ -29,4 +30,9 @@ print_int
 print_hex
         MOV     ir, r0
         BNV     #-10
+        RET
+
+getchar MOV     r0, #0
+        BNV     #-12                    ; -1 at the end of input, as EOF is
+        MOV     r0, ir
         RET

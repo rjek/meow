@@ -110,6 +110,18 @@ static void msim_builtin_dump_state(struct msim_ctx *ctx, signed int op,
 	msim_print_state(ctx);
 }
 
+/* One character from standard input into ir, or -1 at its end.  Output
+ * is flushed first so a prompt shows before the wait. */
+static void msim_builtin_getc(struct msim_ctx *ctx, signed int op,
+				void *bnvctx)
+{
+	int c;
+
+	fflush(stdout);
+	c = getchar();
+	ctx->r[MSIM_IR] = c == EOF ? 0xffffffffu : (u_int32_t)c;
+}
+
 static void msim_builtin_print(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
@@ -137,6 +149,7 @@ void msim_add_builtin_bnvs(struct msim_ctx *ctx)
 	msim_add_bnv(ctx, -6, msim_builtin_print, (void *) 0);
 	msim_add_bnv(ctx, -8, msim_builtin_print, (void *) 1);
 	msim_add_bnv(ctx, -10, msim_builtin_print, (void *) 2);
+	msim_add_bnv(ctx, -12, msim_builtin_getc, NULL);
 }
 
 void msim_del_builtin_bnvs(struct msim_ctx *ctx)

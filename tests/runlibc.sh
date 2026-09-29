@@ -2,7 +2,8 @@
 # C library tests: each libc/NAME.c is compiled with nmcc in C99 mode against
 # PDCLib's headers, linked with the runtime and libc.a, and run under msim;
 # stdout plus the exit status must match libc/NAME.out, which is what the
-# host's C library gives for the same program.
+# host's C library gives for the same program; libc/NAME.in, if there is
+# one, is standard input.
 cd "$(dirname "$0")" || exit 2
 NMCC=${NMCC:-../../norcroft-ng/bin/nmcc}
 MLD=${MLD:-../ld/mld}
@@ -35,7 +36,8 @@ for src in libc/*.c; do
 		fail=$((fail + 1))
 		continue
 	fi
-	$MSIM -q -r "$tmp.bin" -c 50000000 > "$tmp.out" 2>"$tmp.err"
+	if [ -f "$name.in" ]; then stdin="$name.in"; else stdin=/dev/null; fi
+	$MSIM -q -r "$tmp.bin" -c 50000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if cmp -s "$tmp.out" "$name.out"; then
 		pass=$((pass + 1))

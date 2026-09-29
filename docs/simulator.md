@@ -49,6 +49,7 @@ programs to talk to the outside world.
 | `BNV #-6` | Write the low byte of `ir` to standard output as a character |
 | `BNV #-8` | Write `ir` to standard output as a signed decimal number |
 | `BNV #-10` | Write `ir` to standard output in hexadecimal |
+| `BNV #-12` | Read one character from standard input into `ir`, or -1 at its end.  Standard output is flushed first |
 
 The Chairman's serial console reads from standard input and writes to
 standard output.  Its timer counts one tick per instruction and reports a

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Simulator regression tests: each sim/NAME.s is assembled and run; its
-# stdout plus exit status must match sim/NAME.out.
+# stdout plus exit status must match sim/NAME.out; sim/NAME.in, if there
+# is one, is standard input.
 cd "$(dirname "$0")" || exit 2
 MAS=${MAS:-../as/mas}
 MSIM=${MSIM:-../simulator/msim}
@@ -16,7 +17,8 @@ for src in sim/*.s; do
 		fail=$((fail + 1))
 		continue
 	fi
-	$MSIM -q -r "$tmp.bin" -c 200000 > "$tmp.out" 2>"$tmp.err"
+	if [ -f "$name.in" ]; then stdin="$name.in"; else stdin=/dev/null; fi
+	$MSIM -q -r "$tmp.bin" -c 200000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if [ -f "$name.out" ]; then
 		if cmp -s "$tmp.out" "$name.out"; then

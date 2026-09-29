@@ -45,9 +45,9 @@ output against what the host's C library printed for the same program.
 with a console and nothing else:
 
 - Standard output and standard error go to the console through `msim`'s
-  character call.  Standard input is always at end of file, since `msim`
-  has no console input.  No file can be opened; `fopen` fails with
-  `ENOENT`, `tmpfile` returns `NULL`, and `fseek` fails with `ESPIPE`.
+  character call, and standard input comes from it a line at a time.  No
+  file can be opened; `fopen` fails with `ENOENT`, `tmpfile` returns
+  `NULL`, and `fseek` fails with `ESPIPE`.
 - The heap is dlmalloc, PDCLib's allocator, fed by `sbrk()`, which hands
   out the memory between the end of `.bss` and `0x0800E000`, leaving the
   top 8 KB of `msim`'s 64 KB of RAM for the stack that `crt0` starts at
@@ -111,5 +111,8 @@ musl:
   constant expressions PDCLib's `<math.h>` defines, so every use draws a
   warning from the compiler's constant folder.  The values are right.
 - `<math.h>` is PDCLib's, which is strictly standard C: no `M_PI`.
+- `scanf` has no floating conversions: `%f` and friends are accepted and
+  read nothing.  That is PDCLib as it stands; `strtod` on a line read
+  with `fgets` does the job.
 - The `-J` and `-std=c99` requirements above.  When `nmcc` gains a way to
   name a header directory as its default, they can go.

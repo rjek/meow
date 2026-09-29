@@ -1,12 +1,20 @@
 ; What the C library needs from the machine, done with msim's BNV calls.
         AREA    |.text|, CODE, READONLY
         EXPORT  _PDCLIB_meow_putc
+        EXPORT  _PDCLIB_meow_getc
         EXPORT  _PDCLIB_meow_halt
 
 ; void _PDCLIB_meow_putc(int c): one character to the console
 _PDCLIB_meow_putc
         MOV     ir, r0
         BNV     #-6
+        RET
+
+; int _PDCLIB_meow_getc(void): one character from the console, -1 at
+; the end of input
+_PDCLIB_meow_getc
+        BNV     #-12
+        MOV     r0, ir
         RET
 
 ; void _PDCLIB_meow_halt(int status): stop, never returns
