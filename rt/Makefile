@@ -1,7 +1,7 @@
 MAS = ../as/mas
 NMCC = ../../norcroft-ng/bin/nmcc
 
-OBJS = crt0.o mul.o div.o ll.o msim.o
+OBJS = crt0.o exit.o mul.o div.o ll.o msim.o
 
 all: $(OBJS) softfp
 

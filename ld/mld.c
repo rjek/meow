@@ -34,11 +34,28 @@ struct gsym {
 	struct osec *sec;	/* NULL for absolute */
 };
 
+/* A member of an ar archive, loaded only if it defines a symbol that is
+ * still undefined once everything named on the command line is in. */
+struct member {
+	char *name;
+	const uint8_t *data;
+	size_t size;
+	bool loaded;
+};
+
+struct archive {
+	const char *path;
+	struct member *members;
+	unsigned nmembers;
+};
+
 static struct input *inputs;
 static unsigned ninputs;
 static struct osec **osecs;
 static unsigned nosecs;
 static struct gsym *gsyms;
+static struct archive *archives;
+static unsigned narchives;
 static unsigned ngsyms;
 static int error_count;
 
@@ -623,6 +640,245 @@ static uint32_t find_entry(const char *name)
 	return 0;
 }
 
+/* ---- archives ---------------------------------------------------------- */
+
+static bool is_archive(const char *path)
+{
+	FILE *f = fopen(path, "rb");
+	char magic[8];
+	bool yes;
+
+	if (f == NULL) {
+		return false;
+	}
+	yes = fread(magic, 1, 8, f) == 8 && memcmp(magic, "!<arch>\n", 8) == 0;
+	fclose(f);
+	return yes;
+}
+
+static uint8_t *read_whole(const char *path, size_t *len)
+{
+	FILE *f = fopen(path, "rb");
+	long n;
+	uint8_t *p;
+
+	if (f == NULL) {
+		return NULL;
+	}
+	fseek(f, 0, SEEK_END);
+	n = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (n < 0) {
+		fclose(f);
+		return NULL;
+	}
+	p = xalloc((size_t)n + 1);
+	if (fread(p, 1, (size_t)n, f) != (size_t)n) {
+		fclose(f);
+		free(p);
+		return NULL;
+	}
+	fclose(f);
+	*len = (size_t)n;
+	return p;
+}
+
+/* The common ar format as GNU ar writes it: 60-byte headers, names ending
+ * in '/', a "/" symbol table (ignored: members are examined directly) and
+ * a "//" table of names too long for the header, referred to as "/offset". */
+static void read_archive(const char *path)
+{
+	size_t len;
+	uint8_t *img = read_whole(path, &len);
+	struct archive *a;
+	const char *longnames = NULL;
+	size_t longnames_len = 0;
+	size_t pos = 8;
+
+	if (img == NULL) {
+		error(path, "cannot read");
+		return;
+	}
+	archives = xrealloc(archives, (narchives + 1) * sizeof *archives);
+	a = &archives[narchives++];
+	memset(a, 0, sizeof *a);
+	a->path = path;
+	while (pos + 60 <= len) {
+		const char *h = (const char *)img + pos;
+		size_t size = (size_t)strtoul(h + 48, NULL, 10);
+		const uint8_t *data = img + pos + 60;
+		char name[17];
+		struct member *m;
+
+		if (memcmp(h + 58, "`\n", 2) != 0 || pos + 60 + size > len) {
+			error(path, "bad archive member header");
+			break;
+		}
+		memcpy(name, h, 16);
+		name[16] = '\0';
+		pos += 60 + size + (size & 1);
+		if (strncmp(name, "/ ", 2) == 0) {
+			continue;			/* the symbol table */
+		}
+		if (strncmp(name, "// ", 3) == 0) {
+			longnames = (const char *)data;
+			longnames_len = size;
+			continue;
+		}
+		a->members = xrealloc(a->members, (a->nmembers + 1) * sizeof *a->members);
+		m = &a->members[a->nmembers++];
+		memset(m, 0, sizeof *m);
+		if (name[0] == '/' && longnames != NULL) {
+			size_t off = (size_t)strtoul(name + 1, NULL, 10);
+			size_t n = 0;
+
+			while (off + n < longnames_len && longnames[off + n] != '/' &&
+			       longnames[off + n] != '\n') {
+				n++;
+			}
+			m->name = xalloc(n + 1);
+			memcpy(m->name, longnames + off, n);
+			m->name[n] = '\0';
+		} else {
+			char *slash = strchr(name, '/');
+
+			if (slash != NULL) {
+				*slash = '\0';
+			}
+			m->name = xstrdup(name);
+		}
+		m->data = data;
+		m->size = size;
+	}
+}
+
+/* Names of every global symbol referenced by an input and defined by none. */
+static char **undefined_names(unsigned *count)
+{
+	char **names = NULL;
+	unsigned n = 0;
+	unsigned k;
+	unsigned i;
+
+	for (k = 0; k < ninputs; k++) {
+		struct melf *e = inputs[k].e;
+
+		if (e == NULL) {
+			continue;
+		}
+		for (i = 1; i < e->nsymbols; i++) {
+			struct melf_symbol *sym = &e->symbols[i];
+
+			if (sym->bind == MELF_STB_GLOBAL && sym->shndx == MELF_SHN_UNDEF) {
+				names = xrealloc(names, (n + 1) * sizeof *names);
+				names[n++] = sym->name;
+			}
+		}
+	}
+	/* strike the ones some input defines */
+	for (k = 0; k < ninputs; k++) {
+		struct melf *e = inputs[k].e;
+
+		if (e == NULL) {
+			continue;
+		}
+		for (i = 1; i < e->nsymbols; i++) {
+			struct melf_symbol *sym = &e->symbols[i];
+			unsigned j;
+
+			if (sym->bind != MELF_STB_GLOBAL || sym->shndx == MELF_SHN_UNDEF) {
+				continue;
+			}
+			for (j = 0; j < n; j++) {
+				if (strcmp(names[j], sym->name) == 0) {
+					names[j] = names[--n];
+					j--;
+				}
+			}
+		}
+	}
+	*count = n;
+	return names;
+}
+
+static bool defines_any(struct melf *e, char **names, unsigned n)
+{
+	unsigned i;
+	unsigned j;
+
+	for (i = 1; i < e->nsymbols; i++) {
+		struct melf_symbol *sym = &e->symbols[i];
+
+		if (sym->bind != MELF_STB_GLOBAL || sym->shndx == MELF_SHN_UNDEF) {
+			continue;
+		}
+		for (j = 0; j < n; j++) {
+			if (strcmp(names[j], sym->name) == 0) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static void add_input(const char *path, struct melf *e)
+{
+	inputs = xrealloc(inputs, (ninputs + 1) * sizeof *inputs);
+	memset(&inputs[ninputs], 0, sizeof *inputs);
+	inputs[ninputs].path = path;
+	inputs[ninputs].e = e;
+	merge_input(&inputs[ninputs]);
+	ninputs++;
+}
+
+/* Load archive members until no member defines anything still undefined.
+ * A member loaded for one symbol may need others, hence the passes. */
+static void load_from_archives(void)
+{
+	bool changed;
+
+	do {
+		unsigned n;
+		char **names = undefined_names(&n);
+		unsigned k;
+
+		changed = false;
+		for (k = 0; k < narchives && n > 0; k++) {
+			struct archive *a = &archives[k];
+			unsigned i;
+
+			for (i = 0; i < a->nmembers; i++) {
+				struct member *m = &a->members[i];
+				char err[128];
+				struct melf *e;
+				char *path;
+
+				if (m->loaded) {
+					continue;
+				}
+				e = melf_read_mem(m->data, m->size, err, sizeof err);
+				if (e == NULL) {
+					error(a->path, "%s: %s", m->name, err);
+					m->loaded = true;
+					continue;
+				}
+				if (e->e_type != MELF_ET_REL || !defines_any(e, names, n)) {
+					melf_free(e);
+					continue;
+				}
+				path = xalloc(strlen(a->path) + strlen(m->name) + 3);
+				sprintf(path, "%s(%s)", a->path, m->name);
+				add_input(path, e);
+				m->loaded = true;
+				changed = true;
+				free(names);
+				names = undefined_names(&n);
+			}
+		}
+		free(names);
+	} while (changed);
+}
+
 int main(int argc, char *argv[])
 {
 	const char *output = NULL;
@@ -687,6 +943,13 @@ int main(int argc, char *argv[])
 	for (k = 0; k < ninputs; k++) {
 		char err[128];
 
+		if (is_archive(inputs[k].path)) {
+			read_archive(inputs[k].path);
+			memmove(&inputs[k], &inputs[k + 1], (ninputs - k - 1) * sizeof *inputs);
+			ninputs--;
+			k--;
+			continue;
+		}
 		inputs[k].e = melf_read(inputs[k].path, err, sizeof err);
 		if (inputs[k].e == NULL) {
 			error(inputs[k].path, "%s", err);
@@ -697,6 +960,9 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		merge_input(&inputs[k]);
+	}
+	if (error_count == 0) {
+		load_from_archives();
 	}
 	if (error_count > 0) {
 		return 1;

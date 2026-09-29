@@ -418,12 +418,6 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 	long len;
 	uint8_t *img;
 	struct melf *e;
-	uint32_t shoff;
-	uint32_t shnum;
-	uint32_t shstrndx;
-	unsigned i;
-	const uint8_t *shstr;
-	uint32_t shstr_size;
 
 	if (f == NULL) {
 		fail(errbuf, errlen, "cannot open");
@@ -432,12 +426,12 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 	fseek(f, 0, SEEK_END);
 	len = ftell(f);
 	fseek(f, 0, SEEK_SET);
-	if (len < EHDR_SIZE) {
+	if (len < 0) {
 		fclose(f);
-		fail(errbuf, errlen, "too short to be ELF");
+		fail(errbuf, errlen, "cannot read");
 		return NULL;
 	}
-	img = xalloc((size_t)len);
+	img = xalloc((size_t)len + 1);
 	if (fread(img, 1, (size_t)len, f) != (size_t)len) {
 		fclose(f);
 		free(img);
@@ -445,13 +439,31 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 		return NULL;
 	}
 	fclose(f);
+	e = melf_read_mem(img, (size_t)len, errbuf, errlen);
+	free(img);
+	return e;
+}
+
+struct melf *melf_read_mem(const uint8_t *img, size_t len, char *errbuf,
+			   size_t errlen)
+{
+	struct melf *e;
+	uint32_t shoff;
+	uint32_t shnum;
+	uint32_t shstrndx;
+	unsigned i;
+	const uint8_t *shstr;
+	uint32_t shstr_size;
+
+	if (len < EHDR_SIZE) {
+		fail(errbuf, errlen, "too short to be ELF");
+		return NULL;
+	}
 	if (memcmp(img, "\177ELF\1\1\1", 7) != 0) {
-		free(img);
 		fail(errbuf, errlen, "not a 32-bit little-endian ELF file");
 		return NULL;
 	}
 	if (get16(img + 18) != EM_MEOW) {
-		free(img);
 		fail(errbuf, errlen, "not a MEOW ELF file");
 		return NULL;
 	}
@@ -460,7 +472,6 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 	shstrndx = get16(img + 50);
 	if (get16(img + 46) != SHDR_SIZE || shoff + shnum * SHDR_SIZE > (uint32_t)len ||
 	    shstrndx >= shnum) {
-		free(img);
 		fail(errbuf, errlen, "bad section header table");
 		return NULL;
 	}
@@ -473,7 +484,6 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 		shstr = img + get32(h + 16);
 		shstr_size = get32(h + 20);
 		if (get32(h + 16) + shstr_size > (uint32_t)len) {
-			free(img);
 			melf_free(e);
 			fail(errbuf, errlen, "bad section name table");
 			return NULL;
@@ -489,7 +499,6 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 
 		if (name >= shstr_size || (type != MELF_SHT_NOBITS &&
 					   off + size > (uint32_t)len)) {
-			free(img);
 			melf_free(e);
 			fail(errbuf, errlen, "bad section header");
 			return NULL;
@@ -552,6 +561,5 @@ struct melf *melf_read(const char *path, char *errbuf, size_t errlen)
 				      info & 0xff, (int32_t)get32(p + 8));
 		}
 	}
-	free(img);
 	return e;
 }

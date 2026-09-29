@@ -88,6 +88,15 @@ peepholes and inline 64-bit helpers, the runtime's rewritten multiply,
 divide and float multiply, and the sp offset form brought it down 56%
 in instructions and 11% in code.
 
+## The C library
+
+`libc/` is a C library for programs compiled with `nmcc`: PDCLib (CC0)
+for the standard library, musl's maths (MIT) and a platform layer for
+MEOW under `msim`.  `make` builds it into `libc/libc.a`, an archive that
+`mld` takes members from as they are needed.  `docs/libc.md` says how to
+compile and link against it, what the platform layer can and cannot do,
+and what was changed in the imported sources.
+
 ## A first program
 
 ```

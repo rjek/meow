@@ -1,8 +1,8 @@
 ; Program start-up for code compiled with nmcc and run under msim.
         AREA    |.text|, CODE, READONLY
         EXPORT  start
-        EXPORT  exit
         IMPORT  main
+        IMPORT  exit
         IMPORT  __data_load
         IMPORT  __data_start
         IMPORT  __data_end
@@ -33,8 +33,6 @@ start   LDR     sp, =0x08010000         ; top of msim's 64 KB of RAM
         LDR     r2, =main
         ADD     lr, pc, #4
         MOV     pc, r2
-                                        ; main's result is exit's argument
-exit    MOV     ir, r0
-        BNV     #-2                     ; msim: halt with ir as the status
-        B       exit
+        LDR     r2, =exit               ; main's result is exit's argument
+        MOV     pc, r2
         LTORG

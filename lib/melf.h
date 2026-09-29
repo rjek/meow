@@ -100,5 +100,9 @@ bool melf_fwrite(struct melf *e, FILE *f);
  * relocations are decoded.  Returns NULL with a message in errbuf on
  * failure. */
 struct melf *melf_read(const char *path, char *errbuf, size_t errlen);
+/* The same from an image already in memory, such as an archive member.
+ * The image is not kept. */
+struct melf *melf_read_mem(const uint8_t *img, size_t len, char *errbuf,
+			   size_t errlen);
 
 #endif /* MELF_H */

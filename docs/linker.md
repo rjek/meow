@@ -16,6 +16,12 @@ mld [-o output] [-f elf|bin] [-b base] [-d base] [-M map] [-e symbol] input.o...
 | `-M map` | Write a map of sections and symbols (`-` for standard output) |
 | `-e symbol` | Entry point.  Otherwise `__entry` (which `mas` defines from `ENTRY`), then `start`, then `main`, then 0 |
 
+An input may be an `ar` archive of objects, as `ar rcs` makes one.  Its
+members are loaded only when they define a symbol that is still undefined
+once every object named on the command line is in, in as many passes as
+that takes, so a library costs a program only what it uses.  Archive
+members are named `archive(member)` in diagnostics and the map.
+
 Sections with the same name are merged in the order the inputs name them,
 each contribution aligned as its object declares.  The output places code
 sections first, then data, then BSS, consecutively from the base address,

@@ -97,6 +97,21 @@ same build with only that change switched off.
     about seven per bit of a full 32-bit constant.  Without a multiplier
     the library divide stays; the compiler keeps the code switched off.
 
+## The C library
+
+14. **PDCLib and musl's maths.**  With the compiler at C90, PDPCLIB was the
+    only whole library that would compile; once the C99 to C23 front end
+    was merged, PDCLib (CC0, portable, a dozen platform functions) became
+    the right one, with musl's `src/math` (MIT) for the maths PDCLib lacks
+    and nothing else from musl, whose lowest layer is Linux system calls.
+    The platform layer is a console and a heap; there is no filesystem or
+    clock to pretend to.  The imports are verbatim bar four small patches
+    listed in `libc.md`, two of them for compiler limitations (compound
+    literals from 64-bit expressions, 32-bit `#if` arithmetic) and two
+    for upstream bugs.  `mld` grew `ar` archive support rather than the
+    project growing an archiver: the host's `ar` writes the format, and a
+    library is no use if every program links all of it.
+
 ## Toolchain
 
 - **Binary formats.**  Flat binary and ELF32 little-endian with a private

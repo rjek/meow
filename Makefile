@@ -1,4 +1,4 @@
-SUBDIRS = isa lib as ld rt simulator
+SUBDIRS = isa lib as ld rt simulator libc
 
 all check clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d $@ || exit 1; done
