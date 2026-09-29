@@ -11,3 +11,5 @@ as/mas
 as/mdis
 as/mobjdump
 ld/mld
+rt/*.o
+tests/c/*.failed.s

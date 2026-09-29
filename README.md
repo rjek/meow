@@ -24,8 +24,9 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | `lib/` | `libmeow`: generated encoding tables, disassembler, ELF reader and writer |
 | `as/` | `mas` the assembler, `mdis` the disassembler, `mobjdump` |
 | `ld/` | `mld` the linker |
+| `rt/` | Runtime for compiled C: start-up code, multiply and divide, msim console output |
 | `simulator/` | `msim` |
-| `tests/` | Regression tests for the assembler, linker and simulator |
+| `tests/` | Regression tests for the assembler, linker, simulator and C compiler |
 | `attic/` | Abandoned work: the Lua assembler, lcc port, libc, VHDL, Catflap OS.  Not maintained |
 
 ## Building
@@ -34,6 +35,14 @@ to be a pleasant target for hand-written assembler and a C compiler.
 The simulator needs Lua 5.1 and libedit (`liblua5.1-0-dev libedit-dev` on
 Debian and Ubuntu); everything else needs only a C99 compiler.  `make docs`
 regenerates the encoding diagrams in the reference manual from `meow.isa`.
+
+## C
+
+The MEOW backend for the Norcroft-NG C compiler lives in that compiler's
+repository as the `nmcc` tool (`make nmcc` there).  It writes assembler
+for `mas`; the C tests in `tests/c` compile, assemble, link with `rt/`
+and run under `msim`.  They are skipped unless `NMCC` names the compiler
+or it is at `../norcroft-ng/bin/nmcc`.
 
 ## A first program
 
