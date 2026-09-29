@@ -41,12 +41,12 @@ regenerates the encoding diagrams in the reference manual from `meow.isa`.
 The MEOW backend for the Norcroft-NG C compiler lives in that compiler's
 repository as the `nmcc` tool (`make nmcc` there).  `nmcc -c` writes an
 ELF object for `mld` and `nmcc -S` writes assembler for `mas`.  Link with
-`rt/` (start-up code, multiply, divide, 64-bit integers and the `msim`
-console) and `-d 0x08000000` so data lands in RAM:
+`rt/` (start-up code, multiply, divide, 64-bit integers, floating point
+and the `msim` console) and `-d 0x08000000` so data lands in RAM:
 
 ```
 nmcc -c -o hello.o hello.c
-mld -f bin -d 0x08000000 -o hello.bin rt/crt0.o rt/mul.o rt/div.o rt/ll.o rt/msim.o hello.o
+mld -f bin -d 0x08000000 -o hello.bin rt/crt0.o rt/mul.o rt/div.o rt/ll.o rt/softfp.o rt/msim.o hello.o
 msim -q -r hello.bin
 ```
 

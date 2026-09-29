@@ -13,3 +13,4 @@ as/mobjdump
 ld/mld
 rt/*.o
 tests/c/*.failed.s
+rt/softfp.o

@@ -58,8 +58,10 @@ costs two extra instructions.  Little-endian throughout.  Structure members
 are aligned to their own alignment and structures to their most-aligned
 member.  Bit-fields are allocated from the least significant bit of their
 unit, and a plain `int` bit-field is unsigned, as on Arm; write `signed
-int` to get sign extension.  There is no floating-point hardware; `float` and `double` are IEEE
-754 values manipulated by library calls.
+int` to get sign extension.  There is no floating-point hardware; `float`
+and `double` are IEEE 754 values manipulated by library calls.  A `double`
+is stored little-endian like everything else, low word at the lower
+address, and travels in a register pair the same way up.
 
 ## Calls and returns
 
@@ -86,10 +88,11 @@ On entry to a function:
 
 ## Arguments
 
-Arguments are converted to argument words: `char` and `short` are
-promoted to `int`, `float` to `double` only for unprototyped and variadic
-parameters, and every scalar occupies one word except `long long` and
-`double`, which occupy two with the low word first.  Structures and unions
+Arguments are converted to argument words: `char`, `short` and `float`
+are passed as declared when the callee has a prototype (the caller
+narrows) and promoted to `int` or `double` only for unprototyped and
+variadic parameters, and every scalar occupies one word except `long
+long` and `double`, which occupy two with the low word first.  Structures and unions
 are passed by value as a sequence of words, padded to a whole number of
 words.
 
@@ -139,8 +142,25 @@ operands in.  Both quotient and remainder come back, so `x / y` and
 | `__memcpy`, `__memset` | Block copy and fill with the C semantics |
 
 Division by zero is undefined; the library may trap or return anything.
-The floating-point entry points will be specified with the software
-floating-point library.
+
+Floating point is done by `rt/softfp.c`, plain C compiled with `nmcc`.
+A `float` argument or result is its 32-bit pattern in one register and a
+`double` is a register pair.  The names are the compiler's usual ones:
+
+| Function | Operation |
+|---|---|
+| `_fadd`, `_fsub`, `_fmul`, `_fdiv`, `_fneg` | Single precision a + b, a - b, a * b, a / b, -a |
+| `_frsb`, `_frdiv` | b - a and b / a |
+| `_fgr`, `_fgeq`, `_fls`, `_fleq`, `_feq`, `_fneq` | Comparisons, 0 or 1 in a1; a NaN compares unequal to everything |
+| `_fflt`, `_ffltu`, `_ffix`, `_ffixu` | `int` or `unsigned` to `float` and back, truncating |
+| `_dadd` ... `_dneq`, `_dflt`, `_dfltu`, `_dfix`, `_dfixu` | The same for `double` |
+| `_f2d`, `_d2f` | Widen and narrow |
+| `_ll_sto_f`, `_ll_uto_f`, `_ll_sto_d`, `_ll_uto_d` | `long long` to floating |
+| `_ll_sfrom_f`, `_ll_ufrom_f`, `_ll_sfrom_d`, `_ll_ufrom_d` | Floating to `long long`, truncating |
+
+Rounding is to nearest, ties to even; denormals are kept.  A conversion to
+an integer that does not fit gives the nearest representable extreme, and a
+NaN gives zero; C leaves both undefined.
 
 ## System calls
 
