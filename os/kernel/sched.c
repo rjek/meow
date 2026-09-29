@@ -105,6 +105,11 @@ void kexit(void)
         c->in_kernel++;
         tick_work();
         c->in_kernel--;
+        if (c->switch_wanted != 0) {    /* it queued us behind someone: go now */
+            CH_TIMER_VALUE = 1;
+            while (c->switch_wanted != 0) {
+            }
+        }
     }
 }
 

@@ -6,6 +6,7 @@ void init_main(void)
     char *args[] = { "hello", "one", "two", NULL };
     char *args2[] = { "again", NULL };
     int pid, pid2, status;
+    unsigned free0 = (unsigned)kmem_free();
 
     pid = process_spawn("/bin/hello", 3, args);
     kprintf("spawned pid %d\n", pid);
@@ -19,6 +20,7 @@ void init_main(void)
     kprintf("second done with %d\n", status);
     process_wait(pid, &status);
     kprintf("first done with %d, wait again: %d\n", status, process_wait(pid, &status));
-    kprintf("%s free\n", kmem_free() > 200 * 1024 ? "plenty" : "little");
+    idle_work();                        /* reap what has finished */
+    kprintf("%u bytes fewer free than at the start\n", free0 - (unsigned)kmem_free());
     kernel_halt(0);
 }

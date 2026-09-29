@@ -5,6 +5,7 @@
         EXPORT  start
         EXPORT  kernel_halt
         EXPORT  cpu_id
+        EXPORT  kernel_time
         IMPORT  kmain
         IMPORT  irq_dispatch
         IMPORT  switch_from
@@ -141,6 +142,13 @@ kernel_halt
         MOV     ir, r0
         BNV     #-2
         B       kernel_halt
+
+;  long kernel_time(void): seconds since 1970, which under msim is the
+; host's clock
+kernel_time
+        BNV     #-14
+        MOV     r0, ir
+        RET
 
 ; int cpu_id(void): this CPU's bus ID
 cpu_id  BNV     #2

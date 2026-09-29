@@ -9,17 +9,41 @@ MLD = ../ld/mld
 MSIM = ../simulator/msim
 HOSTCC = cc
 CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
-RT = ../rt/mul.o ../rt/div.o ../rt/ll.o
+PCFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Iinclude
+RT = ../rt/mul.o ../rt/div.o ../rt/ll.o ../rt/softfp.o
 RAM = 256
 
 KSRCS := $(wildcard kernel/*.c)
-KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS))) \
-         obj/kernel/libc_start.o obj/kernel/libc_end.o
-LINK = $(KOBJS) obj/kernel/init.o $(RT)
+KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS)))
+
+# The shared C library: PDCLib, musl's maths and the Catflap platform
+# layer, all of it, compiled with -zsb so that its data is reached
+# through each process's displacement, and linked between the two marker
+# objects.  The flags are libc/Makefile's.
+LIBC = ../libc
+LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=200 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
+MUSL_CFLAGS = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
+              -I$(LIBC)/meow/musl -I$(LIBC)/musl/src/internal
+DLMALLOC_CFLAGS = -DHAVE_MMAP=0 -DHAVE_MORECORE=1 -DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H \
+              -DLACKS_SYS_MMAN_H -DLACKS_SCHED_H -DLACKS_FCNTL_H -DLACKS_TIME_H -Dmalloc_getpagesize=4096
+MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
+PDCLIB_SRCS := $(filter-out $(LIBC)/pdclib/functions/stdio/remove.c,$(wildcard $(LIBC)/pdclib/functions/*/*.c))
+MUSL_SRCS := $(filter-out $(addprefix $(LIBC)/musl/src/math/,$(addsuffix .c,$(MUSL_DUP))),\
+                          $(wildcard $(LIBC)/musl/src/math/*.c))
+CATFLAP_SRCS := $(wildcard $(LIBC)/catflap/functions/*.c)
+CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
+LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(PDCLIB_SRCS) $(MUSL_SRCS) $(CATFLAP_SRCS)) \
+           $(patsubst $(LIBC)/%.s,obj/libc/%.o,$(CATFLAP_ASM))
+LINK = $(KOBJS) obj/kernel/init.o $(RT) obj/kernel/libc_start.o $(LIBOBJS) obj/kernel/libc_end.o
 PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c))
 ROOT := $(shell find root -type f)
 
-all: catflap.rom
+all: catflap.rom obj/link.list
+
+# what tests/runos.sh links a test kernel from: everything but init.o
+obj/link.list: Makefile
+	@mkdir -p obj
+	echo $(filter-out obj/kernel/init.o,$(LINK)) > $@
 
 catflap.rom: obj/kernel.bin obj/librelocs.bin obj/romfs.img
 	cat $^ > $@
@@ -32,7 +56,7 @@ obj/catflap.elf: $(LINK)
 	$(MLD) -f elf -B -d 0x08000000 -o $@ $(LINK)
 
 # programs: linked at 0 with their addresses listed for the loader, the
-# kernel's symbols absolute
+# kernel's and the library's symbols absolute
 obj/root/bin/%: obj/bin/%.o obj/lib/crt0.o obj/catflap.elf
 	@mkdir -p obj/root/bin
 	$(MLD) -f cfx -S obj/catflap.elf -o $@ obj/lib/crt0.o $<
@@ -41,11 +65,31 @@ obj/romfs.img: obj/mkromfs $(ROOT) $(PROGS)
 	cp -r root/. obj/root/
 	obj/mkromfs $@ obj/root
 
-obj/%.o: %.c
+obj/bin/%.o: bin/%.c include/catflap.h
+	@mkdir -p $(dir $@)
+	$(NMCC) $(PCFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/%.o: %.c kernel/kernel.h
 	@mkdir -p $(dir $@)
 	$(NMCC) $(CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
 
 obj/%.o: %.s
+	@mkdir -p $(dir $@)
+	$(MAS) -o $@ $<
+
+obj/libc/pdclib/functions/_dlmalloc/%.o: $(LIBC)/pdclib/functions/_dlmalloc/%.c
+	@mkdir -p $(dir $@)
+	$(NMCC) $(LIBC_CFLAGS) $(DLMALLOC_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/libc/musl/%.o: $(LIBC)/musl/%.c
+	@mkdir -p $(dir $@)
+	$(NMCC) $(LIBC_CFLAGS) $(MUSL_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/libc/%.o: $(LIBC)/%.c
+	@mkdir -p $(dir $@)
+	$(NMCC) $(LIBC_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/libc/%.o: $(LIBC)/%.s
 	@mkdir -p $(dir $@)
 	$(MAS) -o $@ $<
 
@@ -56,7 +100,7 @@ obj/mkromfs: tools/mkromfs.c
 run: catflap.rom
 	$(MSIM) -q -r catflap.rom -m $(RAM)
 
-check: obj/kernel.bin obj/romfs.img
+check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c))
 	../tests/runos.sh
 
 clean:

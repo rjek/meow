@@ -288,9 +288,43 @@ int process_wait(int pid, int *status)
     kfree(p->image);
     kfree(p->libdata);
     kfree(p->argv);
+    kfree(p->heap);
     kfree(p);
     kexit();
     return 0;
+}
+
+int process_pid(void)
+{
+    return current_process()->pid;
+}
+
+/* The program's heap: one block, taken from the kernel's on first use,
+   handed out in pieces.  A process that wants more asks before it
+   starts, one day. */
+void *process_sbrk(int increment)
+{
+    struct process *p = current_process();
+    char *old;
+
+    kenter();
+    if (p->heap == NULL) {
+        p->heap_size = HEAP_DEFAULT;
+        p->heap = kmalloc(p->heap_size);
+        if (p->heap == NULL) {
+            kexit();
+            return (void *)-1;
+        }
+    }
+    if ((increment > 0 && (size_t)increment > p->heap_size - p->brk) ||
+        (increment < 0 && (size_t)-increment > p->brk)) {
+        kexit();
+        return (void *)-1;
+    }
+    old = p->heap + p->brk;
+    p->brk += (size_t)increment;
+    kexit();
+    return old;
 }
 
 /* Called by the scheduler when a process's thread has gone for good. */

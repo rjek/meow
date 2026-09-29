@@ -9,5 +9,5 @@ hello from a process, pid 2, args: again
 hello from a process, pid 3, args: hello one
 second done with 2
 first done with 1, wait again: -10
-plenty free
+0 bytes fewer free than at the start
 exit 0

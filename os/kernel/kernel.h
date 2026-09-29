@@ -168,6 +168,9 @@ struct process {
     uint32_t sb;                        /* its displacement from the linked copy */
     int argc;
     char **argv;
+    char *heap;                         /* the program's, handed out by sbrk */
+    size_t heap_size;
+    size_t brk;
     struct file *fds[NFD];
     struct waitq waiters;
 };
@@ -181,6 +184,9 @@ int process_spawn(const char *path, int argc, char *const argv[]);
 void process_exit(int status);
 int process_wait(int pid, int *status);
 void process_thread_gone(struct process *p);
+void *process_sbrk(int increment);
+int process_pid(void);
+#define HEAP_DEFAULT    (32 * 1024)     /* a process's heap until it asks for more */
 
 /* vfs.c */
 struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
@@ -206,9 +212,20 @@ int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
 /* boot.s */
 void kernel_halt(int status);
 int cpu_id(void);
+long kernel_time(void);
 extern struct thread *switch_from, *switch_to;
 
-/* lib.c */
+/* lib.c: the kernel's own, under the usual names here but not clashing
+   with the C library's in the same image */
+#define memcpy k_memcpy
+#define memset k_memset
+#define memcmp k_memcmp
+#define strlen k_strlen
+#define strcmp k_strcmp
+#define strncmp k_strncmp
+#define strcpy k_strcpy
+#define strcat k_strcat
+#define strchr k_strchr
 void *memcpy(void *d, const void *s, size_t n);
 void *memset(void *d, int c, size_t n);
 size_t strlen(const char *s);

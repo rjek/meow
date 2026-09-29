@@ -1,22 +1,15 @@
-/* The first program: says hello through the kernel's own calls. */
-#include "kernel.h"
-
-static void say(const char *s)
-{
-    vfs_write(1, s, strlen(s));
-}
+/* The first program: says hello through the shared C library. */
+#include <stdio.h>
+#include "catflap.h"
 
 int main(int argc, char **argv)
 {
     int i;
 
-    say("hello from a process, pid ");
-    kprintf("%d", current_process()->pid);
-    say(", args:");
+    printf("hello from a process, pid %d, args:", process_pid());
     for (i = 0; i < argc; i++) {
-        say(" ");
-        say(argv[i]);
+        printf(" %s", argv[i]);
     }
-    say("\n");
+    printf("\n");
     return argc;
 }
