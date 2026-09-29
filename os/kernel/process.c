@@ -385,23 +385,9 @@ int process_pid(void)
     return current_process()->pid;
 }
 
-/* The index-th process, for ps; 0 at the end. */
-int process_info(int index, struct procinfo *info)
+struct process *process_list(void)
 {
-    struct process *p;
-
-    for (p = procs; p != NULL && index > 0; p = p->next) {
-        index--;
-    }
-    if (p == NULL) {
-        return 0;
-    }
-    info->pid = p->pid;
-    info->parent = p->parent != NULL ? p->parent->pid : -1;
-    info->nthreads = p->nthreads;
-    info->dead = p->dead;
-    strncpy_(info->name, p->name != NULL ? p->name : "?", sizeof info->name);
-    return 1;
+    return procs;
 }
 
 /* The program's heap: blocks taken from the kernel's as it grows, each

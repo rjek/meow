@@ -1,4 +1,5 @@
-/* ls: a directory's names, with sizes */
+/* ls: a directory's names, with sizes; for a queue, the messages
+   waiting, and for a semaphore, its count */
 #include <stdio.h>
 #include "catflap.h"
 
@@ -12,12 +13,22 @@ static int list(const char *path)
         return 1;
     }
     while (vfs_readdir(fd, &de) > 0) {
-        if (de.type == CF_V_DIR) {
+        switch (de.type) {
+        case CF_V_DIR:
             printf("%8s %s/\n", "", de.name);
-        } else if (de.type == CF_V_DEV) {
+            break;
+        case CF_V_DEV:
             printf("%8s %s\n", "dev", de.name);
-        } else {
+            break;
+        case CF_V_MQ:
+            printf("%5u mq %s\n", de.size, de.name);
+            break;
+        case CF_V_SEM:
+            printf("%4u sem %s\n", de.size, de.name);
+            break;
+        default:
             printf("%8u %s\n", de.size, de.name);
+            break;
         }
     }
     vfs_close(fd);

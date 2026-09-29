@@ -351,24 +351,24 @@ const char * _PDCLIB_scan( const char * spec, struct _PDCLIB_status_t * status )
             {
                 if ( isspace( (unsigned char)rc ) )
                 {
+                    if ( ! value_parsed )
+                    {
+                        /* MEOW: %s skips leading whitespace, not counted
+                           against the width; upstream failed to match */
+                        status->current--;
+                        continue;
+                    }
+
+                    /* matching sequence terminated by whitespace */
                     UNGET( rc, status );
 
-                    if ( value_parsed )
+                    if ( c != NULL )
                     {
-                        /* matching sequence terminated by whitespace */
-                        if ( c != NULL )
-                        {
-                            *c = '\0';
-                            ++status->n;
-                        }
+                        *c = '\0';
+                        ++status->n;
+                    }
 
-                        return ++spec;
-                    }
-                    else
-                    {
-                        /* matching error */
-                        return NULL;
-                    }
+                    return ++spec;
                 }
                 else
                 {

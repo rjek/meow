@@ -41,8 +41,11 @@ void kmain(void)
         rom += 2 + nrelocs;
     }
     process_init(relocs, nrelocs);
-    if (vfs_mount("/", romfs_init(rom)) < 0 || vfs_mount("/dev", devfs_init()) < 0 ||
-        vfs_mount("/tmp", ramfs_init()) < 0) {
+    if (vfs_mount("/", romfs_init(rom), "romfs") < 0 ||
+        vfs_mount("/dev", devfs_init(), "devfs") < 0 ||
+        vfs_mount("/tmp", ramfs_init(), "ramfs") < 0 ||
+        vfs_mount("/proc", procfs_init(), "procfs") < 0 ||
+        vfs_mount("/ipc", ipcfs_init(), "ipcfs") < 0) {
         kpanic("cannot mount");
     }
     strcpy(kproc.cwd, "/");
@@ -50,7 +53,7 @@ void kmain(void)
         struct vnode *host = hostfs_init();
 
         if (host != NULL) {
-            vfs_mount("/host", host);
+            vfs_mount("/host", host, "hostfs");
         }
     }
     for (i = 0; i < 3; i++) {           /* the streams every process inherits */

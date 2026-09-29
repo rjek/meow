@@ -28,5 +28,19 @@ cd /
 sleep 500 &
 ps
 echo a | cat | cat | wc
+mkdir /tmp/a /tmp/a/b
+mkdir /tmp/a
+ls /tmp/a
+rm /tmp/a/b /tmp/a
+rm /tmp/a
+uname
+uname -a
+uname -r -m
+mount
+ls /proc
+cat /proc/self/cmdline
+cat /proc/1/status
+cat /proc/self/threads
+ls /ipc
 echo done
 exit 4

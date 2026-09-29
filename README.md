@@ -31,7 +31,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | `simulator/` | `msim` |
 | `libc/` | C library: PDCLib, musl's maths and the MEOW platform layer |
 | `lua/` | Lua 5.4.7, built for MEOW and run under `msim` |
-| `os/` | Catflap, the operating system: kernel in `os/kernel/` |
+| `os/` | Catflap, the operating system: kernel in `os/kernel/`, programs in `os/bin/`; `make -C os run` boots it |
 | `tests/` | Regression tests for the assembler, linker, simulator, C compiler, C library, Lua and Catflap |
 | `attic/` | Abandoned work: the Lua assembler, lcc port, libc, VHDL, Catflap OS.  Not maintained |
 

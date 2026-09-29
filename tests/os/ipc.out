@@ -1,0 +1,15 @@
+Catflap: 256 KB RAM
+create: 0 0, again: -17, bad size: -22
+threads: sum of squares 650, expected 650
+short write: -22, try on empty: 0
+/ipc: work(mq 0) results(mq 0) ping(mq 0) pong(mq 0) ready(sem 0)
+trywait before: 0
+child is ready
+1->2 2->4 3->6 4->8 5->10 
+child exited 0
+count 2, take 1 1 0, after a post 1
+/ipc:
+unlinked but open: 42
+ipctest exited 0
+0 bytes fewer free than before
+exit 0

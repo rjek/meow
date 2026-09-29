@@ -103,6 +103,9 @@ PDCLib:
   `_PDCLIB_stdstream()` rather than the addresses of the stream objects,
   so that a program under Catflap, whose own code is not compiled with
   `-zsb`, reaches its process's copies of them.
+- `functions/_PDCLIB/_PDCLIB_scan.c`: `%s` treated leading whitespace
+  as a failure to match rather than skipping it, so a second `scanf`
+  after a line had been read found nothing.
 - `functions/stdio/remove.c` is left out of the build: it calls `unlink`
   rather than the `_PDCLIB_remove` hook the rest of the glue uses.
 - `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end

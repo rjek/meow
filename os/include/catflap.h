@@ -18,6 +18,8 @@
 #define CF_V_DIR        1
 #define CF_V_DEV        2
 #define CF_V_PIPE       3
+#define CF_V_MQ         4
+#define CF_V_SEM        5
 
 struct cf_stat {
     int type;
@@ -55,12 +57,24 @@ int process_wait(int pid, int *status);
 int process_waitany(int *status, int block);   /* a pid, 0, or -ECHILD */
 void *process_sbrk(int increment);
 int process_pid(void);
-struct cf_procinfo {
-    int pid, parent, nthreads, dead;
-    char name[32];
-};
-int process_info(int index, struct cf_procinfo *info);   /* 0 at the end */
-unsigned kmem_free(void);
+
+/* threads within the program: fn(arg) runs until it returns.  stack 0
+   means 4 KB; prio 1 to 6, anything else the default of 4.  The C
+   library keeps no locks: only one thread at a time may use stdio or
+   malloc. */
+int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);
+int thread_id(void);
+
+/* named IPC in /ipc: open the name after creating it.  A queue's write
+   sends exactly one message of its size and its read takes one; a
+   semaphore's read waits and its write posts.  Both block. */
+#define CF_IPC_MQ       1               /* a is the message size, b the depth */
+#define CF_IPC_SEM      2               /* a is the starting count */
+#define CF_IPC_TRYSEND  0x4901          /* vfs_ioctl(fd, ., msg): 1 sent, 0 full */
+#define CF_IPC_TRYRECV  0x4902          /* vfs_ioctl(fd, ., buf): 1 received, 0 empty */
+#define CF_IPC_TRYWAIT  0x4903          /* vfs_ioctl(fd, ., 0): 1 taken, 0 not */
+#define CF_IPC_VALUE    0x4904          /* vfs_ioctl(fd, ., 0): messages waiting, or the count */
+int ipc_create(const char *name, int kind, int a, int b);
 
 /* time */
 unsigned ticks_now(void);               /* 100 a second since boot */

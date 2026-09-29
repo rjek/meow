@@ -10,6 +10,7 @@ struct mount {
     const char *path;                   /* "/" or "/dev": no trailing slash */
     size_t len;
     struct vnode *root;
+    const char *type;                   /* the file system's name, for /proc/mounts */
 };
 
 static struct mount mounts[NMOUNT];
@@ -48,7 +49,17 @@ void vnode_put(struct vnode *v)
     }
 }
 
-int vfs_mount(const char *path, struct vnode *root)
+int vfs_mount_info(int index, const char **path, const char **type)
+{
+    if (index < 0 || (unsigned)index >= nmounts) {
+        return 0;
+    }
+    *path = mounts[index].path;
+    *type = mounts[index].type;
+    return 1;
+}
+
+int vfs_mount(const char *path, struct vnode *root, const char *type)
 {
     struct mount *m;
 
@@ -59,6 +70,7 @@ int vfs_mount(const char *path, struct vnode *root)
     m->path = path;
     m->len = strlen(path);
     m->root = root;
+    m->type = type;
     return 0;
 }
 

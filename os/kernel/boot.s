@@ -7,6 +7,7 @@
         EXPORT  cpu_id
         EXPORT  kernel_time
         EXPORT  host_call
+        EXPORT  cpu_model
         IMPORT  kmain
         IMPORT  irq_dispatch
         IMPORT  switch_from
@@ -162,6 +163,14 @@ host_call
         BNV     #-18
         MOV     r0, ir
         LDR     r4, [sp], #4
+        RET
+
+; int cpu_model(void): which implementation this is
+cpu_model
+        BNV     #0
+        MOV     r0, ir
+        LSR     r0, #8
+        AND     r0, #0xff
         RET
 
 ; int cpu_id(void): this CPU's bus ID

@@ -1,0 +1,6 @@
+[/|romfs]
+[/dev|devfs]
+[/tmp|ramfs]
+r=-1 n=3
+single r=-1
+exit 0

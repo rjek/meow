@@ -22,6 +22,8 @@ $          bin/
          etc/
          dev/
          tmp/
+         proc/
+         ipc/
 $ $ $ /dev
 $ $ /tmp
 $ $ [20]
@@ -31,6 +33,38 @@ $   pid parent threads name
     1      0       1 sh
     0     -1       1 kernel
 $ 1 1 2
-$ done
+$ $ mkdir: /tmp/a: error 17
+sh: mkdir: exit 1
+$          b/
+$ $ rm: /tmp/a: error 2
+sh: rm: exit 1
+$ Catflap
+$ Catflap 0.7 MEOW msim
+$ 0.7 MEOW
+$ romfs on /
+devfs on /dev
+ramfs on /tmp
+procfs on /proc
+ipcfs on /ipc
+$        0 meminfo
+       0 uptime
+       0 mounts
+       0 version
+         self/
+         35/
+         20/
+         1/
+         0/
+$ cat /proc/self/cmdline
+$ name sh
+pid 1
+parent 0
+threads 1
+state running
+cwd /
+image 2736
+heap 0
+$ 39 running 4 4096
+$ $ done
 $ sh exited 4
 exit 0

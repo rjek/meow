@@ -113,6 +113,23 @@ char *strcpy(char *d, const char *s)
     return r;
 }
 
+/* Where the formatter's characters go: the console, or a buffer for
+   ksnprintf.  The kernel is never preempted, so one sink will do. */
+static char *sink_buf;
+static size_t sink_size, sink_len;
+
+static void emit(int c)
+{
+    if (sink_buf == NULL) {
+        console_putc(c);
+        return;
+    }
+    if (sink_len + 1 < sink_size) {
+        sink_buf[sink_len] = (char)c;
+    }
+    sink_len++;
+}
+
 static void put_num(unsigned long v, unsigned base, int upper, int width,
                     int zero, int neg)
 {
@@ -128,17 +145,17 @@ static void put_num(unsigned long v, unsigned base, int upper, int width,
         buf[n++] = '-';
     }
     while (width > n) {
-        console_putc(zero ? '0' : ' ');
+        emit(zero ? '0' : ' ');
         width--;
     }
     while (n > 0) {
-        console_putc(buf[--n]);
+        emit(buf[--n]);
     }
 }
 
 /* %d %i %u %x %X %p %s %c %%, with a width and a 0 flag; l is accepted
    and means nothing, since long is int here */
-void kvprintf(const char *fmt, va_list ap)
+static void format(const char *fmt, va_list ap)
 {
     while (*fmt != '\0') {
         int width = 0, zero = 0;
@@ -146,7 +163,7 @@ void kvprintf(const char *fmt, va_list ap)
         long v;
 
         if (*fmt != '%') {
-            console_putc(*fmt++);
+            emit(*fmt++);
             continue;
         }
         fmt++;
@@ -186,23 +203,54 @@ void kvprintf(const char *fmt, va_list ap)
             }
             width -= (int)strlen(s);
             while (width-- > 0) {
-                console_putc(' ');
+                emit(' ');
             }
-            console_puts(s);
+            while (*s != '\0') {
+                emit(*s++);
+            }
             break;
         case 'c':
-            console_putc(va_arg(ap, int));
+            emit(va_arg(ap, int));
             break;
         case '%':
-            console_putc('%');
+            emit('%');
             break;
         case '\0':
             return;
         default:
-            console_putc('?');
+            emit('?');
             break;
         }
     }
+}
+
+void kvprintf(const char *fmt, va_list ap)
+{
+    char *saved = sink_buf;             /* a panic while formatting still reaches the console */
+
+    sink_buf = NULL;
+    format(fmt, ap);
+    sink_buf = saved;
+}
+
+/* As snprintf: what would have been written, less the terminator */
+int ksnprintf(char *buf, size_t size, const char *fmt, ...)
+{
+    va_list ap;
+    size_t n;
+
+    sink_buf = buf;
+    sink_size = size;
+    sink_len = 0;
+    va_start(ap, fmt);
+    format(fmt, ap);
+    va_end(ap);
+    if (size > 0) {
+        buf[sink_len < size ? sink_len : size - 1] = '\0';
+    }
+    n = sink_len;
+    sink_buf = NULL;
+    return (int)n;
 }
 
 void kprintf(const char *fmt, ...)

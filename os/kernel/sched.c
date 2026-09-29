@@ -11,6 +11,7 @@ struct thread *switch_from, *switch_to;
 
 static struct thread idle_thread;
 static struct thread *all_threads;
+static int next_tid = 1;
 static struct thread *ready_head[NPRIO], *ready_tail[NPRIO];
 static struct thread *sleepers;         /* by wake time */
 static struct thread *zombies;
@@ -200,6 +201,7 @@ struct thread *thread_create_in(struct process *p, const char *name,
     t->regs[R_LR] = (uint32_t)thread_exit;   /* fn's return value is its status */
     t->regs[R_PC] = (uint32_t)fn;
     t->proc = p;
+    t->tid = next_tid++;
     t->all = all_threads;
     all_threads = t;
     enqueue(t);
@@ -262,6 +264,42 @@ static void thread_kill(struct thread *t)
     default:
         return;
     }
+}
+
+struct thread *thread_list(void)
+{
+    return all_threads;
+}
+
+int thread_id(void)
+{
+    return this_cpu()->current->tid;
+}
+
+/* Another thread in the calling program.  It runs fn(arg), and its
+   return is its end.  The process's thread count goes up first, in case
+   the new thread outranks the caller and has ended before this returns. */
+int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio)
+{
+    struct process *p = current_process();
+    struct thread *t;
+
+    if (p == &kproc) {
+        return -EINVAL;
+    }
+    if (prio < 1 || prio > PRIO_USER_MAX) {
+        prio = PRIO_DEFAULT;
+    }
+    kenter();
+    p->nthreads++;
+    t = thread_create_in(p, p->name, fn, arg, prio, stack != 0 ? stack : STACK_USER);
+    if (t == NULL) {
+        p->nthreads--;
+        kexit();
+        return -ENOMEM;
+    }
+    kexit();
+    return t->tid;
 }
 
 /* Every thread of p but the caller dies now. */

@@ -389,6 +389,20 @@ output compared.
    shell, and init halting the machine when the shell ends cleanly.
    `tests/os/lua.c`, with `tests/os/lua.host` as `/host`.  `make -C os
    run` boots with 1 MB and `os/` as `/host`.
+7. **Userland IPC, `/proc` and tools.**  Done.  Message queues and
+   semaphores are files in `/ipc`: `ipc_create` names one, `vfs_open`
+   opens it, a queue's `write` sends one message and its `read` takes
+   one, a semaphore's `read` waits and its `write` posts, `vfs_ioctl`
+   has the versions that do not block, and a child inherits them like
+   any descriptor.  An object lives while it is named or open.  A
+   program starts threads with `thread_spawn`; the C library keeps no
+   locks, so only one thread at a time may use stdio or `malloc`.
+   `/proc` holds `meminfo`, `uptime`, `mounts`, `version`, `self` and a
+   directory per process with `status`, `cmdline` and `threads`,
+   generated at each read; `ps`, `free`, `mount` and `uname` read it.
+   `mkdir` and `rm` join the tools.  `tests/os/ipc.c` runs
+   `/bin/ipctest`: three threads on a work queue, a second process
+   answering over named queues after a semaphore says it is ready.
 
 ## 13. Decisions taken, and open ones
 

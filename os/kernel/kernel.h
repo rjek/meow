@@ -30,6 +30,7 @@
 #define PRIO_IDLE       0
 #define PRIO_DEFAULT    4
 #define PRIO_INIT       7
+#define PRIO_USER_MAX   6               /* a program's threads stay below init's */
 #define STACK_DEFAULT   1024
 #define STACK_USER      4096            /* a program's main thread, unless it says */
 #define STACK_MAGIC     0x57ac6ed5u     /* the lowest word of every thread stack */
@@ -56,12 +57,15 @@ struct thread {
     size_t stack_size;
     const char *name;
     int exit_status;
+    int tid;
 };
 
 #define R_SP 11
 #define R_LR 12
 #define R_SR 14
 #define R_PC 15
+
+#define CATFLAP_VERSION "0.7"
 
 /* Per-CPU state.  One CPU today; the layout is what a second would
    index by cpu_id(). */
@@ -111,7 +115,7 @@ extern struct cpu cpu0;
 #define SEEK_CUR        1
 #define SEEK_END        2
 
-enum vnode_type { V_FILE, V_DIR, V_DEV, V_PIPE };
+enum vnode_type { V_FILE, V_DIR, V_DEV, V_PIPE, V_MQ, V_SEM };
 
 struct vnode;
 struct dirent {
@@ -199,11 +203,7 @@ int process_wait(int pid, int *status);
 void process_thread_gone(struct process *p);
 void *process_sbrk(int increment);
 int process_pid(void);
-struct procinfo {
-    int pid, parent, nthreads, dead;
-    char name[32];
-};
-int process_info(int index, struct procinfo *info);
+struct process *process_list(void);
 #define HEAP_CHUNK      (32 * 1024)     /* the least sbrk takes from the kernel at a time */
 int process_waitany(int *status, int block);
 void reap_orphans(void);
@@ -212,7 +212,8 @@ struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
                         uint32_t ino, uint32_t size);
 void vnode_get(struct vnode *v);
 void vnode_put(struct vnode *v);
-int vfs_mount(const char *path, struct vnode *root);
+int vfs_mount(const char *path, struct vnode *root, const char *type);
+int vfs_mount_info(int index, const char **path, const char **type);
 int vfs_lookup(const char *path, struct vnode **out);
 int vfs_open(const char *path, int flags);
 int vfs_close(int fd);
@@ -237,6 +238,17 @@ struct vnode *romfs_init(const void *image);
 struct vnode *devfs_init(void);
 struct vnode *ramfs_init(void);
 struct vnode *hostfs_init(void);
+struct vnode *procfs_init(void);
+struct vnode *ipcfs_init(void);
+
+/* ipcfs.c: named message queues and semaphores in /ipc */
+#define IPC_MQ          1
+#define IPC_SEM         2
+#define IPC_TRYSEND     0x4901          /* ioctl on a queue: arg the message; 1 sent, 0 full */
+#define IPC_TRYRECV     0x4902          /* ioctl on a queue: arg the buffer; 1 received, 0 empty */
+#define IPC_TRYWAIT     0x4903          /* ioctl on a semaphore: 1 taken, 0 not */
+#define IPC_VALUE       0x4904          /* ioctl on either: messages waiting, or the count */
+int ipc_create(const char *name, int kind, int a, int b);
 int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
 
 /* boot.s */
@@ -244,6 +256,7 @@ void kernel_halt(int status);
 int cpu_id(void);
 long kernel_time(void);
 int host_call(int op, int a, int b, int c, int d);
+int cpu_model(void);                    /* BNV #0's model byte: 0 msim, 1 MEOW1 */
 extern struct thread *switch_from, *switch_to;
 
 /* lib.c: the kernel's own, under the usual names here but not clashing
@@ -272,6 +285,7 @@ void strncpy_(char *d, const char *s, size_t size);   /* always terminated */
 
 void kvprintf(const char *fmt, va_list ap);
 void kprintf(const char *fmt, ...);
+int ksnprintf(char *buf, size_t size, const char *fmt, ...);
 void kpanic(const char *fmt, ...);
 
 /* sync.c */
@@ -335,6 +349,9 @@ struct thread *thread_create_in(struct process *p, const char *name,
                                 int (*fn)(void *), void *arg, int prio,
                                 size_t stack_size);
 void thread_kill_others(struct process *p);
+int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);
+int thread_id(void);
+struct thread *thread_list(void);
 void thread_exit(int status);
 void thread_yield(void);
 void thread_sleep(uint32_t ticks);

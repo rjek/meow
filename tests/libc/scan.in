@@ -1,0 +1,3 @@
+/ romfs
+/dev devfs
+/tmp ramfs

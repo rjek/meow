@@ -79,7 +79,7 @@ void msim_del_bnv(struct msim_ctx *ctx, signed int op)
 static void msim_builtin_get_model(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	ctx->r[MSIM_IR] = 0x00000100;
+	ctx->r[MSIM_IR] = 0x00000000;		/* the MEOW project's msim, revision 0 */
 }
 
 static void msim_builtin_get_bus_id(struct msim_ctx *ctx, signed int op,
