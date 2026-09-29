@@ -89,16 +89,96 @@ static struct mount *mount_for(const char *path, const char **rest)
     return best;
 }
 
+/* An absolute path with no ".", ".." or doubled slashes, from a path
+   that may be relative to the working directory. */
+static int normalise(const char *path, char *out)
+{
+    const char *cwd = current_process()->cwd;
+    char *w = out;
+    size_t len = 0;
+
+    if (path[0] != '/') {
+        len = strlen(cwd);
+        memcpy(out, cwd, len);
+        w = out + len;
+    }
+    while (*path != '\0') {
+        const char *start;
+        size_t n;
+
+        while (*path == '/') {
+            path++;
+        }
+        if (*path == '\0') {
+            break;
+        }
+        start = path;
+        while (*path != '\0' && *path != '/') {
+            path++;
+        }
+        n = (size_t)(path - start);
+        if (n == 1 && start[0] == '.') {
+            continue;
+        }
+        if (n == 2 && start[0] == '.' && start[1] == '.') {
+            while (w > out && *--w != '/') {
+            }
+            continue;
+        }
+        if ((size_t)(w - out) + n + 2 > PATH_MAX) {
+            return -ENAMETOOLONG;
+        }
+        *w++ = '/';
+        memcpy(w, start, n);
+        w += n;
+    }
+    if (w == out) {
+        *w++ = '/';
+    }
+    *w = '\0';
+    return 0;
+}
+
+/* Split a path into its directory and last name. */
+static int split(const char *path, char *dir, char *name)
+{
+    char full[PATH_MAX];
+    char *slash;
+    int rc = normalise(path, full);
+
+    if (rc < 0) {
+        return rc;
+    }
+    slash = strrchr(full, '/');
+    if (slash[1] == '\0') {
+        return -EINVAL;                 /* the root has no name */
+    }
+    if (strlen(slash + 1) > NAME_MAX) {
+        return -ENAMETOOLONG;
+    }
+    strcpy(name, slash + 1);
+    if (slash == full) {
+        strcpy(dir, "/");
+    } else {
+        memcpy(dir, full, (size_t)(slash - full));
+        dir[slash - full] = '\0';
+    }
+    return 0;
+}
+
 /* Walk to the vnode a path names, with a reference on it. */
 int vfs_lookup(const char *path, struct vnode **out)
 {
+    char full[PATH_MAX];
     const char *rest;
     struct mount *m;
     struct vnode *v;
+    int rc = normalise(path, full);
 
-    if (path[0] != '/') {
-        return -EINVAL;
+    if (rc < 0) {
+        return rc;
     }
+    path = full;
     m = mount_for(path, &rest);
     if (m == NULL) {
         return -ENOENT;
@@ -165,40 +245,188 @@ static struct file *fd_get(int fd)
     return fds[fd];
 }
 
-int vfs_open(const char *path, int flags)
+/* A descriptor on a vnode the caller holds a reference to; the file
+   takes the reference over. */
+int vfs_open_vnode(struct vnode *v, int flags)
 {
-    struct vnode *v;
-    struct file *f;
+    struct file *f = kmalloc(sizeof *f);
     int rc;
 
-    kenter();
-    rc = vfs_lookup(path, &v);
-    if (rc < 0) {
-        kexit();
-        return rc;
-    }
-    if (v->type == V_DIR && (flags & O_WRONLY) != 0) {
-        vnode_put(v);
-        kexit();
-        return -EISDIR;
-    }
-    f = kmalloc(sizeof *f);
     if (f == NULL) {
-        vnode_put(v);
-        kexit();
         return -ENOMEM;
     }
     f->v = v;
-    f->off = 0;
+    f->off = (flags & O_APPEND) != 0 ? v->size : 0;
     f->flags = flags;
     f->refs = 1;
     rc = fd_alloc(f);
     if (rc < 0) {
-        vnode_put(v);
         kfree(f);
+    }
+    return rc;
+}
+
+/* Make a file or directory in a directory that exists. */
+static int create(const char *path, int type, struct vnode **out)
+{
+    char dir[PATH_MAX], name[NAME_MAX + 1];
+    struct vnode *d;
+    int rc = split(path, dir, name);
+
+    if (rc < 0) {
+        return rc;
+    }
+    rc = vfs_lookup(dir, &d);
+    if (rc < 0) {
+        return rc;
+    }
+    if (d->type != V_DIR) {
+        rc = -ENOTDIR;
+    } else if (d->ops->create == NULL) {
+        rc = -EROFS;
+    } else {
+        rc = d->ops->create(d, name, type, out);
+    }
+    vnode_put(d);
+    return rc;
+}
+
+int vfs_open(const char *path, int flags)
+{
+    struct vnode *v;
+    int rc;
+
+    kenter();
+    rc = vfs_lookup(path, &v);
+    if (rc == -ENOENT && (flags & O_CREAT) != 0) {
+        rc = create(path, V_FILE, &v);
+    }
+    if (rc < 0) {
+        kexit();
+        return rc;
+    }
+    if (v->type == V_DIR && (flags & (O_WRONLY | O_RDWR)) != 0) {
+        vnode_put(v);
+        kexit();
+        return -EISDIR;
+    }
+    if ((flags & O_TRUNC) != 0 && v->type == V_FILE) {
+        if (v->ops->truncate == NULL) {
+            vnode_put(v);
+            kexit();
+            return -EROFS;
+        }
+        v->ops->truncate(v);
+    }
+    rc = vfs_open_vnode(v, flags);
+    if (rc < 0) {
+        vnode_put(v);
     }
     kexit();
     return rc;
+}
+
+int vfs_dup(int fd)
+{
+    struct file *f = fd_get(fd);
+    int rc;
+
+    if (f == NULL) {
+        return -EBADF;
+    }
+    kenter();
+    rc = fd_alloc(f);
+    if (rc >= 0) {
+        f->refs++;
+    }
+    kexit();
+    return rc;
+}
+
+int vfs_dup2(int fd, int to)
+{
+    struct file *f = fd_get(fd);
+
+    if (f == NULL || to < 0 || to >= NFD) {
+        return -EBADF;
+    }
+    if (to == fd) {
+        return to;
+    }
+    kenter();
+    if (fds[to] != NULL) {
+        vfs_close(to);
+    }
+    fds[to] = f;
+    f->refs++;
+    kexit();
+    return to;
+}
+
+int vfs_mkdir(const char *path)
+{
+    struct vnode *v;
+    int rc;
+
+    kenter();
+    rc = create(path, V_DIR, &v);
+    if (rc == 0) {
+        vnode_put(v);
+    }
+    kexit();
+    return rc;
+}
+
+int vfs_unlink(const char *path)
+{
+    char dir[PATH_MAX], name[NAME_MAX + 1];
+    struct vnode *d;
+    int rc;
+
+    kenter();
+    rc = split(path, dir, name);
+    if (rc == 0) {
+        rc = vfs_lookup(dir, &d);
+    }
+    if (rc == 0) {
+        rc = d->ops->unlink == NULL ? -EROFS : d->ops->unlink(d, name);
+        vnode_put(d);
+    }
+    kexit();
+    return rc;
+}
+
+int vfs_chdir(const char *path)
+{
+    char full[PATH_MAX];
+    struct vnode *v;
+    int rc;
+
+    kenter();
+    rc = normalise(path, full);
+    if (rc == 0) {
+        rc = vfs_lookup(full, &v);
+    }
+    if (rc == 0) {
+        rc = v->type == V_DIR ? 0 : -ENOTDIR;
+        vnode_put(v);
+    }
+    if (rc == 0) {
+        strcpy(current_process()->cwd, full);
+    }
+    kexit();
+    return rc;
+}
+
+int vfs_getcwd(char *buf, size_t size)
+{
+    const char *cwd = current_process()->cwd;
+
+    if (strlen(cwd) + 1 > size) {
+        return -ENAMETOOLONG;
+    }
+    strcpy(buf, cwd);
+    return 0;
 }
 
 int vfs_close(int fd)
@@ -211,6 +439,9 @@ int vfs_close(int fd)
     kenter();
     fds[fd] = NULL;
     if (--f->refs == 0) {
+        if (f->v->type == V_PIPE) {
+            pipe_end_closed(f->v, f->flags);
+        }
         vnode_put(f->v);
         kfree(f);
     }
@@ -249,6 +480,9 @@ int vfs_write(int fd, const void *buf, size_t len)
     }
     if (f->v->ops->write == NULL) {
         return -EROFS;
+    }
+    if ((f->flags & O_APPEND) != 0) {
+        f->off = f->v->size;
     }
     n = f->v->ops->write(f->v, buf, len, f->off);
     if (n > 0) {

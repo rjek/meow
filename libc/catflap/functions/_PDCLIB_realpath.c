@@ -6,26 +6,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include "pdclib/_PDCLIB_glue.h"
+#include "catflap.h"
 
-/* The kernel's paths are absolute already; a relative one is taken from
-   the root until there is a working directory to take it from. */
+/* An absolute path: the kernel resolves relative ones against the
+   working directory, so this only spells that out. */
 char * _PDCLIB_realpath( const char * path )
 {
-    size_t n = strlen( path );
-    char * copy = malloc( n + 2 );
+    char cwd[128];
+    size_t n = strlen( path ), c = 0;
+    char * copy;
 
+    if ( path[0] != '/' )
+    {
+        if ( vfs_getcwd( cwd, sizeof cwd ) < 0 )
+        {
+            return NULL;
+        }
+        c = strlen( cwd );
+    }
+    copy = malloc( c + n + 2 );
     if ( copy == NULL )
     {
         return NULL;
     }
-    if ( path[0] == '/' )
+    if ( c > 0 )
     {
-        memcpy( copy, path, n + 1 );
+        memcpy( copy, cwd, c );
+        if ( cwd[c - 1] != '/' )
+        {
+            copy[c++] = '/';
+        }
     }
-    else
-    {
-        copy[0] = '/';
-        memcpy( copy + 1, path, n + 1 );
-    }
+    memcpy( copy + c, path, n + 1 );
     return copy;
 }

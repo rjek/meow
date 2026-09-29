@@ -99,6 +99,10 @@ PDCLib:
   it dropped every digit after it, generated one digit too many and
   truncated it instead of rounding, and ignored `#`; a carry that ran
   off the front of the digits gained an extra power of ten.
+- `include/stdio.h`: `stdin`, `stdout` and `stderr` are calls to a new
+  `_PDCLIB_stdstream()` rather than the addresses of the stream objects,
+  so that a program under Catflap, whose own code is not compiled with
+  `-zsb`, reaches its process's copies of them.
 - `functions/stdio/remove.c` is left out of the build: it calls `unlink`
   rather than the `_PDCLIB_remove` hook the rest of the glue uses.
 - `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end

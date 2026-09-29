@@ -140,7 +140,7 @@ static int romfs_readdir(struct vnode *v, uint32_t index, struct dirent *de)
 }
 
 static const struct vnode_ops romfs_ops = {
-    romfs_lookup, romfs_read, NULL, romfs_readdir, NULL, NULL, NULL, NULL
+    romfs_lookup, romfs_read, NULL, romfs_readdir, NULL, NULL, NULL, NULL, NULL
 };
 
 /* The root vnode of the image in ROM, or NULL if there is none. */

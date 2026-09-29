@@ -206,12 +206,14 @@ int process_spawn(const char *path, int argc, char *const argv[])
     p->argc = argc;
     p->entry = entry;
     p->name = p->argv[0];
+    strcpy(p->cwd, parent->cwd);
     for (i = 0; i < 3; i++) {           /* the standard streams come along */
         p->fds[i] = parent->fds[i];
         if (p->fds[i] != NULL) {
             p->fds[i]->refs++;
         }
     }
+
     p->next = procs;
     procs = p;
     p->main = thread_create_in(p, p->name, process_main, p, PRIO_DEFAULT, STACK_USER);
@@ -279,6 +281,7 @@ int process_wait(int pid, int *status)
     while (p->dead == 0 || p->nthreads != 0) {
         waitq_wait(&p->waiters);
     }
+    reap_zombies();                     /* its threads, before its memory is counted */
     for (pp = &procs; *pp != p; pp = &(*pp)->next) {
     }
     *pp = p->next;
@@ -297,6 +300,25 @@ int process_wait(int pid, int *status)
 int process_pid(void)
 {
     return current_process()->pid;
+}
+
+/* The index-th process, for ps; 0 at the end. */
+int process_info(int index, struct procinfo *info)
+{
+    struct process *p;
+
+    for (p = procs; p != NULL && index > 0; p = p->next) {
+        index--;
+    }
+    if (p == NULL) {
+        return 0;
+    }
+    info->pid = p->pid;
+    info->parent = p->parent != NULL ? p->parent->pid : -1;
+    info->nthreads = p->nthreads;
+    info->dead = p->dead;
+    strncpy_(info->name, p->name != NULL ? p->name : "?", sizeof info->name);
+    return 1;
 }
 
 /* The program's heap: one block, taken from the kernel's on first use,

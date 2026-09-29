@@ -21,7 +21,7 @@ KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o
 # through each process's displacement, and linked between the two marker
 # objects.  The flags are libc/Makefile's.
 LIBC = ../libc
-LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=200 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
+LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=8 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
 MUSL_CFLAGS = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
               -I$(LIBC)/meow/musl -I$(LIBC)/musl/src/internal
 DLMALLOC_CFLAGS = -DHAVE_MMAP=0 -DHAVE_MORECORE=1 -DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H \
@@ -41,7 +41,7 @@ ROOT := $(shell find root -type f)
 all: catflap.rom obj/link.list
 
 # what tests/runos.sh links a test kernel from: everything but init.o
-obj/link.list: Makefile
+obj/link.list: Makefile $(KSRCS) $(CATFLAP_SRCS)
 	@mkdir -p obj
 	echo $(filter-out obj/kernel/init.o,$(LINK)) > $@
 

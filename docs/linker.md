@@ -12,7 +12,7 @@ mld [-o output] [-f elf|bin] [-b base] [-d base] [-M map] [-e symbol] input.o...
 | `-o output` | Output file.  Default `a.out`.  A name ending `.bin` or `.rom` selects a flat image |
 | `-f elf` or `-f bin` | Output format: an ELF executable with final addresses and a symbol table, or a flat image |
 | `-b base` | Address of the first byte.  Default 0 |
-| `-d base` | Run address of data and BSS, for an image that lives in ROM.  Without it they follow the code |
+| `-d base` | Run address of writable data and BSS, for an image that lives in ROM; read-only data stays with the code.  Without it they follow the code |
 | `-M map` | Write a map of sections and symbols (`-` for standard output) |
 | `-e symbol` | Entry point.  Otherwise `__entry` (which `mas` defines from `ENTRY`), then `start`, then `main`, then 0 |
 

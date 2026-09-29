@@ -48,9 +48,13 @@ extern struct _PDCLIB_file_t _PDCLIB_sin;
 extern struct _PDCLIB_file_t _PDCLIB_sout;
 extern struct _PDCLIB_file_t _PDCLIB_serr;
 
-#define stdin  ( &_PDCLIB_sin )
-#define stdout ( &_PDCLIB_sout )
-#define stderr ( &_PDCLIB_serr )
+/* MEOW: through a function, so that under Catflap a program reaches the
+   copies of the streams that belong to its process, not the library's
+   originals; see os/docs/catflap.md */
+struct _PDCLIB_file_t * _PDCLIB_stdstream( int which );
+#define stdin  ( _PDCLIB_stdstream( 0 ) )
+#define stdout ( _PDCLIB_stdstream( 1 ) )
+#define stderr ( _PDCLIB_stdstream( 2 ) )
 
 /* Operations on files */
 

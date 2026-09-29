@@ -159,8 +159,8 @@ static struct osec *osec_lookup(const char *name, uint32_t type,
 	s->align = 1;
 	if (type == MELF_SHT_NOBITS) {
 		s->order = 2;
-	} else if ((flags & MELF_SHF_EXECINSTR) != 0) {
-		s->order = 0;
+	} else if ((flags & MELF_SHF_WRITE) == 0) {
+		s->order = 0;		/* code and read-only data stay with the ROM */
 	} else {
 		s->order = 1;
 	}

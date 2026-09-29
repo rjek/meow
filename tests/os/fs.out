@@ -1,0 +1,17 @@
+Catflap: 256 KB RAM
+pipe: 0
+writer: 1050 bytes
+reader: 1050 bytes, 50 lines, then 0
+write to closed pipe: -32
+mkdir /tmp/d: 0, again: -17, in romfs: -30
+create: 3
+tail: 0123456789END (13)
+chdir: 0
+cwd /tmp/d, relative open ok, ../d/./f: ok, ../../etc/motd: ok
+/tmp: d/(0)
+.: f(303) g(2)
+unlink dir with files: -39
+unlink f: 0, g: 0, gone: -2, dir now: 0
+/tmp:
+captured: this goes to the file
+exit 0

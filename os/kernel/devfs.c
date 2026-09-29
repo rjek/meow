@@ -52,7 +52,7 @@ static int devfs_readdir(struct vnode *v, uint32_t index, struct dirent *de)
 }
 
 static const struct vnode_ops devfs_ops = {
-    devfs_lookup, NULL, NULL, devfs_readdir, NULL, NULL, NULL, NULL
+    devfs_lookup, NULL, NULL, devfs_readdir, NULL, NULL, NULL, NULL, NULL
 };
 
 /* ---- the devices themselves ---- */
@@ -93,7 +93,7 @@ static int console_write(struct vnode *v, const void *buf, size_t len, uint32_t 
 }
 
 static const struct vnode_ops console_ops = {
-    NULL, console_read, console_write, NULL, NULL, NULL, NULL, NULL
+    NULL, console_read, console_write, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static int null_read(struct vnode *v, void *buf, size_t len, uint32_t off)
@@ -109,7 +109,7 @@ static int null_write(struct vnode *v, const void *buf, size_t len, uint32_t off
 }
 
 static const struct vnode_ops null_ops = {
-    NULL, null_read, null_write, NULL, NULL, NULL, NULL, NULL
+    NULL, null_read, null_write, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 struct vnode *devfs_init(void)

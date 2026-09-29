@@ -82,6 +82,28 @@ char *strchr(const char *s, int c)
     return (char *)s;
 }
 
+char *strrchr(const char *s, int c)
+{
+    const char *last = NULL;
+
+    do {
+        if (*s == (char)c) {
+            last = s;
+        }
+    } while (*s++ != '\0');
+    return (char *)last;
+}
+
+void strncpy_(char *d, const char *s, size_t size)
+{
+    size_t i;
+
+    for (i = 0; i + 1 < size && s[i] != '\0'; i++) {
+        d[i] = s[i];
+    }
+    d[i] = '\0';
+}
+
 char *strcpy(char *d, const char *s)
 {
     char *r = d;

@@ -1,0 +1,24 @@
+echo hello world
+# a comment
+ls /etc
+cat /etc/motd
+cat /etc/motd /etc/config | wc
+echo one two three | wc
+pwd
+cd /tmp
+pwd
+echo written to a file > f
+echo appended >> f
+cat f
+cat < f | wc
+ls
+cd ..
+ls /tmp
+nosuch
+cat /nowhere
+ls /dev
+sleep 500 &
+ps
+echo a | cat | cat | wc
+echo done
+exit 4

@@ -94,6 +94,7 @@ extern struct cpu cpu0;
 #define ENOTEMPTY       39
 #define ENOEXEC         8
 #define ECHILD          10
+#define EPIPE           32
 
 /* The file system */
 #define NFD             16
@@ -133,6 +134,7 @@ struct vnode_ops {
     int (*unlink)(struct vnode *dir, const char *name);
     int (*ioctl)(struct vnode *v, int req, void *arg);
     void (*release)(struct vnode *v);
+    int (*truncate)(struct vnode *v);
 };
 
 struct vnode {
@@ -172,6 +174,7 @@ struct process {
     size_t heap_size;
     size_t brk;
     struct file *fds[NFD];
+    char cwd[PATH_MAX];
     struct waitq waiters;
 };
 
@@ -186,6 +189,11 @@ int process_wait(int pid, int *status);
 void process_thread_gone(struct process *p);
 void *process_sbrk(int increment);
 int process_pid(void);
+struct procinfo {
+    int pid, parent, nthreads, dead;
+    char name[32];
+};
+int process_info(int index, struct procinfo *info);
 #define HEAP_DEFAULT    (32 * 1024)     /* a process's heap until it asks for more */
 
 /* vfs.c */
@@ -203,10 +211,20 @@ int vfs_seek(int fd, int32_t off, int whence);
 int vfs_readdir(int fd, struct dirent *de);
 int vfs_stat(const char *path, struct stat *st);
 int vfs_ioctl(int fd, int req, void *arg);
+int vfs_open_vnode(struct vnode *v, int flags);
+int vfs_dup(int fd);
+int vfs_dup2(int fd, int to);
+int vfs_mkdir(const char *path);
+int vfs_unlink(const char *path);
+int vfs_chdir(const char *path);
+int vfs_getcwd(char *buf, size_t size);
+int vfs_pipe(int fds[2]);
+void pipe_end_closed(struct vnode *v, int flags);
 
 /* romfs.c, devfs.c */
 struct vnode *romfs_init(const void *image);
 struct vnode *devfs_init(void);
+struct vnode *ramfs_init(void);
 int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
 
 /* boot.s */
@@ -226,6 +244,7 @@ extern struct thread *switch_from, *switch_to;
 #define strcpy k_strcpy
 #define strcat k_strcat
 #define strchr k_strchr
+#define strrchr k_strrchr
 void *memcpy(void *d, const void *s, size_t n);
 void *memset(void *d, int c, size_t n);
 size_t strlen(const char *s);
@@ -235,6 +254,9 @@ int memcmp(const void *a, const void *b, size_t n);
 char *strcpy(char *d, const char *s);
 char *strcat(char *d, const char *s);
 char *strchr(const char *s, int c);
+char *strrchr(const char *s, int c);
+void strncpy_(char *d, const char *s, size_t size);   /* always terminated */
+
 void kvprintf(const char *fmt, va_list ap);
 void kprintf(const char *fmt, ...);
 void kpanic(const char *fmt, ...);
@@ -311,6 +333,7 @@ void schedule(void);
 void thread_ready(struct thread *t);
 void thread_block(void);
 void idle_work(void);
+void reap_zombies(void);
 void irq_dispatch(void);
 
 /* whoever provides init_main: init.c, or a test */

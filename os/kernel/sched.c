@@ -177,6 +177,7 @@ struct thread *thread_create_in(struct process *p, const char *name,
     struct thread *t;
 
     kenter();
+    reap_zombies();
     t = kmalloc(sizeof *t);
     if (t == NULL) {
         kexit();
@@ -280,8 +281,9 @@ void thread_kill_others(struct process *p)
     }
 }
 
-/* The idle thread's chores: free what has finished. */
-void idle_work(void)
+/* Free the threads that have finished.  Any thread may do this from
+   inside the kernel; a zombie is never running and never switched to. */
+void reap_zombies(void)
 {
     kenter();
     while (zombies != NULL) {
@@ -295,6 +297,12 @@ void idle_work(void)
         kfree(t);
     }
     kexit();
+}
+
+/* The idle thread's chores. */
+void idle_work(void)
+{
+    reap_zombies();
 }
 
 /* Choose the next thread and tell boot.s.  Runs in the interrupt bank. */

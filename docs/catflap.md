@@ -366,7 +366,14 @@ output compared.
    library in the image with `libc/catflap/`.  `tests/os/proc.c` and
    `prog.c`: two processes use `printf`, `strtod`, `fopen`, `malloc`,
    `setjmp` and `atexit` at once from one copy of the library.
-5. **Shell, pipes, ramfs, utilities.**  Test: a scripted shell session.
+5. **Shell, pipes, ramfs, utilities.**  Done: pipes, `/tmp` in RAM,
+   `dup2`, a working directory, `sh` with pipelines and redirection,
+   `ls`, `cat`, `echo`, `wc`, `ps`, `free`, `uptime`, `sleep`.
+   `tests/os/fs.c` and `shell.c`, a scripted session.  Two lessons: a
+   program's own code is not displaced, so `stdin` and friends must be
+   reached through a library function, not by address; and read-only
+   data belongs in ROM, which `mld` now does, halving what a process
+   costs on a 256 KB machine.
 6. **hostfs and Lua.**  Test: Lua runs a script from `/host`.
 
 ## 13. Decisions taken, and open ones

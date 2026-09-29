@@ -40,6 +40,13 @@ int vfs_seek(int fd, int off, int whence);
 int vfs_readdir(int fd, struct cf_dirent *de);
 int vfs_stat(const char *path, struct cf_stat *st);
 int vfs_ioctl(int fd, int req, void *arg);
+int vfs_dup(int fd);
+int vfs_dup2(int fd, int to);
+int vfs_mkdir(const char *path);
+int vfs_unlink(const char *path);
+int vfs_chdir(const char *path);
+int vfs_getcwd(char *buf, unsigned size);
+int vfs_pipe(int fds[2]);
 
 /* processes */
 int process_spawn(const char *path, int argc, char *const argv[]);
@@ -47,6 +54,12 @@ void process_exit(int status);
 int process_wait(int pid, int *status);
 void *process_sbrk(int increment);
 int process_pid(void);
+struct cf_procinfo {
+    int pid, parent, nthreads, dead;
+    char name[32];
+};
+int process_info(int index, struct cf_procinfo *info);   /* 0 at the end */
+unsigned kmem_free(void);
 
 /* time */
 unsigned ticks_now(void);               /* 100 a second since boot */
