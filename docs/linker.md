@@ -13,7 +13,7 @@ mld [-o output] [-f elf|bin|cfx] [-b base] [-d base] [-M map] [-e symbol]
 | `-o output` | Output file.  Default `a.out`.  A name ending `.bin` or `.rom` selects a flat image |
 | `-f elf`, `-f bin` or `-f cfx` | Output format: an ELF executable with final addresses and a symbol table, a flat image, or a Catflap program (below) |
 | `-b base` | Address of the first byte.  Default 0 |
-| `-d base` | Run address of writable data and BSS, for an image that lives in ROM; read-only data stays with the code.  Without it they follow the code |
+| `-d base` | Run address of writable data and BSS, for an image that lives in ROM; read-only data stays with the code.  Without it they follow the code.  The base may be a symbol's name, looked up in the `-S` executables |
 | `-M map` | Write a map of sections and symbols (`-` for standard output) |
 | `-e symbol` | Entry point.  Otherwise `__entry` (which `mas` defines from `ENTRY`), then `start`, then `main`, then 0 |
 | `-S executable` | Resolve whatever is still undefined from an ELF executable's global symbols, as absolute addresses.  A Catflap program links against the kernel and its C library this way |
@@ -34,31 +34,15 @@ sections first, then data, then BSS, consecutively from the base address,
 each aligned to at least 4 bytes.  A flat image ends after the last data
 section; BSS occupies no bytes in the file.
 
-A `cfx` image is what Catflap loads: linked at 0 with data following
-code, a six-word header (`CFX1`, image size, memory size including BSS,
-entry offset, relocation count, stack size), the image, then the offset
-of every word holding an address that the loader must add the load
-address to.  Addresses of symbols that `-S` resolved are absolute and
-left out of the list.
-
-With `-d`, data and BSS are linked to run at that address, typically RAM,
-while a flat image still stores the data initialisers straight after the
-code.  Start-up code copies them into place using the symbols the linker
-defines:
-
-| Symbol | Value |
-|---|---|
-| `__data_load` | Where the initialised data is stored in the image (equal to `__data_start` in an ELF executable, which a loader places directly) |
-| `__data_start`, `__data_end` | Where the initialised data runs |
-| `__bss_start`, `__bss_end` | Uninitialised data, to be zeroed |
-
-The runtime's `crt0.s` does exactly this before calling `main`.
-
-Every relocation is resolved: `ABS32`, `ABS16` and `ABS8` store the final
-address of the symbol plus addend (the narrower ones must fit), and
-`REL32` stores it relative to the relocated word.  A symbol defined in two
-objects, or referenced but defined in none, is an error naming the objects
-involved; nothing is written if there are errors.
-
-`mobjdump file` shows what went into or came out of the linker, and
-`mobjdump -d` disassembles the code sections at their final addresses.
+A `cfx` image is what Catflap loads, and needs `-d`, conventionally
+`-d __user_data_base` with the kernel as `-S`.  Code and read-only data
+are linked at 0, writable data and BSS at the data base.  The file is a
+twelve-word header (`CFX2`; code, data and BSS sizes; entry offset;
+stack size; the address the code is linked for, 0 until `mkromfs -b`
+prelinks it; the data base; and three counts), the code, the initialised
+data, then three lists of offsets: words in the code holding code
+addresses, words in the data holding code addresses, and words in the
+data holding data addresses.  A word in the code holding a data address
+is never listed: the objects must be compiled with `nmcc -zsb`, which
+adds the process's static base at run time instead.  Addresses of
+symbols that `-S` resolved are absolute and never listed.

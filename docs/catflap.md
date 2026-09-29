@@ -403,6 +403,27 @@ output compared.
    `mkdir` and `rm` join the tools.  `tests/os/ipc.c` runs
    `/bin/ipctest`: three threads on a work queue, a second process
    answering over named queues after a semaphore says it is ready.
+8. **Execute in place.**  Done.  Programs are compiled with `-zsb`, as
+   the library is, and their data is linked at `__user_data_base`, just
+   past the library's data range, so one static base per process serves
+   both: a process's data block is the library's data followed by the
+   program's.  `mkromfs -b` knows where the romfs will sit in ROM and
+   prelinks each program for where it lands.  At `spawn` the kernel asks
+   the file system for the file's address (`VFS_IOC_ADDR`, which romfs
+   answers); if the code is linked for exactly that address it runs
+   there, and otherwise, from `/tmp`, `/host`, or romfs built without
+   `-b`, it is copied to RAM and its code addresses moved, as before.
+   Either way only the data is copied, and a process that runs Lua now
+   costs 17 KB of data and its heap rather than 280 KB, and starts in a
+   quarter of the instructions; `-zsb` made no measurable difference to
+   Lua's speed.  `tests/os/xip.c` runs one program from ROM, from
+   `/host` and from a copy in `/tmp`.  Two rules follow.  Every object
+   in a program must be compiled with `-zsb`, since a word in code
+   holding a data address is never moved; mixing in one that is not
+   corrupts the kernel.  And a `const` object holding the address of
+   writable data, `int *const p = &x;`, sits in ROM with the linked
+   address in it and so points at the wrong place; nothing in the
+   library or the programs does this.
 
 ## 13. Decisions taken, and open ones
 

@@ -8,5 +8,7 @@ __libc_data_start
         DCD     0
         AREA    |.bss|, NOINIT
         EXPORT  __libc_data_end
+        EXPORT  __user_data_base
 __libc_data_end
         SPACE   4
+__user_data_base                        ; where programs' data is linked, just past this range

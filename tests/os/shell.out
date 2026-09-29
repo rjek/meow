@@ -24,6 +24,7 @@ $          bin/
          tmp/
          proc/
          ipc/
+         host/
 $ $ $ /dev
 $ $ /tmp
 $ $ [20]
@@ -46,6 +47,7 @@ devfs on /dev
 ramfs on /tmp
 procfs on /proc
 ipcfs on /ipc
+hostfs on /host
 $        0 meminfo
        0 uptime
        0 mounts
@@ -62,7 +64,8 @@ parent 0
 threads 1
 state running
 cwd /
-image 2736
+code 2700 rom
+data 16916
 heap 0
 $ 39 running 4 4096
 $ $ done

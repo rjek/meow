@@ -85,10 +85,11 @@ static int generate(int kind, int pid, char *buf, size_t size)
             for (b = p->heap; b != NULL; b = b->next) {
                 heap += b->size;
             }
-            ADD("name %s\npid %d\nparent %d\nthreads %d\nstate %s\ncwd %s\nimage %u\nheap %u\n",
+            ADD("name %s\npid %d\nparent %d\nthreads %d\nstate %s\ncwd %s\ncode %u %s\ndata %u\nheap %u\n",
                 p->name != NULL ? p->name : "?", p->pid, p->parent != NULL ? p->parent->pid : -1,
                 p->nthreads, p->dead != 0 ? "done" : "running", p->cwd,
-                (unsigned)p->image_size, (unsigned)heap);
+                (unsigned)p->code_size, p->image == NULL ? "rom" : "ram",
+                (unsigned)p->data_size, (unsigned)heap);
         }
         break;
     case P_CMDLINE:

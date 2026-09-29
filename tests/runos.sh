@@ -5,7 +5,9 @@
 # with os/root, and the ROM runs under msim with 256 KB of RAM.  Standard
 # output and the exit status must match os/NAME.out; os/NAME.in, if there
 # is one, is standard input; os/NAME.ram, if there is one, holds the RAM
-# size in KB instead; os/NAME.host, if there is one, is lent as /host.
+# size in KB instead; os/NAME.host, if there is one, is lent as /host,
+# and otherwise the tree the romfs was made from is, so that the same
+# programs can be run from ROM, in place, and from /host, copied.
 cd "$(dirname "$0")" || exit 2
 NMCC=${NMCC:-../../norcroft-ng/bin/nmcc}
 MLD=${MLD:-../ld/mld}
@@ -47,17 +49,19 @@ for src in os/*.c; do
 		p=$(basename "$prog"); p=${p%.[oa]}
 		stack=0
 		[ "$p" = lua ] && stack=16384
-		if ! $MLD -f cfx -k $stack -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" 2>"$tmp.err"; then
+		if ! $MLD -f cfx -d __user_data_base -k $stack -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" 2>"$tmp.err"; then
 			echo "FAIL $src: cannot link program $p"
 			cat "$tmp.err"
 			break
 		fi
 	done
-	"$OS/obj/mkromfs" "$tmp.img" "$tmp.root" > /dev/null
+	base=$(( $(wc -c < "$tmp.bin") + $(wc -c < "$tmp.rl") ))
+	"$OS/obj/mkromfs" -b $base "$tmp.img" "$tmp.root" > /dev/null
 	cat "$tmp.bin" "$tmp.rl" "$tmp.img" > "$tmp.rom"
 	if [ -f "$name.in" ]; then stdin="$name.in"; else stdin=/dev/null; fi
 	if [ -f "$name.ram" ]; then ram=$(cat "$name.ram"); else ram=256; fi
-	if [ -d "$name.host" ]; then host="-H $name.host"; else host=; fi
+	# the programs, unprelinked, are on /host unless the test brings its own
+	if [ -d "$name.host" ]; then host="-H $name.host"; else host="-H $tmp.root"; fi
 	$MSIM -q -r "$tmp.rom" -m $ram $host -c 200000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if cmp -s "$tmp.out" "$name.out"; then

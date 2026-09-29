@@ -55,6 +55,8 @@ struct place {
 	uint32_t addr;		/* where the word is */
 	uint32_t value;		/* what was written */
 	bool relocatable;	/* the target is in a placed section */
+	bool in_code;		/* the word is in code or read-only data */
+	bool to_code;		/* the target is */
 };
 
 static struct place *places;
@@ -514,8 +516,14 @@ static void apply_relocs(struct input *in)
 				places = xrealloc(places, (nplaces + 1) * sizeof *places);
 				places[nplaces].addr = place;
 				places[nplaces].value = v;
-				places[nplaces].relocatable = s->bind == MELF_STB_GLOBAL ?
-					gsym_lookup(s->name)->sec != NULL : vsec != NULL;
+				{
+					struct osec *t = s->bind == MELF_STB_GLOBAL ?
+						gsym_lookup(s->name)->sec : vsec;
+
+					places[nplaces].relocatable = t != NULL;
+					places[nplaces].in_code = o->order == 0;
+					places[nplaces].to_code = t != NULL && t->order == 0;
+				}
 				nplaces++;
 			}
 		}
@@ -684,15 +692,44 @@ static void write_flat(const char *path, uint32_t base)
 	}
 }
 
-/* A loadable image: linked at 0 with data following code, a header, the
- * bytes, then the offsets of every word that holds an address and must
- * have the load address added.  Words that name absolute symbols (the
- * kernel, the library) are left alone. */
-static void write_cfx(const char *path, uint32_t entry)
+/* A Catflap program: code and read-only data linked at 0, writable data
+ * and BSS at the data base, which is where the process's data block puts
+ * them relative to its static base.  A twelve-word header, the code, the
+ * initialised data, then three lists of offsets: words in the code that
+ * hold code addresses, words in the data that hold code addresses, and
+ * words in the data that hold data addresses.  Code never holds a data
+ * address that needs moving, since everything is compiled with -zsb.
+ * Words naming absolute symbols (the kernel, the library) are left out. */
+static void write_cfx_segment(FILE *f, int code, uint32_t base, uint32_t size)
+{
+	uint32_t pos = 0;
+	unsigned i;
+
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+
+		if ((o->order == 0) != code || o->type == MELF_SHT_NOBITS || o->size == 0) {
+			continue;
+		}
+		while (pos < o->addr - base) {
+			fputc(0, f);
+			pos++;
+		}
+		fwrite(o->data, 1, o->size, f);
+		pos += o->size;
+	}
+	while (pos < size) {
+		fputc(0, f);
+		pos++;
+	}
+}
+
+static void write_cfx(const char *path, uint32_t entry, uint32_t data_base)
 {
 	FILE *f = fopen(path, "wb");
-	uint32_t image_size = 0, mem_size = 0, pos = 0, n = 0, hdr[6];
-	unsigned i;
+	uint32_t code_size = 0, data_end = data_base, bss_end = data_base, hdr[12];
+	uint32_t ncc = 0, ndc = 0, ndd = 0;
+	unsigned i, pass;
 
 	if (f == NULL) {
 		error(NULL, "cannot write '%s'", path);
@@ -700,51 +737,92 @@ static void write_cfx(const char *path, uint32_t entry)
 	}
 	for (i = 0; i < nosecs; i++) {
 		struct osec *o = osecs[i];
+		uint32_t end = o->addr + o->size;
 
-		if (o->addr + o->size > mem_size) {
-			mem_size = o->addr + o->size;
-		}
-		if (o->type != MELF_SHT_NOBITS && o->load + o->size > image_size) {
-			image_size = o->load + o->size;
+		if (o->order == 0 && end > code_size) {
+			code_size = end;
+		} else if (o->order == 1 && end > data_end) {
+			data_end = end;
+		} else if (o->order == 2 && end > bss_end) {
+			bss_end = end;
 		}
 	}
-	image_size = align_up(image_size, 4);
-	mem_size = align_up(mem_size, 4);
+	code_size = align_up(code_size, 4);
+	data_end = align_up(data_end, 4);
+	bss_end = align_up(bss_end > data_end ? bss_end : data_end, 4);
 	for (i = 0; i < nplaces; i++) {
-		n += places[i].relocatable;
-	}
-	memcpy(hdr, "CFX1", 4);
-	hdr[1] = image_size;
-	hdr[2] = mem_size;
-	hdr[3] = entry;
-	hdr[4] = n;
-	hdr[5] = cfx_stack;
-	fwrite(hdr, 4, 6, f);
-	for (i = 0; i < nosecs; i++) {
-		struct osec *o = osecs[i];
+		struct place *p = &places[i];
 
-		if (o->type == MELF_SHT_NOBITS || o->size == 0) {
+		if (p->relocatable == false) {
 			continue;
 		}
-		while (pos < o->load) {
-			fputc(0, f);
-			pos++;
+		if (p->in_code == true && p->to_code == true) {
+			ncc++;
+		} else if (p->in_code == false) {
+			p->to_code == true ? ndc++ : ndd++;
 		}
-		fwrite(o->data, 1, o->size, f);
-		pos += o->size;
 	}
-	while (pos < image_size) {
-		fputc(0, f);
-		pos++;
-	}
-	for (i = 0; i < nplaces; i++) {
-		if (places[i].relocatable) {
-			fwrite(&places[i].addr, 4, 1, f);
+	memcpy(hdr, "CFX2", 4);
+	hdr[1] = code_size;
+	hdr[2] = data_end - data_base;
+	hdr[3] = bss_end - data_end;
+	hdr[4] = entry;
+	hdr[5] = cfx_stack;
+	hdr[6] = 0;			/* where the code is linked: mkromfs may move it */
+	hdr[7] = data_base;
+	hdr[8] = ncc;
+	hdr[9] = ndc;
+	hdr[10] = ndd;
+	hdr[11] = 0;
+	fwrite(hdr, 4, 12, f);
+	write_cfx_segment(f, 1, 0, code_size);
+	write_cfx_segment(f, 0, data_base, data_end - data_base);
+	for (pass = 0; pass < 3; pass++) {
+		for (i = 0; i < nplaces; i++) {
+			struct place *p = &places[i];
+			uint32_t off;
+
+			if (p->relocatable == false ||
+			    (pass == 0 && (p->in_code == false || p->to_code == false)) ||
+			    (pass == 1 && (p->in_code == true || p->to_code == false)) ||
+			    (pass == 2 && (p->in_code == true || p->to_code == true))) {
+				continue;
+			}
+			off = p->in_code == true ? p->addr : p->addr - data_base;
+			fwrite(&off, 4, 1, f);
 		}
 	}
 	if (fclose(f) != 0) {
 		error(NULL, "write error on '%s'", path);
 	}
+}
+
+/* A global symbol's value in the -S executables, for -d naming one */
+static bool symfile_value(const char *name, uint32_t *value)
+{
+	unsigned n;
+
+	for (n = 0; n < nsymfiles; n++) {
+		char err[128];
+		struct melf *e = melf_read(symfiles[n], err, sizeof err);
+		unsigned i;
+
+		if (e == NULL) {
+			continue;
+		}
+		for (i = 1; i < e->nsymbols; i++) {
+			struct melf_symbol *sym = &e->symbols[i];
+
+			if (sym->bind == MELF_STB_GLOBAL && sym->shndx != MELF_SHN_UNDEF &&
+			    strcmp(sym->name, name) == 0) {
+				*value = sym->value;
+				melf_free(e);
+				return true;
+			}
+		}
+		melf_free(e);
+	}
+	return false;
 }
 
 static void write_elf(const char *path, uint32_t entry)
@@ -1107,6 +1185,7 @@ int main(int argc, char *argv[])
 	uint32_t entry;
 	bool elf, cfx = false;
 	const char *reloc_list = NULL;
+	const char *data_base_arg = NULL;
 	int i;
 	unsigned k;
 
@@ -1139,7 +1218,7 @@ int main(int argc, char *argv[])
 			case 'f': format = v; break;
 			case 'b': base = (uint32_t)strtoul(v, NULL, 0); break;
 			case 'd':
-				data_base = (uint32_t)strtoul(v, NULL, 0);
+				data_base_arg = v;
 				have_data_base = true;
 				break;
 			case 'M': map = v; break;
@@ -1172,9 +1251,21 @@ int main(int argc, char *argv[])
 		elf = false;
 		cfx = true;
 		base = 0;
-		have_data_base = false;
 	} else {
 		usage();
+	}
+	if (data_base_arg != NULL) {
+		char *end;
+
+		data_base = (uint32_t)strtoul(data_base_arg, &end, 0);
+		if (*end != '\0' && symfile_value(data_base_arg, &data_base) == false) {
+			error(NULL, "-d %s: no such symbol in the -S files", data_base_arg);
+			return 1;
+		}
+	}
+	if (cfx == true && have_data_base == false) {
+		error(NULL, "-f cfx needs -d, the data base");
+		return 1;
 	}
 	for (k = 0; k < ninputs; k++) {
 		char err[128];
@@ -1221,7 +1312,7 @@ int main(int argc, char *argv[])
 	if (elf == true) {
 		write_elf(output, entry);
 	} else if (cfx == true) {
-		write_cfx(output, entry);
+		write_cfx(output, entry, data_base);
 	} else {
 		write_flat(output, base);
 	}

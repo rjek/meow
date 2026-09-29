@@ -9,7 +9,10 @@ MLD = ../ld/mld
 MSIM = ../simulator/msim
 HOSTCC = cc
 CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
-PCFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Iinclude
+# programs reach their static data through the process's static base, as
+# the library does, so that their code can run in place from ROM
+PCFLAGS = -zsb -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Iinclude
+PLINK = -f cfx -d __user_data_base -S obj/catflap.elf
 RT = ../rt/mul.o ../rt/div.o ../rt/ll.o ../rt/softfp.o
 RAM = 1024
 
@@ -64,25 +67,27 @@ obj/catflap.elf: $(LINK)
 # kernel's and the library's symbols absolute
 obj/root/bin/%: obj/bin/%.o obj/lib/crt0.o obj/catflap.elf
 	@mkdir -p obj/root/bin
-	$(MLD) -f cfx -S obj/catflap.elf -o $@ obj/lib/crt0.o $<
+	$(MLD) $(PLINK) -o $@ obj/lib/crt0.o $<
 
 obj/bin/lua.a: $(LUA_OBJS)
 	rm -f $@
 	ar rc $@ $(LUA_OBJS)
 
-obj/lua/%.o: ../lua/%.c
+obj/lua/%.o: ../lua/%.c Makefile
 	@mkdir -p obj/lua
 	$(NMCC) $(PCFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
 
 obj/root/bin/lua: obj/bin/lua.a obj/lib/crt0.o obj/catflap.elf
 	@mkdir -p obj/root/bin
-	$(MLD) -f cfx -k $(LUA_STACK) -S obj/catflap.elf -o $@ obj/lib/crt0.o obj/bin/lua.a
+	$(MLD) $(PLINK) -k $(LUA_STACK) -o $@ obj/lib/crt0.o obj/bin/lua.a
 
-obj/romfs.img: obj/mkromfs $(ROOT) $(PROGS)
+# the romfs follows the kernel and the library's relocation list in ROM,
+# and its programs are prelinked to run where they land
+obj/romfs.img: obj/mkromfs $(ROOT) $(PROGS) obj/kernel.bin obj/librelocs.bin
 	cp -r root/. obj/root/
-	obj/mkromfs $@ obj/root
+	obj/mkromfs -b $$(( $$(wc -c < obj/kernel.bin) + $$(wc -c < obj/librelocs.bin) )) $@ obj/root
 
-obj/bin/%.o: bin/%.c include/catflap.h
+obj/bin/%.o: bin/%.c include/catflap.h Makefile
 	@mkdir -p $(dir $@)
 	$(NMCC) $(PCFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
 

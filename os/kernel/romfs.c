@@ -139,8 +139,20 @@ static int romfs_readdir(struct vnode *v, uint32_t index, struct dirent *de)
     return 0;
 }
 
+/* The file's bytes are in ROM: say where, so a program can run there */
+static int romfs_ioctl(struct vnode *v, int req, void *arg)
+{
+    struct romfs *r = v->fs;
+
+    if (req != VFS_IOC_ADDR || v->type != V_FILE) {
+        return -ENOTTY;
+    }
+    *(const void **)arg = r->data + r->e[v->ino - 1].data_off;
+    return 0;
+}
+
 static const struct vnode_ops romfs_ops = {
-    romfs_lookup, romfs_read, NULL, romfs_readdir, NULL, NULL, NULL, NULL, NULL
+    romfs_lookup, romfs_read, NULL, romfs_readdir, NULL, NULL, romfs_ioctl, NULL, NULL
 };
 
 /* The root vnode of the image in ROM, or NULL if there is none. */

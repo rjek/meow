@@ -39,27 +39,6 @@ void process_init(const uint32_t *relocs, uint32_t n)
     waitq_init(&kproc.childq);
 }
 
-/* A private copy of the library's data for a new process, with the
-   pointers in it moved along. */
-static int lib_instance(struct process *p)
-{
-    size_t size = (size_t)(__libc_data_end - __libc_data_start) + 4;
-    uint32_t i;
-
-    p->libdata = kmalloc(size);
-    if (p->libdata == NULL) {
-        return -ENOMEM;
-    }
-    memcpy(p->libdata, __libc_data_start, size);
-    p->sb = (uint32_t)((char *)p->libdata - __libc_data_start);
-    for (i = 0; i < lib_nrelocs; i++) {
-        uint32_t *word = (uint32_t *)((char *)lib_relocs[i] + p->sb);
-
-        *word += p->sb;
-    }
-    return 0;
-}
-
 /* Read a whole file into memory it allocates. */
 static int slurp(const char *path, char **out, uint32_t *size)
 {
@@ -97,50 +76,123 @@ static int slurp(const char *path, char **out, uint32_t *size)
 }
 
 struct cfx_header {
-    char magic[4];
-    uint32_t image_size, mem_size, entry, nrelocs;
+    char magic[4];                      /* CFX2 */
+    uint32_t code_size, data_size, bss_size;
+    uint32_t entry;                     /* offset into the code */
     uint32_t stack;                     /* bytes the main thread wants, or 0 */
+    uint32_t code_base;                 /* where the code's addresses assume it is */
+    uint32_t data_base;                 /* where its data is linked: __user_data_base */
+    uint32_t ncc, ndc, ndd;             /* code-in-code, code-in-data, data-in-data */
+    uint32_t reserved;
 };
 
-/* Load a cfx image: copy, zero the rest, add the load address to every
-   word the linker listed. */
+extern char __user_data_base[];
+
+/* Load a program.  Its code runs where it is when the file is in ROM at
+   the address mkromfs linked it for; otherwise it is copied to RAM and
+   its code addresses moved.  Either way the process gets one block
+   holding the library's data and then the program's, with the pointers
+   in both moved by the process's static base. */
 static int load_image(struct process *p, const char *path, uint32_t *entry)
 {
-    char *file;
-    uint32_t size, i;
     const struct cfx_header *h;
-    const uint32_t *relocs;
-    int rc = slurp(path, &file, &size);
+    const char *file, *code, *data;
+    const uint32_t *cc, *dc, *dd;
+    char *buf = NULL, *block;
+    uint32_t size, i, delta, lib_size, prefix;
+    int rc, fd = vfs_open(path, O_RDONLY);
+    struct stat st;
 
+    if (fd < 0) {
+        return fd;
+    }
+    file = NULL;
+    vfs_ioctl(fd, VFS_IOC_ADDR, &file);
+    vfs_close(fd);
+    rc = vfs_stat(path, &st);
     if (rc < 0) {
         return rc;
     }
+    size = st.size;
+    if (file == NULL) {
+        rc = slurp(path, &buf, &size);
+        if (rc < 0) {
+            return rc;
+        }
+        file = buf;
+    }
     h = (const struct cfx_header *)file;
-    if (size < sizeof *h || memcmp(h->magic, "CFX1", 4) != 0 ||
-        sizeof *h + h->image_size + 4 * h->nrelocs > size ||
-        h->mem_size < h->image_size) {
-        kfree(file);
-        return -ENOEXEC;
+    if (size < sizeof *h || memcmp(h->magic, "CFX2", 4) != 0 ||
+        h->code_size % 4 != 0 || h->data_size % 4 != 0 ||
+        sizeof *h + h->code_size + h->data_size + 4 * (h->ncc + h->ndc + h->ndd) > size ||
+        h->entry >= h->code_size || h->data_base != (uint32_t)__user_data_base) {
+        kfree(buf);
+        return -ENOEXEC;                /* not a program, or not linked for this kernel */
     }
-    p->image = kmalloc(h->mem_size);
-    if (p->image == NULL) {
-        kfree(file);
-        return -ENOMEM;
-    }
-    p->image_size = h->mem_size;
-    memcpy(p->image, file + sizeof *h, h->image_size);
-    memset(p->image + h->image_size, 0, h->mem_size - h->image_size);
-    relocs = (const uint32_t *)(file + sizeof *h + h->image_size);
-    for (i = 0; i < h->nrelocs; i++) {
-        if (relocs[i] + 4 > h->image_size) {
-            kfree(file);
+    code = file + sizeof *h;
+    data = code + h->code_size;
+    cc = (const uint32_t *)(data + h->data_size);
+    dc = cc + h->ncc;
+    dd = dc + h->ndc;
+    for (i = 0; i < h->ncc; i++) {
+        if (cc[i] % 4 != 0 || cc[i] + 4 > h->code_size) {
+            kfree(buf);
             return -ENOEXEC;
         }
-        *(uint32_t *)(p->image + relocs[i]) += (uint32_t)p->image;
     }
-    *entry = (uint32_t)p->image + h->entry;
+    for (i = 0; i < h->ndc + h->ndd; i++) {
+        if (dc[i] % 4 != 0 || dc[i] + 4 > h->data_size) {
+            kfree(buf);
+            return -ENOEXEC;
+        }
+    }
+    p->code_size = h->code_size;
+    if (buf == NULL && h->code_base == (uint32_t)code) {
+        p->image = NULL;                /* in place */
+        p->code = code;
+    } else {
+        p->image = kmalloc(h->code_size);
+        if (p->image == NULL) {
+            kfree(buf);
+            return -ENOMEM;
+        }
+        memcpy(p->image, code, h->code_size);
+        delta = (uint32_t)p->image - h->code_base;
+        for (i = 0; i < h->ncc; i++) {
+            *(uint32_t *)(p->image + cc[i]) += delta;
+        }
+        p->code = p->image;
+    }
+    delta = (uint32_t)p->code - h->code_base;
+
+    lib_size = (uint32_t)(__libc_data_end - __libc_data_start) + 4;
+    prefix = (uint32_t)(__user_data_base - __libc_data_start);
+    p->data_size = prefix + h->data_size + h->bss_size;
+    block = kmalloc(p->data_size);
+    if (block == NULL) {
+        kfree(p->image);
+        p->image = NULL;
+        kfree(buf);
+        return -ENOMEM;
+    }
+    memcpy(block, __libc_data_start, lib_size);
+    memset(block + lib_size, 0, prefix - lib_size);
+    memcpy(block + prefix, data, h->data_size);
+    memset(block + prefix + h->data_size, 0, h->bss_size);
+    p->libdata = block;
+    p->sb = (uint32_t)(block - __libc_data_start);
+    for (i = 0; i < lib_nrelocs; i++) {
+        *(uint32_t *)((char *)lib_relocs[i] + p->sb) += p->sb;
+    }
+    for (i = 0; i < h->ndc; i++) {
+        *(uint32_t *)(block + prefix + dc[i]) += delta;
+    }
+    for (i = 0; i < h->ndd; i++) {
+        *(uint32_t *)(block + prefix + dd[i]) += p->sb;
+    }
+    *entry = (uint32_t)p->code + h->entry;
     p->stack_size = h->stack != 0 ? (h->stack + 7) & ~7u : STACK_USER;
-    kfree(file);
+    kfree(buf);
     return 0;
 }
 
@@ -230,9 +282,6 @@ int process_spawn(const char *path, int argc, char *const argv[])
     waitq_init(&p->waiters);
     waitq_init(&p->childq);
     rc = load_image(p, path, &entry);
-    if (rc == 0) {
-        rc = lib_instance(p);
-    }
     if (rc == 0) {
         p->argv = copy_args(argc, argv);
         if (p->argv == NULL) {

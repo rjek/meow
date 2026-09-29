@@ -111,6 +111,7 @@ extern struct cpu cpu0;
 #define O_CREAT         0x40
 #define O_TRUNC         0x200
 #define O_APPEND        0x400
+#define VFS_IOC_ADDR    0x5601          /* ioctl: *(const void **)arg is the file's bytes, if mapped */
 #define SEEK_SET        0
 #define SEEK_CUR        1
 #define SEEK_END        2
@@ -176,8 +177,10 @@ struct process {
     int nthreads;
     int dead;
     int exit_status;
-    char *image;
-    size_t image_size;
+    char *image;                        /* the code's copy in RAM, or NULL when run in place */
+    const char *code;                   /* where the code runs */
+    size_t code_size;
+    size_t data_size;                   /* the data block: the library's, then the program's */
     uint32_t entry;
     void *libdata;                      /* this process's copy of the library's data */
     uint32_t sb;                        /* its displacement from the linked copy */
