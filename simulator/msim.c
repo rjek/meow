@@ -156,18 +156,37 @@ static void display_help(const char *argv0)
 	printf("  -r rom   ROM image at chip select 0, 64K RAM at 1, Chairman at 31\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
+	printf("  -P file  write an execution count for every address run to file\n");
 }
 
 static struct msim_ctx *stats_ctx;
+static const char *profile_file;
 
 static void report_stats(void)
 {
 	fprintf(stderr, "msim: %u instructions\n", stats_ctx->cyclecount);
 }
 
+static void write_profile(void)
+{
+	FILE *f = fopen(profile_file, "w");
+	unsigned int a;
+
+	if (f == NULL) {
+		fprintf(stderr, "msim: cannot write %s\n", profile_file);
+		return;
+	}
+	for (a = 0; a < MSIM_PROFILE_BYTES / 2; a++) {
+		if (stats_ctx->profile[a] != 0) {
+			fprintf(f, "%08x %u\n", a * 2, stats_ctx->profile[a]);
+		}
+	}
+	fclose(f);
+}
+
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:";
+	static char optstring[] = "vhiqsf:r:c:P:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
@@ -206,6 +225,9 @@ int main(int argc, char *argv[])
 		case 's':
 			stats = true;
 			break;
+		case 'P':
+			profile_file = optarg;
+			break;
 		case 'r':
 			romfile = optarg;
 			break;
@@ -222,9 +244,13 @@ int main(int argc, char *argv[])
 		exit(1);
 		
 	ctx = msim_init();
+	stats_ctx = ctx;
 	if (stats == true) {
-		stats_ctx = ctx;
 		atexit(report_stats);	/* the halt call exits from inside the core */
+	}
+	if (profile_file != NULL) {
+		ctx->profile = calloc(MSIM_PROFILE_BYTES / 2, sizeof *ctx->profile);
+		atexit(write_profile);
 	}
 	
 	if (romfile != NULL) {

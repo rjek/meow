@@ -79,6 +79,8 @@ struct msim_ctx;
 
 typedef void (*msim_bnvop)(struct msim_ctx *ctx, signed int op, void *bnvctx);
 
+#define MSIM_PROFILE_BYTES (1u << 20)
+
 struct msim_ctx {
 	bool		init;
 	bool		irqmode;
@@ -88,6 +90,7 @@ struct msim_ctx {
 	u_int32_t	realr[16];
 	u_int32_t	realar[16];
 	unsigned int	cyclecount;
+	unsigned int	*profile;	/* executions per halfword of the low 1 MB, or NULL */
 	
 	struct {
 		 msim_read_mem	read;

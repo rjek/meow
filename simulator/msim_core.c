@@ -543,6 +543,9 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 			printf(": %-30s cycle %d\n", dis, ctx->cyclecount);
 		}
 				
+		if (ctx->profile != NULL && ctx->r[MSIM_PC] < MSIM_PROFILE_BYTES) {
+			ctx->profile[ctx->r[MSIM_PC] >> 1]++;
+		}
 		msim_execute(ctx, i);
 
 		/* run the tickers in our ticker shortlist */
