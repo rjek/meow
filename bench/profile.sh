@@ -37,6 +37,6 @@ awk '
 		for (f in per) printf "%-16s %13d %5.1f%%\n", f, per[f], per[f] * 100.0 / total | "sort -k2 -n -r | head -12"
 		close("sort -k2 -n -r | head -12")
 		printf "\n%-8s %11s %6s  %s\n", "address", "count", "share", "instruction"
-		for (a in count) printf "%s %11d %5.1f%%  %s\n", a, count[a], count[a] * 100.0 / total, dis[a] | "sort -k2 -n -r | head -40"
+		for (a in count) printf "%s %11d %5.1f%%  %s\n", a, count[a], count[a] * 100.0 / total, dis[a] | "sort -k2 -n -r | head -60"
 	}' "$tmp.dis" "$tmp.prof"
 rm -f "$tmp".*

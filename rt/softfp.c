@@ -23,17 +23,52 @@ struct fp {
 
 #define TOP ((u64)1 << 62)
 
+/* The compiler keeps a 64-bit value in memory and calls the library for
+ * most things done to it, so the hot loops below work on pairs of 32-bit
+ * words, which live in registers. */
+
+/* the runtime's 32 x 32 -> 64 multiply, in rt/mul.s */
+unsigned long long __umull(unsigned a, unsigned b);
+
+static int clz32(u32 x)
+{
+    int n = 0;
+    if (x == 0) return 32;
+    if ((x >> 16) == 0) { n += 16; x <<= 16; }
+    if ((x >> 24) == 0) { n += 8; x <<= 8; }
+    if ((x >> 28) == 0) { n += 4; x <<= 4; }
+    if ((x >> 30) == 0) { n += 2; x <<= 2; }
+    if ((x >> 31) == 0) { n += 1; }
+    return n;
+}
+
+static int ctz32(u32 x)
+{
+    int n = 0;
+    if (x == 0) return 32;
+    if ((x & 0xffff) == 0) { n += 16; x >>= 16; }
+    if ((x & 0xff) == 0) { n += 8; x >>= 8; }
+    if ((x & 0xf) == 0) { n += 4; x >>= 4; }
+    if ((x & 3) == 0) { n += 2; x >>= 2; }
+    if ((x & 1) == 0) { n += 1; }
+    return n;
+}
+
 /* ---- unpacking ---------------------------------------------------------- */
 
 static void normalise(struct fp *x)
 {
-    if (x->mant == 0) {
+    u32 hi = (u32)(x->mant >> 32), lo = (u32)x->mant;
+    int n;
+
+    if (hi == 0 && lo == 0) {
         x->cls = ZERO;
         return;
     }
-    while ((x->mant & TOP) == 0) {
-        x->mant <<= 1;
-        x->exp -= 1;
+    n = (hi != 0 ? clz32(hi) : 32 + clz32(lo)) - 1;    /* leading one to bit 62 */
+    if (n > 0) {
+        x->mant <<= n;
+        x->exp -= n;
     }
 }
 
@@ -242,10 +277,35 @@ static struct fp fp_neg(struct fp a)
     return a;
 }
 
+/* Multiplying costs a step per bit of the smaller operand, so the
+ * trailing zeros of each mantissa are shifted out first (a float has 39
+ * of them, a double 10) and put back through the exponent. */
+static void strip_low_zeros(struct fp *x)
+{
+    u32 lo = (u32)x->mant, hi = (u32)(x->mant >> 32);
+    int n;
+
+    if (lo == 0) {
+        n = 32 + ctz32(hi);
+        lo = hi >> (n - 32);
+        hi = 0;
+    } else {
+        n = ctz32(lo);
+        if (n != 0) {
+            lo = (lo >> n) | (hi << (32 - n));
+            hi >>= n;
+        }
+    }
+    x->mant = ((u64)hi << 32) | lo;
+    x->exp += n;
+}
+
 static struct fp fp_mul(struct fp a, struct fp b)
 {
     struct fp r;
-    u64 a_lo, a_hi, b_lo, b_hi, p0, p1, p2, p3, mid, hi, lo;
+    u32 a_lo, a_hi, b_lo, b_hi, w0, w1, w2, w3;
+    u64 p0, p1, p2, p3, mid, hi;
+    int k, n;
 
     r.sign = a.sign ^ b.sign;
     if (a.cls == NAN || b.cls == NAN) return make_nan();
@@ -255,20 +315,39 @@ static struct fp fp_mul(struct fp a, struct fp b)
     if (a.cls == INF || b.cls == INF) return make_inf(r.sign);
     if (a.cls == ZERO || b.cls == ZERO) return make_zero(r.sign);
 
-    /* 64 x 64 -> 128 in 32-bit pieces; keep the top 64 and a sticky bit */
-    a_lo = a.mant & 0xffffffffu; a_hi = a.mant >> 32;
-    b_lo = b.mant & 0xffffffffu; b_hi = b.mant >> 32;
-    p0 = a_lo * b_lo;
-    p1 = a_lo * b_hi;
-    p2 = a_hi * b_lo;
-    p3 = a_hi * b_hi;
-    mid = (p0 >> 32) + (p1 & 0xffffffffu) + (p2 & 0xffffffffu);
-    lo = (p0 & 0xffffffffu) | (mid << 32);
-    hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+    strip_low_zeros(&a);
+    strip_low_zeros(&b);
+    a_lo = (u32)a.mant; a_hi = (u32)(a.mant >> 32);
+    b_lo = (u32)b.mant; b_hi = (u32)(b.mant >> 32);
+    if (a_hi == 0 && b_hi == 0) {
+        p0 = __umull(a_lo, b_lo);
+        w0 = (u32)p0; w1 = (u32)(p0 >> 32); w2 = 0; w3 = 0;
+    } else {
+        /* 64 x 64 -> 128 in 32-bit pieces */
+        p0 = __umull(a_lo, b_lo);
+        p1 = __umull(a_lo, b_hi);
+        p2 = __umull(a_hi, b_lo);
+        p3 = __umull(a_hi, b_hi);
+        mid = (p0 >> 32) + (u32)p1 + (u32)p2;
+        hi = p3 + (p1 >> 32) + (p2 >> 32) + (mid >> 32);
+        w0 = (u32)p0; w1 = (u32)mid; w2 = (u32)hi; w3 = (u32)(hi >> 32);
+    }
+    /* shift the leading one up to bit 127, then the top 63 bits are the
+     * mantissa and everything below them the sticky bit */
+    n = w3 != 0 ? clz32(w3) : w2 != 0 ? 32 + clz32(w2) :
+        w1 != 0 ? 64 + clz32(w1) : 96 + clz32(w0);
+    k = n;
+    while (k >= 32) { w3 = w2; w2 = w1; w1 = w0; w0 = 0; k -= 32; }
+    if (k != 0) {
+        w3 = (w3 << k) | (w2 >> (32 - k));
+        w2 = (w2 << k) | (w1 >> (32 - k));
+        w1 = (w1 << k) | (w0 >> (32 - k));
+        w0 <<= k;
+    }
     r.cls = NORMAL;
-    r.exp = a.exp + b.exp + 64;
-    r.mant = hi | (lo != 0 ? 1 : 0);
-    normalise(&r);
+    r.exp = a.exp + b.exp + 65 - n;
+    r.mant = ((u64)w3 << 31) | (w2 >> 1);
+    if ((w2 & 1) != 0 || w1 != 0 || w0 != 0) r.mant |= 1;
     return r;
 }
 
@@ -285,16 +364,25 @@ static struct fp fp_div(struct fp a, struct fp b)
     if (a.cls == INF || b.cls == ZERO) return make_inf(r.sign);
     if (a.cls == ZERO || b.cls == INF) return make_zero(r.sign);
 
-    /* long division, one quotient bit a time */
-    q = 0;
-    rem = a.mant;
-    for (i = 0; i < 64; i++) {
-        q <<= 1;
-        if (rem >= b.mant) {
-            rem -= b.mant;
-            q |= 1;
+    /* long division, one quotient bit a time, on 32-bit words */
+    {   u32 qh = 0, ql = 0;
+        u32 rh = (u32)(a.mant >> 32), rl = (u32)a.mant;
+        u32 bh = (u32)(b.mant >> 32), bl = (u32)b.mant;
+
+        for (i = 0; i < 64; i++) {
+            qh = (qh << 1) | (ql >> 31);
+            ql <<= 1;
+            if (rh > bh || (rh == bh && rl >= bl)) {
+                if (rl < bl) rh -= 1;
+                rl -= bl;
+                rh -= bh;
+                ql |= 1;
+            }
+            rh = (rh << 1) | (rl >> 31);
+            rl <<= 1;
         }
-        rem <<= 1;
+        q = ((u64)qh << 32) | ql;
+        rem = ((u64)rh << 32) | rl;
     }
     r.cls = NORMAL;
     r.exp = a.exp - b.exp - 63;
