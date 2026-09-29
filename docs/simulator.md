@@ -5,7 +5,7 @@ controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
 build (`liblua5.1-0-dev libedit-dev` on Debian and Ubuntu).
 
 ```
-msim [-vhiq] {-f spec | -r rom} [-c cycles]
+msim [-vhiqs] {-f spec | -r rom} [-c cycles]
 ```
 
 | Option | Meaning |
@@ -16,6 +16,7 @@ msim [-vhiq] {-f spec | -r rom} [-c cycles]
 | `-v` | Trace: print every instruction as it executes, with the registers after it |
 | `-i` | Interactive: start the debugger instead of running |
 | `-q` | No banner |
+| `-s` | Print the number of instructions executed to standard error on exit, for benchmarking |
 
 The exit status is the value passed to the halt call (below), or 0 after
 `-c` cycles.

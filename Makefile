@@ -6,7 +6,10 @@ all check clean:
 docs: isa/isagen
 	isa/isagen -d docs/reference.md isa/meow.isa
 
+bench: all
+	bench/run.sh
+
 isa/isagen:
 	$(MAKE) -C isa
 
-.PHONY: all check clean docs
+.PHONY: all check clean docs bench

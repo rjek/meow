@@ -152,17 +152,25 @@ static bool parse_spec(struct msim_ctx *ctx, const char *specfile)
 
 static void display_help(const char *argv0)
 {
-	printf("Usage: %s [-vhiq] {-f spec file | -r rom} [-c cycles]\n", argv0);
+	printf("Usage: %s [-vhiqs] {-f spec file | -r rom} [-c cycles]\n", argv0);
 	printf("  -r rom   ROM image at chip select 0, 64K RAM at 1, Chairman at 31\n");
 	printf("  -q       no banner\n");
+	printf("  -s       report the instructions executed on exit\n");
+}
+
+static struct msim_ctx *stats_ctx;
+
+static void report_stats(void)
+{
+	fprintf(stderr, "msim: %u instructions\n", stats_ctx->cyclecount);
 }
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqf:r:c:";
+	static char optstring[] = "vhiqsf:r:c:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
-	bool quiet = false;
+	bool quiet = false, stats = false;
 	char *specfile = NULL;
 	char *romfile = NULL;
 	struct msim_ctx *ctx;
@@ -195,6 +203,9 @@ int main(int argc, char *argv[])
 		case 'q':
 			quiet = true;
 			break;
+		case 's':
+			stats = true;
+			break;
 		case 'r':
 			romfile = optarg;
 			break;
@@ -211,6 +222,10 @@ int main(int argc, char *argv[])
 		exit(1);
 		
 	ctx = msim_init();
+	if (stats == true) {
+		stats_ctx = ctx;
+		atexit(report_stats);	/* the halt call exits from inside the core */
+	}
 	
 	if (romfile != NULL) {
 		msim_add_rom_from_file(ctx, 0, romfile);

@@ -55,6 +55,16 @@ The C tests in `tests/c` do this both ways and run the result under
 skipped unless `NMCC` names the compiler or it is at
 `../norcroft-ng/bin/nmcc`.
 
+## Benchmarks
+
+`make bench` compiles the programs in `bench/` with `nmcc`, runs them
+under `msim -s` and prints the instructions each executed and the bytes
+of code it compiled to, with the change since `bench/baseline.txt`.  Set
+`NMCCFLAGS` to try compiler options, and rerun `bench/run.sh -b` to make
+the current numbers the baseline.  Every program prints a checksum that
+must match the host compiler's, so an optimisation that breaks the code
+is a failure, not a speed-up.
+
 ## A first program
 
 ```
