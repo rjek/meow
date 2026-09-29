@@ -37,8 +37,17 @@ int _PDCLIB_print_fp_deci( _PDCLIB_fp_t * fp,
 
     /* No decimal point in the mantissa, so we adjust the exponent. */
     int exponent = fp->exponent - fp->scale;
+    int exp10;
 
-    int exp10 = prep( &fp->mantissa, exponent );
+    /* MEOW: zero has no digits to generate */
+    if ( fp->mantissa.size == 0 )
+    {
+        buffer[0] = _PDCLIB_digits[0];
+        buffer[1] = '\0';
+        return 0;
+    }
+
+    exp10 = prep( &fp->mantissa, exponent );
 
     if ( ( status->flags & E_decimal ) && ( status->prec >= 0 ) && ( exp10 <= -status->prec ) )
     {
@@ -166,8 +175,8 @@ int _PDCLIB_print_fp_deci( _PDCLIB_fp_t * fp,
 
                         if ( current == buffer )
                         {
+                            /* MEOW: exp10 already names this digit's place */
                             *current++ = _PDCLIB_digits[1];
-                            ++exp10;
                             break;
                         }
 

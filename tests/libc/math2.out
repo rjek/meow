@@ -1,0 +1,25 @@
+-3: sin -0.14112 cos -0.989992 tan 0.142547 sinh -10.0179 cosh 10.0677 tanh -0.995055
+   atan -1.24905 atan2 -2.1588 asinh -1.81845
+-1: sin -0.841471 cos 0.540302 tan -1.55741 sinh -1.1752 cosh 1.54308 tanh -0.761594
+   atan -0.785398 atan2 -2.67795 asinh -0.881374 asin -1.5708 acos 3.14159
+-0.5: sin -0.479426 cos 0.877583 tan -0.546302 sinh -0.521095 cosh 1.12763 tanh -0.462117
+   atan -0.463648 atan2 -2.89661 asinh -0.481212 asin -0.523599 acos 2.0944 atanh -0.549306
+0: sin 0 cos 1 tan 0 sinh 0 cosh 1 tanh 0
+   atan 0 atan2 3.14159 asinh 0 asin 0 acos 1.5708 atanh 0
+0.25: sin 0.247404 cos 0.968912 tan 0.255342 sinh 0.252612 cosh 1.03141 tanh 0.244919
+   atan 0.244979 atan2 3.01724 asinh 0.247466 asin 0.25268 acos 1.31812 atanh 0.255413
+0.5: sin 0.479426 cos 0.877583 tan 0.546302 sinh 0.521095 cosh 1.12763 tanh 0.462117
+   atan 0.463648 atan2 2.89661 asinh 0.481212 asin 0.523599 acos 1.0472 atanh 0.549306
+1: sin 0.841471 cos 0.540302 tan 1.55741 sinh 1.1752 cosh 1.54308 tanh 0.761594
+   atan 0.785398 atan2 2.67795 asinh 0.881374 asin 1.5708 acos 0 acosh 0
+1.5: sin 0.997495 cos 0.0707372 tan 14.1014 sinh 2.12928 cosh 2.35241 tanh 0.905148
+   atan 0.982794 atan2 2.49809 asinh 1.19476 acosh 0.962424
+2: sin 0.909297 cos -0.416147 tan -2.18504 sinh 3.62686 cosh 3.7622 tanh 0.964028
+   atan 1.10715 atan2 2.35619 asinh 1.44364 acosh 1.31696
+3: sin 0.14112 cos -0.989992 tan -0.142547 sinh 10.0179 cosh 10.0677 tanh 0.995055
+   atan 1.24905 atan2 2.1588 asinh 1.81845 acosh 1.76275
+100: sin -0.506366 cos 0.862319 tan -0.587214 sinh 1.34406e+43 cosh 1.34406e+43 tanh 1
+   atan 1.5608 atan2 1.59079 asinh 5.29834 acosh 5.29829
+float: sinf 0.841471 cosf 0.540302 tanf 1.55741 atan2f 0.785398 tanhf 0.462117
+pi 3.14159 e 2.71828
+exit 0

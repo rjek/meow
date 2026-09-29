@@ -1,0 +1,41 @@
+0: sqrt 0 cbrt 0 exp 1 log -inf log10 -inf log2 -inf
+   pow2 0 pow0.5 0 hypot 3 expm1 0 log1p 0 exp2 1
+0.5: sqrt 0.707107 cbrt 0.793701 exp 1.64872 log -0.693147 log10 -0.30103 log2 -1
+   pow2 0.25 pow0.5 0.707107 hypot 3.04138 expm1 0.648721 log1p 0.405465 exp2 1.41421
+1: sqrt 1 cbrt 1 exp 2.71828 log 0 log10 0 log2 0
+   pow2 1 pow0.5 1 hypot 3.16228 expm1 1.71828 log1p 0.693147 exp2 2
+2: sqrt 1.41421 cbrt 1.25992 exp 7.38906 log 0.693147 log10 0.30103 log2 1
+   pow2 4 pow0.5 1.41421 hypot 3.60555 expm1 6.38906 log1p 1.09861 exp2 4
+3.75: sqrt 1.93649 cbrt 1.55362 exp 42.5211 log 1.32176 log10 0.574031 log2 1.90689
+   pow2 14.0625 pow0.5 1.93649 hypot 4.80234 expm1 41.5211 log1p 1.55814 exp2 13.4543
+10: sqrt 3.16228 cbrt 2.15443 exp 22026.5 log 2.30259 log10 1 log2 3.32193
+   pow2 100 pow0.5 3.16228 hypot 10.4403 expm1 22025.5 log1p 2.3979 exp2 1024
+123.456: sqrt 11.1111 cbrt 4.97933 exp 4.13294e+53 log 4.81588 log10 2.09151 log2 6.94785
+   pow2 15241.4 pow0.5 11.1111 hypot 123.492 expm1 4.13294e+53 log1p 4.82395 exp2 1.45868e+37
+1e-05: sqrt 0.00316228 cbrt 0.0215443 exp 1.00001 log -11.5129 log10 -5 log2 -16.6096
+   pow2 1e-10 pow0.5 0.00316228 hypot 3 expm1 1.00001e-05 log1p 9.99995e-06 exp2 1.00001
+100000: sqrt 316.228 cbrt 46.4159 exp inf log 11.5129 log10 5 log2 16.6096
+   pow2 1e+10 pow0.5 316.228 hypot 100000 expm1 inf log1p 11.5129 exp2 inf
+-2: floor -2 ceil -2 trunc -2 round -2 rint -2 nearbyint -2
+   lround -2 lrint -2 llround -2 fabs 2 fmod -0.5 remainder -0.5
+-1.5: floor -2 ceil -1 trunc -1 round -2 rint -2 nearbyint -2
+   lround -2 lrint -2 llround -2 fabs 1.5 fmod -0 remainder -0
+-1: floor -1 ceil -1 trunc -1 round -1 rint -1 nearbyint -1
+   lround -1 lrint -1 llround -1 fabs 1 fmod -1 remainder 0.5
+0: floor 0 ceil 0 trunc 0 round 0 rint 0 nearbyint 0
+   lround 0 lrint 0 llround 0 fabs 0 fmod 0 remainder 0
+1.75: floor 1 ceil 2 trunc 1 round 2 rint 2 nearbyint 2
+   lround 2 lrint 2 llround 2 fabs 1.75 fmod 0.25 remainder 0.25
+8: floor 8 ceil 8 trunc 8 round 8 rint 8 nearbyint 8
+   lround 8 lrint 8 llround 8 fabs 8 fmod 0.5 remainder 0.5
+121.456: floor 121 ceil 122 trunc 121 round 121 rint 121 nearbyint 121
+   lround 121 lrint 121 llround 121 fabs 121.456 fmod 1.456 remainder -0.044
+-1.99999: floor -2 ceil -1 trunc -1 round -2 rint -2 nearbyint -2
+   lround -2 lrint -2 llround -2 fabs 1.99999 fmod -0.49999 remainder -0.49999
+99998: floor 99998 ceil 99998 trunc 99998 round 99998 rint 99998 nearbyint 99998
+   lround 99998 lrint 99998 llround 99998 fabs 99998 fmod 0.5 remainder 0.5
+frexp 0.75 6 ldexp 48 scalbn 0.125 ilogb 9 logb 9
+modf -3 -0.625 copysign -2 2 fmax 2 fmin -1 fdim 2 0 fma 10
+nextafter 1 1
+float: sqrtf 1.41421 expf 2.71828 logf 2.30259 powf 1024 floorf -3 fmodf 1.5
+exit 0

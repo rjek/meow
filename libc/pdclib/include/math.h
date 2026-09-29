@@ -389,9 +389,10 @@ long double remainderl( long double x, long double y );
    the magnitude of the integral quotient of x / y, with n
    an implementation-defined integer greater than or equal to 3.
 */
-double rmquo( double x, double y );
-float rmquof( float x, float y );
-long double rmquol( long double x, long double y );
+/* MEOW: upstream misspells this and drops quo */
+double remquo( double x, double y, int * quo );
+float remquof( float x, float y, int * quo );
+long double remquol( long double x, long double y, int * quo );
 
 /* Manipulation functions */
 
@@ -441,17 +442,13 @@ long double fmal( long double x, long double y, long double z );
 
 /* Comparison macros (without "invalid" FP exception) */
 
-#define isgreater( x, y )
-
-#define isgreaterequal( x, y )
-
-#define isless( x, y )
-
-#define islessequal( x, y )
-
-#define islessgreater( x, y )
-
-#define isunordered( x, y )
+/* MEOW: upstream leaves these empty */
+#define isunordered( x, y ) ( isnan( x ) || isnan( y ) )
+#define isgreater( x, y ) ( ! isunordered( x, y ) && ( x ) > ( y ) )
+#define isgreaterequal( x, y ) ( ! isunordered( x, y ) && ( x ) >= ( y ) )
+#define isless( x, y ) ( ! isunordered( x, y ) && ( x ) < ( y ) )
+#define islessequal( x, y ) ( ! isunordered( x, y ) && ( x ) <= ( y ) )
+#define islessgreater( x, y ) ( ! isunordered( x, y ) && ( x ) != ( y ) )
 
 #ifdef __cplusplus
 }

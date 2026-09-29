@@ -94,7 +94,9 @@ static void _PDCLIB_format_e( struct _PDCLIB_status_t * status, char * buffer, i
     PUT( *current++ );
     status->current++;
 
-    if ( status->prec > 0 || status->flags & E_alt )
+    /* MEOW: %g drops the point along with the trailing zeroes */
+    if ( ( status->prec > 0 && ( *current != '\0' || ! ( status->flags & E_generic ) ) )
+         || status->flags & E_alt )
     {
         PUT( '.' );
         status->current++;
@@ -107,7 +109,7 @@ static void _PDCLIB_format_e( struct _PDCLIB_status_t * status, char * buffer, i
             PUT( *current++ );
             status->current++;
         }
-        else if ( ! ( status->flags & E_generic ) )
+        else if ( ! ( status->flags & E_generic ) || status->flags & E_alt )
         {
             PUT( '0' );
             status->current++;
@@ -241,7 +243,7 @@ static void _PDCLIB_format_f( struct _PDCLIB_status_t * status, char * buffer, i
         }
     }
 
-    if ( ! ( status->flags & E_generic ) )
+    if ( ! ( status->flags & E_generic ) || status->flags & E_alt )
     {
         for ( ; len > 0; --len )
         {
@@ -351,22 +353,25 @@ void _PDCLIB_print_fp( _PDCLIB_fp_t * fp,
                     status->prec = 1;
                 }
 
+                /* MEOW: prec is significant digits, so one fewer after the
+                   point; generating an extra digit and truncating it
+                   rounded wrongly */
+                status->prec -= 1;
                 exp10 = _PDCLIB_print_fp_deci( fp, status, buffer );
                 exponent = ( strlen( buffer ) + exp10 ) - 1;
 
-                if ( exponent >= -4 && exponent < status->prec )
+                if ( exponent >= -4 && exponent < status->prec + 1 )
                 {
                     _PDCLIB_bigint_from_bigint( &fp->mantissa, &mant );
                     status->flags &= ~E_generic;
                     status->flags |= E_decimal;
-                    status->prec -= exponent + 1;
+                    status->prec -= exponent;
                     exp10 = _PDCLIB_print_fp_deci( fp, status, buffer );
                     status->flags |= E_generic;
                     _PDCLIB_format_f( status, buffer, exp10, fp->sign );
                 }
                 else
                 {
-                    status->prec -= 1;
                     _PDCLIB_format_e( status, buffer, exp10, fp->sign );
                 }
                 break;

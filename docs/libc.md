@@ -83,6 +83,15 @@ PDCLib:
 - `include/math.h`: `ilogb` returns `int`, `scalbln` takes a `long`, and
   `nexttoward` takes a `long double`, as the standard says.  The upstream
   header has them wrong.
+- `include/math.h`: `remquo` and its float and long double forms were
+  declared as `rmquo` with no `quo` argument, so nothing calling them
+  had a prototype and their results were taken as `int`.  The comparison
+  macros `isgreater` and friends were empty.
+- `functions/_PDCLIB/_PDCLIB_print_fp.c` and `_PDCLIB_print_fp_deci.c`:
+  `%g` and `%e` of zero printed ` .00000e-325`; `%g` kept the point when
+  it dropped every digit after it, generated one digit too many and
+  truncated it instead of rounding, and ignored `#`; a carry that ran
+  off the front of the digits gained an extra power of ten.
 - `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end
   pointer is allowed, as the standard requires.  Upstream reads through
   it.
