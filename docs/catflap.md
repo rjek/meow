@@ -85,7 +85,7 @@ the dozen platform functions calling the kernel instead of `msim`.
 The kernel learns the RAM size from the Chairman as `crt0` does now.
 One allocator serves everything, a first-fit list with a 16-byte header
 carrying the owning process, so that a process's exit frees whatever it
-leaked.  dlmalloc is 6 KB of code and wants `sbrk`; the kernel's own
+leaked.  The C library's `malloc` is 1 KB of code and wants `sbrk`; the kernel's own
 allocator should be under 1 KB.  Programs get `malloc` from libc, which
 takes its arena from the kernel in large pieces.
 
@@ -381,8 +381,8 @@ output compared.
    `BNV #-18` and the kernel mounts it at `/host`; the stock Lua 5.4.7
    is a Catflap program, `/bin/lua`, calling the shared C library, so
    `io.open` works on every file system.  To get there: a process heap
-   of chained blocks (`sbrk` is not contiguous, and dlmalloc is built to
-   know), a stack size in the `cfx` header (`mld -k`; Lua asks for
+   of chained blocks (`sbrk` is not contiguous, which the C library's
+   allocator copes with), a stack size in the `cfx` header (`mld -k`; Lua asks for
    16 KB), a guard word at the foot of every thread stack checked at
    each switch, orphans handed to the kernel and freed when they end,
    `process_waitany` so the shell reaps background jobs, quoting in the

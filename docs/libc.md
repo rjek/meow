@@ -48,7 +48,11 @@ with a console and nothing else:
   character call, and standard input comes from it a line at a time.  No
   file can be opened; `fopen` fails with `ENOENT`, `tmpfile` returns
   `NULL`, and `fseek` fails with `ESPIPE`.
-- The heap is dlmalloc, PDCLib's allocator, fed by `sbrk()`, which hands
+- The heap is `libc/common/malloc.c`, the allocator of Kernighan and
+  Ritchie's book: an address-ordered free list, first fit, neighbours
+  merged on free.  It replaces PDCLib's dlmalloc, which is 13 KB against
+  its 1 KB and is built for workloads this machine does not have.  It is
+  fed by `sbrk()`, which hands
   out the memory between the end of `.bss` and 16 KB below the top of
   RAM, which is the stack's.  `crt0` and `sbrk` both read the size of
   the RAM from the Chairman's chip-select table, so `msim -m` decides
@@ -111,11 +115,9 @@ PDCLib:
 - `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end
   pointer is allowed, as the standard requires.  Upstream reads through
   it.
-- `functions/_dlmalloc/malloc.c`: `USE_LOCKS` is 0 when
-  `__STDC_NO_THREADS__` is defined.  Upstream sets it to 1 whatever the
-  configuration says.
-- `functions/time/strftime.c` and the rest are untouched.  The build
-  passes dlmalloc its configuration on the command line.
+- `functions/_dlmalloc/malloc.c` is left out of the build, in favour of
+  `libc/common/malloc.c`.  It still carries a patch from when it was
+  used: `USE_LOCKS` is 0 when `__STDC_NO_THREADS__` is defined.
 
 musl:
 

@@ -27,13 +27,12 @@ LIBC = ../libc
 LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=8 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
 MUSL_CFLAGS = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
               -I$(LIBC)/meow/musl -I$(LIBC)/musl/src/internal
-DLMALLOC_CFLAGS = -DHAVE_MMAP=0 -DHAVE_MORECORE=1 -DMORECORE_CONTIGUOUS=0 -DMORECORE_CANNOT_TRIM -DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H \
-              -DLACKS_SYS_MMAN_H -DLACKS_SCHED_H -DLACKS_FCNTL_H -DLACKS_TIME_H -Dmalloc_getpagesize=4096
 MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
-PDCLIB_SRCS := $(filter-out $(LIBC)/pdclib/functions/stdio/remove.c,$(wildcard $(LIBC)/pdclib/functions/*/*.c))
+PDCLIB_SRCS := $(filter-out $(LIBC)/pdclib/functions/stdio/remove.c $(LIBC)/pdclib/functions/_dlmalloc/malloc.c,\
+                            $(wildcard $(LIBC)/pdclib/functions/*/*.c))
 MUSL_SRCS := $(filter-out $(addprefix $(LIBC)/musl/src/math/,$(addsuffix .c,$(MUSL_DUP))),\
                           $(wildcard $(LIBC)/musl/src/math/*.c))
-CATFLAP_SRCS := $(wildcard $(LIBC)/catflap/functions/*.c)
+CATFLAP_SRCS := $(wildcard $(LIBC)/catflap/functions/*.c) $(wildcard $(LIBC)/common/*.c)
 CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
 LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(PDCLIB_SRCS) $(MUSL_SRCS) $(CATFLAP_SRCS)) \
            $(patsubst $(LIBC)/%.s,obj/libc/%.o,$(CATFLAP_ASM))
@@ -98,10 +97,6 @@ obj/%.o: %.c kernel/kernel.h
 obj/%.o: %.s
 	@mkdir -p $(dir $@)
 	$(MAS) -o $@ $<
-
-obj/libc/pdclib/functions/_dlmalloc/%.o: $(LIBC)/pdclib/functions/_dlmalloc/%.c Makefile
-	@mkdir -p $(dir $@)
-	$(NMCC) $(LIBC_CFLAGS) $(DLMALLOC_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
 
 obj/libc/musl/%.o: $(LIBC)/musl/%.c
 	@mkdir -p $(dir $@)

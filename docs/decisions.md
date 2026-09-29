@@ -126,6 +126,24 @@ same build with only that change switched off.
     can give a program as much memory as it needs.  None of that is Lua
     specific, and the sources are stock so that a new Lua drops in.
 
+## Possible future expansions
+
+Recorded so that the measurements are not lost; none is decided.
+
+16. **A PC-relative load.**  Every constant or address the compiler
+    cannot make with `LDI` comes from a literal pool as `LDI #off ;
+    ADD ir, pc ; LDR rd, [ir]`, three instructions where ARM spends one.
+    Across the kernel, the C library, Lua and the programs there are
+    about 10,000 of these, so a single `LDR rd, [pc, #n]` would save
+    some 40 KB of the 470 KB ROM and the instructions with it.  The
+    reserved `1011 rrrr 1xxx xxxx` space has room for a word-scaled
+    seven-bit forward offset, reaching 508 bytes, which would make
+    literal pools more frequent than today's 2 KB reach allows; the net
+    gain needs measuring with the compiler changed, and is expected to
+    be 25 to 35 KB.  Deferred: the instruction set is not to change for
+    the operating system's sake until the system has been run and
+    measured as it is.
+
 ## Toolchain
 
 - **Binary formats.**  Flat binary and ELF32 little-endian with a private

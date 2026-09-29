@@ -13,9 +13,11 @@ MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
            -Imeow/musl -Imusl/src/internal $(INC)
 
 # remove() upstream wants a POSIX unlink; meow/functions/remove.c goes
-# through the platform hook instead
-PDCLIB_SRCS := $(filter-out pdclib/functions/stdio/remove.c,$(wildcard pdclib/functions/*/*.c))
-MEOW_SRCS := $(wildcard meow/functions/*.c)
+# through the platform hook instead.  dlmalloc gives way to the small
+# allocator in common/, as it does in Catflap's build.
+PDCLIB_SRCS := $(filter-out pdclib/functions/stdio/remove.c pdclib/functions/_dlmalloc/malloc.c,\
+                            $(wildcard pdclib/functions/*/*.c))
+MEOW_SRCS := $(wildcard meow/functions/*.c) $(wildcard common/*.c)
 MEOW_ASM := $(wildcard meow/functions/*.s)
 # PDCLib has these itself, in every precision
 MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
@@ -32,11 +34,6 @@ all:
 libc.a: $(OBJS)
 	rm -f $@
 	$(AR) rcs $@ $(OBJS)
-
-# dlmalloc: a heap grown by sbrk() and nothing from the host
-obj/pdclib/functions/_dlmalloc/malloc.o: CFLAGS += -DHAVE_MMAP=0 -DHAVE_MORECORE=1 \
-	-DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H -DLACKS_SYS_MMAN_H \
-	-DLACKS_SCHED_H -DLACKS_FCNTL_H -DLACKS_TIME_H -Dmalloc_getpagesize=4096
 
 obj/musl/%.o: musl/%.c
 	@mkdir -p $(dir $@)
