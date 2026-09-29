@@ -15,6 +15,7 @@ $(LIBMEOW):
 	$(MAKE) -C ../lib
 
 check: msim
+	cd ../tests && ./runsim.sh
 
 .PHONY: all clean check
 

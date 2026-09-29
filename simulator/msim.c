@@ -152,15 +152,19 @@ static bool parse_spec(struct msim_ctx *ctx, const char *specfile)
 
 static void display_help(const char *argv0)
 {
-	printf("Usage: %s [-vhi] {-f spec file} [-c cycles]\n", argv0);
+	printf("Usage: %s [-vhiq] {-f spec file | -r rom} [-c cycles]\n", argv0);
+	printf("  -r rom   ROM image at chip select 0, 64K RAM at 1, Chairman at 31\n");
+	printf("  -q       no banner\n");
 }
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhif:c:";
+	static char optstring[] = "vhiqf:r:c:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
+	bool quiet = false;
 	char *specfile = NULL;
+	char *romfile = NULL;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -188,10 +192,16 @@ int main(int argc, char *argv[])
 		case 'i':
 			interactive = true;
 			break;
+		case 'q':
+			quiet = true;
+			break;
+		case 'r':
+			romfile = optarg;
+			break;
 		}
 	}
 	
-	if (specfile == NULL) {
+	if (specfile == NULL && romfile == NULL) {
 		printf("no specfile specified\n");
 		display_help(argv[0]);
 		opterr = true;
@@ -202,13 +212,19 @@ int main(int argc, char *argv[])
 		
 	ctx = msim_init();
 	
-	if (parse_spec(ctx, specfile) == false) {
+	if (romfile != NULL) {
+		msim_add_rom_from_file(ctx, 0, romfile);
+		msim_add_ram(ctx, 1, 65536);
+		msim_add_sys(ctx, 31);
+	} else if (parse_spec(ctx, specfile) == false) {
 		msim_destroy(ctx);
 		exit(2);
 	}
 	
-	printf("msim %s - The MEOW Simulator and Debugger\n", MSIM_VERSION);
-	printf("Copyright (c) 2006-2007 Rob Kendrick\n\n");
+	if (quiet == false) {
+		printf("msim %s - The MEOW Simulator and Debugger\n", MSIM_VERSION);
+		printf("Copyright (c) 2006-2007 Rob Kendrick\n\n");
+	}
 	
 	if (interactive == true) {
 		msim_debugger(ctx);

@@ -100,7 +100,7 @@ static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
 static void msim_builtin_exit(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	fprintf(stdout, "msim: simulated system called HALT\n");
+	fflush(stdout);
 	exit(ctx->r[MSIM_IR]);
 }
 
