@@ -271,22 +271,51 @@ _ll_scmpge
         SWAP
         B       _ll_scmple
 
-; a * b, low 64 bits: shift and add over the bits of b
+; a * b, low 64 bits: shift and add over the bits of whichever operand
+; has the shorter high word, four bits a step, stopping when none are left
 _ll_mul PUSH    {v1, v2, v3}
-        MOV     v1, r0
+        CMP     r3, r1
+        BLS     .go
+        MOV     at, r0                  ; swap so b is the smaller
+        MOV     r0, r2
+        MOV     r2, at
+        MOV     at, r1
+        MOV     r1, r3
+        MOV     r3, at
+.go     MOV     v1, r0                  ; v1:v2 = a, shifting up
         MOV     v2, r1
-        MOV     r0, #0
-        MOV     r1, #0
-        MOV     v3, #64
+        EOR     r0, r0
+        EOR     r1, r1
+        MOV     v3, r2                  ; anything left in b?
+        ORR     v3, r3
+        CMP     v3, #0
+        BEQ     .done
 .loop   TST     r2, #1
-        BEQ     .skip
+        BEQ     .b1
         ADD64   r0, r1, v1, v2
-.skip   SHL64   v1, v2
-        SHR64   r2, r3
-        SUB     v3, #1
+.b1     SHL64   v1, v2
+        TST     r2, #2
+        BEQ     .b2
+        ADD64   r0, r1, v1, v2
+.b2     SHL64   v1, v2
+        TST     r2, #4
+        BEQ     .b3
+        ADD64   r0, r1, v1, v2
+.b3     SHL64   v1, v2
+        TST     r2, #8
+        BEQ     .b4
+        ADD64   r0, r1, v1, v2
+.b4     SHL64   v1, v2
+        LSR     r2, #4
+        MOV     at, r3
+        LSL     at, #28
+        ORR     r2, at
+        LSR     r3, #4
+        MOV     v3, r2
+        ORR     v3, r3
         CMP     v3, #0
         BNE     .loop
-        POP     {v1, v2, v3}
+.done   POP     {v1, v2, v3}
         RET
 
 ; a / b unsigned: quotient in a1:a2, remainder in a3:a4.  Corrupts v1-v3.

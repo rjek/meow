@@ -19,7 +19,7 @@ awk '
 	function hex(s,   i, v) { v = 0; for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1; return v }
 	FILENAME == ARGV[1] {
 		# symbol table lines: index value bind type section name
-		if ($3 == "GLOBAL" || $3 == "LOCAL") if ($4 == "FUNC" || $4 == "NONE") { nsym++; sa[nsym] = hex($2); sn[nsym] = $NF }
+		if (($3 == "GLOBAL" || $3 == "LOCAL") && ($4 == "FUNC" || $4 == "NONE") && $5 ~ /^[0-9]+$/ && hex(substr($2, 3)) < 134217728) { nsym++; sa[nsym] = hex(substr($2, 3)); sn[nsym] = $NF }
 		# disassembly lines: address halfword mnemonic...
 		if ($1 ~ /^[0-9a-f]{8}$/ && $2 ~ /^[0-9a-f]{4}$/) { dis[$1] = substr($0, index($0, $3)) }
 		next
