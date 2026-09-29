@@ -3,9 +3,9 @@
 A proposal.  Catflap gives a MEOW microcontroller threads, processes,
 devices and a file system, in C with assembly where the machine demands
 it.  This document says what the hardware allows, what the system looks
-like as a result, and in what order to build it.  Nothing here is
-implemented; `attic/os/` is the 2007 attempt in assembler and this
-supersedes it.
+like as a result, and in what order to build it.  `os/` is the
+implementation, stage by stage as section 12 lists; `attic/os/` is the
+2007 attempt in assembler and this supersedes it.
 
 ## 1. What the machine dictates
 
@@ -44,7 +44,8 @@ Everything below follows from these.
 ```
   +-----------------------------------------------------------------+
   |  programs: init, sh, ls, cat, lua ...   (ELF loaded from romfs)  |
-  |  libc (PDCLib + musl maths) with a Catflap platform layer        |
+  +-----------------------------------------------------------------+
+  |  the shared C library: one copy in ROM, static data per process  |
   +-----------------------------------------------------------------+
   |  system call jump table (ROM, fixed address)                     |
   +-----------------------------------------------------------------+
@@ -59,10 +60,11 @@ Everything below follows from these.
   +-----------------------------------------------------------------+
 ```
 
-One kernel image in ROM, one address space, preemptive threads, and
-processes as the unit of loading and of resource ownership.  Programs
-are ordinary `nmcc` output linked against the same C library as today,
-with the dozen platform functions calling the kernel instead of `msim`.
+One kernel image in ROM, one address space, preemptive threads, a
+non-preemptible kernel, and processes as the unit of loading and of
+resource ownership.  Programs are ordinary `nmcc` output that call one
+copy of the C library in ROM, the same PDCLib and musl as today with
+the dozen platform functions calling the kernel instead of `msim`.
 
 ## 3. Memory layout
 
@@ -135,12 +137,15 @@ followed by `exit`.
   new `-r` option that keeps the `ABS32`, `ABS16` and `ABS8` relocations
   and the section table.  The loader allocates one block for text, data
   and bss, copies, zeroes, and applies the relocations, which with three
-  types is a hundred lines.  There is no shared library and no dynamic
-  linking: every program carries its own libc, which the archive
-  linking keeps to what it uses (`hello` is 18 KB).  Position-dependent
-  code with load-time relocation beats fixed load addresses, which would
-  make two programs at once impossible, and beats position-independent
-  code, which `nmcc` does not produce.
+  types is a hundred lines.  Position-dependent code with load-time
+  relocation beats fixed load addresses, which would make two programs
+  at once impossible, and beats position-independent code, which `nmcc`
+  does not produce.
+- **The shared C library.**  A program does not carry its own libc: one
+  copy of PDCLib and musl's maths lives in ROM and every process calls
+  it, as RISC OS programs call the SharedCLibrary.  The library's
+  static data (the streams, `errno`, the heap state, `strtok`'s pointer)
+  is instantiated once per process.  Section 6a says how.
 - **Resources.**  Files are reference-counted vnodes; the fd table is
   per process, 16 entries, inherited by `spawn` for 0, 1 and 2 only.
   Memory is tagged by owner as above.  Threads are the process's; when
@@ -165,9 +170,12 @@ calls through it:
 
 A stub per call, four halfwords, in `libc/catflap/functions/sys.s`.
 Being function calls, they run on the caller's stack in the caller's
-thread, take interrupts, and can block.  Kernel state is protected by
-disabling the tick around short critical sections (writing the Chairman
-mask), or by a kernel mutex for the long ones such as the VFS.
+thread and can block.  The kernel is not preemptible: a thread inside a
+system call is not switched away from until it blocks or returns, and a
+tick that arrives meanwhile only notes that a switch is wanted.  One
+counter says whether the kernel is entered; no lock, no mask fiddling,
+and console latency bounded by the longest system call, which is fine
+for a machine like this.
 
 The initial set, thirty or so: `exit`, `spawn`, `wait`, `getpid`,
 `thread_create`, `thread_exit`, `thread_join`, `yield`, `sleep`,
@@ -180,6 +188,49 @@ turns them into `-1` and `errno`.
 The table is the ABI.  Numbers are never reused, new calls go on the
 end, and a program built for one kernel runs on the next.
 
+## 6a. The shared C library
+
+A library that runs for every process at once with one copy of its code
+must reach a different copy of its data for each.  `nmcc` addresses a
+static by its absolute address, so the library is compiled in a new
+mode, `-zsb`, in which the address of any variable in the library's own
+data or bss is formed as a base register plus the offset:
+
+```
+        LDR     r0, =off_stdout         ; the address as linked, with data at 0
+        ADD     r0, sb                  ; sb: this process's copy
+```
+
+`sb` is `v6`, kept out of allocation in that mode, and a function that
+touches static data loads it on entry from one word in kernel RAM,
+`__client_sb`, which the scheduler sets whenever it switches to a thread
+of another process.  Nothing else changes: the calling convention is
+the same, a callee that took `sb` from the word and kept it in `v6`
+keeps the right value across a preemption because its registers are
+its own, and the client program never knows.
+
+The library is linked with its data based at 0, so every data address
+is an offset.  A process is given a copy of the library's `.data` and
+zeroed `.bss` at `spawn`, and the words in that copy that hold data
+addresses (`stdout` pointing at its `FILE`, a table of strings) are
+adjusted by the copy's address, from a list `mld` writes alongside the
+library.  RISC OS calls the same thing relocation offsets.
+
+Programs call library functions by their ROM addresses.  The library's
+link map becomes an object of absolute symbols that programs link
+against, so a call costs nothing over a call into the program itself;
+the whole ROM is built as one, which is what a microcontroller does.
+Should the library ever need to change under a program that has not
+been rebuilt, the same generated object can point at a jump table
+instead.
+
+What it costs: two instructions on entry to a library function that
+uses static data, one on each static access, and `v6`.  What it saves:
+the 18 KB a trivial program otherwise carries, and all of the 200 KB of
+the library that Lua would, per process, in ROM and in RAM.  The kernel
+work is a few hundred bytes; the compiler work is in `gen.c` where
+addresses of data symbols are formed and in the prologue.
+
 ## 7. Devices and drivers
 
 At boot the kernel walks the chip-select table and binds a driver to
@@ -188,8 +239,8 @@ gives the timer and console, an IOC when one is specified gives whatever
 it gives.  A driver is a vnode with `read`, `write`, `ioctl` and an
 optional thread, registered under `/dev`.
 
-- **Console.**  No interrupt, so the idle thread polls the flags register
-  and posts each byte to a 64-byte queue; `read` on `/dev/console` takes
+- **Console.**  No interrupt, so the tick polls the flags register and
+  posts each byte to a 64-byte queue; `read` on `/dev/console` takes
   from the queue, blocking.  Output is direct, with a mutex.  Under
   `msim`, output goes to the Chairman's serial register like everywhere
   else; the `BNV` calls are for the toolchain's tests, not the OS.
@@ -326,23 +377,22 @@ and lose the ability to run two at once, which a shell can live with.
 ## 13. Decisions taken, and open ones
 
 Taken, for the reasons above: no `fork`; one address space and one
-allocator; system calls as function calls through a ROM table; every
-context switch from the interrupt bank; message queues rather than
-signals; romfs before any writable file system; C everywhere but
+allocator; one shared C library with data per process; system calls as
+function calls through a ROM table; every context switch from the
+interrupt bank; a kernel that is never preempted; message queues rather
+than signals; romfs before any writable file system; C everywhere but
 `boot.s`.
 
-Open:
+Also taken: the instruction set does not change for the operating
+system.  A trap operand that swapped banks would give a real system
+call entry, but the design does not need one, and whether it is worth
+having is a question to ask once the system runs and can be measured.
 
-- **A trap instruction.**  A `BNV` operand that swaps banks like an
-  interrupt would give a real system call entry and a place to put a
-  future privilege bit.  It is not needed for this design and adding it
-  would be a change to the architecture, to be decided on its own.
-- **Preemption of kernel code.**  The proposal disables the tick around
-  short critical sections and takes a mutex for long ones.  Making the
-  whole kernel non-preemptible is simpler and would cost console
-  latency only when a thread is deep in the VFS; worth measuring.
-- **Whether `at` and `ir` are safe across a system call.**  They are
-  caller-saved in MABI, so yes, but the stubs must not assume otherwise.
-- **Multiprocessor.**  The Chairman has masks for 32 CPUs and `BNV #2`
-  reports a bus ID.  Nothing here precludes one thread per CPU later,
-  and nothing here supports it.
+Multiprocessor: the Chairman was designed with masks for 32 CPUs so
+that cores could bit-bang peripherals in the XMOS manner, and nothing
+here supports that yet.  What the kernel does to avoid making it hard
+later: the per-CPU state, which is the running thread, the kernel-entry
+counter and `__client_sb`, sits in one structure that is indexed by
+`BNV #2` when there is more than one of them, and kernel-wide state is
+touched only by code that could take a lock.  The scheduler's queues
+are shared, which is the right first shape for a few cores.
