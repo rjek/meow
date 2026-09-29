@@ -39,9 +39,10 @@ written to these; the simulator and assembler are corrected to match.
    built from two halfword loads, in the order low then high.  Stores are
    unaffected.
 
-8. **Arithmetic shifts and rotates.**  The A bit is only meaningful for a
-   right shift.  A = 1 with a left shift or with a rotate is reserved.  `ASL`
-   is an assembler alias for `LSL`.  A shift or rotate amount taken from a
+8. **Arithmetic shifts and rotates.**  `ASR` has encodings of its own, with
+   bit 12 set and bits 7:5 clear; the logical shifts and rotates leave bit
+   12 clear (see 11 for what took the rest of that space).  `ASL` is an
+   assembler alias for `LSL`.  A shift or rotate amount taken from a
    register uses its low five bits only.
 
 9. **Reset state.**  The CPU resets into the normal bank with every register
@@ -58,6 +59,43 @@ written to these; the simulator and assembler are corrected to match.
     BNV operands are even.  Unaligned accesses, and writeback onto the value
     register of the same MEM instruction, are UNPREDICTABLE.  Reading `pc`
     gives the address of the current instruction.
+
+## Instruction set additions
+
+Both were prototyped end to end (ISA description, simulator, assembler,
+disassembler, compiler) and measured on `make bench`, each against the
+same build with only that change switched off.
+
+11. **Stack-relative LDR and STR: kept.**  `LDR|STR Rv, [sp, #n]`, a word
+    at an offset of 0 to 124, in the `1011 vvvv 01Lo oooo` corner of the
+    shift opcode.  The compiler has no other way to reach a stack slot
+    than `ADD ir, sp, #n` or `MOV ir, sp; ADD ir, #n` before the access,
+    so every spill and every local without a register cost two or three
+    instructions.  Measured: 6.7% fewer instructions over the suite and
+    12.8% on softfp, whose 64-bit values live on the stack, for 2.1% less
+    code.  To make room `ASR` moved to encodings of its own with bit 12
+    set, since the old shift encoding left that bit free with left shifts
+    and rotates and would have overlapped.
+
+12. **ADDS and SUBS: tried and dropped.**  Add and subtract setting the
+    flags, `Rd, #0..31` and `Rd, Rs`, in the remaining `1011 rrrr 1xxx
+    xxxx` space.  The compiler fused them into `n-- > 0` loops, loops
+    that only count, 64-bit adds and the C carry idiom `x += y; if (x <
+    y)`, remapping the branch condition when the compare it replaced was
+    not against the same value.  Measured: 0.7% fewer instructions over
+    the suite, 8.6% on crc and 6.4% on bits, nothing elsewhere.  Nearly
+    every loop compares its counter against a bound in a register and
+    keeps its `CMP`, and the branch condition remapping leant on the
+    compare being the last thing in its block.  Not worth four encodings
+    and that fragility; the space is reserved again.
+
+13. **Division by a constant: the wrong shape.**  Not an instruction, but
+    the same lesson.  Multiplying by a reciprocal through `__umulhi`
+    measured slower than `__udiv` for every dividend size, twice as slow
+    for large ones and nine times for small: the subtract loop costs
+    about four instructions per quotient bit, the shift-and-add multiply
+    about seven per bit of a full 32-bit constant.  Without a multiplier
+    the library divide stays; the compiler keeps the code switched off.
 
 ## Toolchain
 
