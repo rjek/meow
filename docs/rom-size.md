@@ -91,6 +91,11 @@ What the compiler can do, with the sizes measured or estimated:
   rd, rd; ADD rd, #k` is also two halfwords.
 
 About 20 KB in all, 5%.  The compiler is not where the fat is either.
+Done so far: a constant that the next instruction consumes stays in
+`ir` where `LDI` put it, and a move straight back over a move goes;
+together 1 KB, since most constants go into argument registers or
+address bases, which cannot take `ir`.  The rest above is allocator
+work in the middle end and remains to be done.
 
 ## The C library: 217 KB, most of it never called
 

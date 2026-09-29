@@ -64,7 +64,7 @@ parent 0
 threads 1
 state running
 cwd /
-code 2700 rom
+code 2692 rom
 data 5688
 heap 0
 $ 39 running 4 4096
