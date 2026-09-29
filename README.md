@@ -63,7 +63,30 @@ of code it compiled to, with the change since `bench/baseline.txt`.  Set
 `NMCCFLAGS` to try compiler options, and rerun `bench/run.sh -b` to make
 the current numbers the baseline.  Every program prints a checksum that
 must match the host compiler's, so an optimisation that breaks the code
-is a failure, not a speed-up.
+is a failure, not a speed-up.  `bench/profile.sh NAME` runs one program
+under `msim -P` and lists the functions and instructions that took the
+time.
+
+| Program | Exercises | Instructions | Bytes |
+|---|---|---|---|
+| bits | Masks, variable shifts, rotates, byte swaps | 1499463 | 448 |
+| calls | Recursion with small frames and a few arguments | 3236125 | 400 |
+| crc | CRC32 by table and bit by bit | 415452 | 336 |
+| lists | A sorted linked list built, walked and freed | 2890669 | 440 |
+| matmul | Nested loops, address arithmetic, `__mul` | 1666700 | 404 |
+| sieve | Byte array indexing, inner loops with a stride | 1554821 | 188 |
+| softfp | Floating point through the library | 12797680 | 616 |
+| sort | Quicksort with an insertion sort tail | 1951817 | 648 |
+| strings | Byte loops as the C library would write them | 817195 | 616 |
+| vm | A bytecode interpreter: big switch, stack, pointers | 1110734 | 328 |
+| total | | 27940656 | 4424 |
+
+These are the baseline as of the stack-relative `LDR` and `STR`.  The
+first baseline, before any optimisation work, was 63000880 instructions
+and 4996 bytes; the compiler's strength reduction, constant hoisting,
+peepholes and inline 64-bit helpers, the runtime's rewritten multiply,
+divide and float multiply, and the sp offset form brought it down 56%
+in instructions and 11% in code.
 
 ## A first program
 
