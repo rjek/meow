@@ -1,0 +1,19 @@
+Catflap: 256 KB RAM
+console is fd 0
+/: bin/ etc/
+/etc: config motd
+/dev: console null
+/nowhere: error -2
+Catflap, an operating system for MEOW.
+root=/
+console=/dev/console
+stat /etc/motd: 0 type 0 size 39
+stat /etc: 0 type 1
+open /etc/motd/x: -20, open /bin/nothing: -2, read dir: -21
+tail: [EOW.
+] 5
+read 11: first line
+read 7: second
+end of console input
+plenty free
+exit 0

@@ -1,4 +1,4 @@
-Catflap: 256 KB RAM, 247 KB free
+Catflap: 256 KB RAM
 init: all started at tick 0
 sleeper 1 step 0 at tick 0
 sleeper 2 step 0 at tick 0
@@ -11,5 +11,5 @@ sleeper 2 step 2 at tick 4
 sleeper 3 step 2 at tick 6
 spinner until 5 done
 spinner until 8 done
-boss: 246 KB free, tick 12
+boss: plenty free, tick 12
 exit 0

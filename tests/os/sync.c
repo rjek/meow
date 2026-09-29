@@ -81,7 +81,7 @@ void init_main(void)
     thread_create("count1", counter, NULL, 3, STACK_DEFAULT);
     thread_create("count2", counter, NULL, 3, STACK_DEFAULT);
     thread_create("count3", counter, NULL, 3, STACK_DEFAULT);
-    thread_create("echo", echo, NULL, 5, STACK_DEFAULT);
+    thread_create("echo", echo, NULL, 2, STACK_DEFAULT);   /* last, whatever the ticks do */
     for (i = 0; i < 5; i++) {
         sem_wait(&ready);
     }

@@ -27,7 +27,7 @@ static int boss(void *arg)
 {
     (void)arg;
     thread_sleep(12);
-    kprintf("boss: %u KB free, tick %u\n", (unsigned)kmem_free() / 1024, ticks_now());
+    kprintf("boss: %s free, tick %u\n", kmem_free() > 200 * 1024 ? "plenty" : "little", ticks_now());
     kernel_halt(0);
     return 0;
 }

@@ -20,8 +20,10 @@ void kmain(void)
     console_init();
     alloc_init(__bss_end, heap_end);
     sched_init();
-    kprintf("Catflap: %u KB RAM, %u KB free\n", ram / 1024,
-            (unsigned)kmem_free() / 1024);
+    kprintf("Catflap: %u KB RAM\n", ram / 1024);
+    if (vfs_mount("/", romfs_init()) < 0 || vfs_mount("/dev", devfs_init()) < 0) {
+        kpanic("cannot mount");
+    }
     sched_start();
     thread_create("init", init_thread, NULL, PRIO_INIT, STACK_DEFAULT);
     for (;;) {

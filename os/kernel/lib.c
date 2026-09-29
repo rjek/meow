@@ -41,6 +41,47 @@ int strcmp(const char *a, const char *b)
     return (unsigned char)*a - (unsigned char)*b;
 }
 
+int strncmp(const char *a, const char *b, size_t n)
+{
+    while (n > 0 && *a != '\0' && *a == *b) {
+        a++;
+        b++;
+        n--;
+    }
+    return n == 0 ? 0 : (unsigned char)*a - (unsigned char)*b;
+}
+
+int memcmp(const void *a, const void *b, size_t n)
+{
+    const unsigned char *pa = a, *pb = b;
+
+    while (n-- > 0) {
+        if (*pa != *pb) {
+            return *pa - *pb;
+        }
+        pa++;
+        pb++;
+    }
+    return 0;
+}
+
+char *strcat(char *d, const char *s)
+{
+    strcpy(d + strlen(d), s);
+    return d;
+}
+
+char *strchr(const char *s, int c)
+{
+    while (*s != (char)c) {
+        if (*s == '\0') {
+            return NULL;
+        }
+        s++;
+    }
+    return (char *)s;
+}
+
 char *strcpy(char *d, const char *s)
 {
     char *r = d;

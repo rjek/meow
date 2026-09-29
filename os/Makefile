@@ -6,11 +6,13 @@ MAS = ../as/mas
 MLD = ../ld/mld
 MSIM = ../simulator/msim
 CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
+HOSTCC = cc
 RT = ../rt/mul.o ../rt/div.o ../rt/ll.o
 RAM = 256
 
 KSRCS := $(wildcard kernel/*.c)
-KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS)))
+KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS))) obj/kernel/romfs_image.o
+ROOT := $(shell find root -type f)
 
 all: catflap.rom
 
@@ -23,7 +25,16 @@ obj/%.o: %.c
 
 obj/%.o: %.s
 	@mkdir -p $(dir $@)
-	$(MAS) -o $@ $<
+	$(MAS) -I obj -o $@ $<
+
+obj/kernel/romfs_image.o: kernel/romfs_image.s obj/romfs.img
+
+obj/romfs.img: obj/mkromfs $(ROOT)
+	obj/mkromfs $@ root
+
+obj/mkromfs: tools/mkromfs.c
+	@mkdir -p obj
+	$(HOSTCC) -O -Wall -o $@ $<
 
 run: catflap.rom
 	$(MSIM) -q -r catflap.rom -m $(RAM)

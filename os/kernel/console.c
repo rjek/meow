@@ -72,6 +72,12 @@ int console_getc(void)
     return c;
 }
 
+/* Bytes waiting, for a reader that must not block */
+int console_pending(void)
+{
+    return (int)count;
+}
+
 /* A line, without its newline, terminated.  Returns its length, or -1
    at the end of input with nothing read. */
 int console_gets(char *buf, size_t size)

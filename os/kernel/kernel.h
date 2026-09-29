@@ -65,6 +65,101 @@ struct cpu {
 extern struct cpu cpu0;
 #define this_cpu() (&cpu0)
 
+/* Errors: negative errno values, as the system calls return them */
+#define ENOENT          2
+#define EIO             5
+#define EBADF           9
+#define ENOMEM          12
+#define EEXIST          17
+#define ENOTDIR         20
+#define EISDIR          21
+#define EINVAL          22
+#define EMFILE          24
+#define ENOTTY          25
+#define ENOSPC          28
+#define ESPIPE          29
+#define EROFS           30
+#define ENAMETOOLONG    36
+#define ENOSYS          38
+#define ENOTEMPTY       39
+
+/* The file system */
+#define NFD             16
+#define NAME_MAX        31
+#define PATH_MAX        128
+#define O_RDONLY        0
+#define O_WRONLY        1
+#define O_RDWR          2
+#define O_CREAT         0x40
+#define O_TRUNC         0x200
+#define O_APPEND        0x400
+#define SEEK_SET        0
+#define SEEK_CUR        1
+#define SEEK_END        2
+
+enum vnode_type { V_FILE, V_DIR, V_DEV, V_PIPE };
+
+struct vnode;
+struct dirent {
+    char name[NAME_MAX + 1];
+    int type;
+    uint32_t size;
+};
+
+struct stat {
+    int type;
+    uint32_t size;
+    uint32_t ino;
+};
+
+struct vnode_ops {
+    int (*lookup)(struct vnode *dir, const char *name, struct vnode **out);
+    int (*read)(struct vnode *v, void *buf, size_t len, uint32_t off);
+    int (*write)(struct vnode *v, const void *buf, size_t len, uint32_t off);
+    int (*readdir)(struct vnode *v, uint32_t index, struct dirent *out);
+    int (*create)(struct vnode *dir, const char *name, int type, struct vnode **out);
+    int (*unlink)(struct vnode *dir, const char *name);
+    int (*ioctl)(struct vnode *v, int req, void *arg);
+    void (*release)(struct vnode *v);
+};
+
+struct vnode {
+    const struct vnode_ops *ops;
+    int type;
+    uint32_t size;
+    int refs;
+    void *fs;                           /* the file system's own */
+    uint32_t ino;
+};
+
+struct file {
+    struct vnode *v;
+    uint32_t off;
+    int flags;
+    int refs;
+};
+
+/* vfs.c */
+struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
+                        uint32_t ino, uint32_t size);
+void vnode_get(struct vnode *v);
+void vnode_put(struct vnode *v);
+int vfs_mount(const char *path, struct vnode *root);
+int vfs_lookup(const char *path, struct vnode **out);
+int vfs_open(const char *path, int flags);
+int vfs_close(int fd);
+int vfs_read(int fd, void *buf, size_t len);
+int vfs_write(int fd, const void *buf, size_t len);
+int vfs_seek(int fd, int32_t off, int whence);
+int vfs_readdir(int fd, struct dirent *de);
+int vfs_stat(const char *path, struct stat *st);
+int vfs_ioctl(int fd, int req, void *arg);
+
+/* romfs.c, devfs.c */
+struct vnode *romfs_init(void);
+struct vnode *devfs_init(void);
+int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
+
 /* boot.s */
 void kernel_halt(int status);
 int cpu_id(void);
@@ -75,7 +170,11 @@ void *memcpy(void *d, const void *s, size_t n);
 void *memset(void *d, int c, size_t n);
 size_t strlen(const char *s);
 int strcmp(const char *a, const char *b);
+int strncmp(const char *a, const char *b, size_t n);
+int memcmp(const void *a, const void *b, size_t n);
 char *strcpy(char *d, const char *s);
+char *strcat(char *d, const char *s);
+char *strchr(const char *s, int c);
 void kvprintf(const char *fmt, va_list ap);
 void kprintf(const char *fmt, ...);
 void kpanic(const char *fmt, ...);
@@ -125,6 +224,7 @@ void console_putc(int c);
 void console_puts(const char *s);
 struct thread *console_poll(void);
 int console_getc(void);
+int console_pending(void);
 int console_gets(char *buf, size_t size);
 
 /* alloc.c */
