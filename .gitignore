@@ -3,11 +3,6 @@
 simulator/msim
 simulator/msim_watchpoints.c
 attic/os/catflap.rom
-docs/*.aux
-docs/*.log
-docs/*.out
-docs/*.toc
-docs/*.pdf
 meow_isa.c
 meow_isa.h
 lib/test_disasm
