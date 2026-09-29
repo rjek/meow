@@ -12,6 +12,7 @@ Symbols
     6 0x00000000 LOCAL  NONE 3       buffer
     7 0x00000000 GLOBAL FUNC 1       main
     8 0x00000000 GLOBAL NONE UND     puts
+    9 0x00000000 GLOBAL NONE 1       __entry
 Relocations for .text
   0x00000018 ABS32  .data+0
   0x0000001c ABS32  puts+0

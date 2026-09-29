@@ -12,6 +12,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/reference.md](docs/reference.md) | Architecture reference: registers, instructions, memory map, Chairman |
 | [docs/abi.md](docs/abi.md) | MABI, the C calling convention |
 | [docs/assembler.md](docs/assembler.md) | The `mas` assembler and its language |
+| [docs/linker.md](docs/linker.md) | The `mld` linker |
 | [docs/simulator.md](docs/simulator.md) | The `msim` simulator and debugger |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 

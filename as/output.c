@@ -239,12 +239,16 @@ void write_elf(const char *path)
 				      (int32_t)r->addend);
 		}
 	}
+	/* the entry point travels as a global symbol; e_entry means nothing
+	 * in a relocatable */
 	if (entry_symbol != NULL) {
 		uint32_t value;
 		int shndx;
 
-		if (elf_symbol_value(entry_symbol, &value, &shndx) == true) {
-			e->entry = value;
+		if (elf_symbol_value(entry_symbol, &value, &shndx) == true &&
+		    sym_find("__entry") == NULL) {
+			melf_add_symbol(e, "__entry", value, MELF_STB_GLOBAL,
+					MELF_STT_NOTYPE, shndx);
 		}
 	}
 	if (error_count == 0 && melf_write(e, path) == false) {

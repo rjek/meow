@@ -98,7 +98,7 @@ operands never are.
 | `GET file` | Assemble another file here.  Also `INCLUDE`.  Searched relative to the including file, then the `-I` directories |
 | `EXPORT names` | Make symbols visible to the linker.  Also `GLOBAL` |
 | `IMPORT names` | Declare symbols defined elsewhere.  Also `EXTERN` |
-| `ENTRY [symbol]` | Mark the entry point (the current position if no symbol is given) |
+| `ENTRY [symbol]` | Mark the entry point (the current position if no symbol is given).  In ELF output it becomes the global symbol `__entry`, which `mld` uses |
 | `LTORG` | Place the literal pool here (see `LDR =`) |
 | `MACRO name [$p, $q=default...]` | Begin a macro definition, ended by `MEND` |
 | `IF expr` `ELSE` `ENDIF` | Conditional assembly.  `[`, `\|` and `]` are accepted as well.  `ELSE IF expr` chains |
@@ -214,7 +214,7 @@ ELF output keeps the sections separate and emits `ABS32`, `ABS16` and
 entries that refer to sections or imported symbols.  Branches and `ADR`
 must stay within one section; reach code in another section or file with
 `LDR pc, =symbol` (or `LDR Rd, =symbol` followed by `MOV pc, Rd`).  Link
-with `mld`.
+with `mld`, described in `linker.md`.
 
 ## Differences from ObjAsm
 
