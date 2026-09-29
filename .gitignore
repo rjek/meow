@@ -8,3 +8,7 @@ docs/*.log
 docs/*.out
 docs/*.toc
 docs/*.pdf
+meow_isa.c
+meow_isa.h
+lib/test_disasm
+isa/isagen

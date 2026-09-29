@@ -1,0 +1,144 @@
+; MEOW instruction encodings.  Single source of truth: isagen turns this
+; into C tables and documentation fragments.
+;
+; enc NAME            starts an encoding
+; bits ...            16 symbols, msb first; 0/1 are fixed, letters are fields
+; field L name kind   L is the letter used in bits; kind is one of
+;                     reg bank uimm simm cond flag op
+;                     the rest of the line is the description
+; syntax ...          assembler syntax (documentation only)
+; end                 ends the encoding
+
+enc B
+bits  000c ccca aaaa aaaa
+field c cond cond  Condition code
+field a off  simm  Signed offset from this instruction, in halfwords
+syntax B{cond} label
+syntax BNV #imm
+end
+
+enc ADD3
+bits  0010 dddd iiii ssss
+field d rd   reg   Destination register
+field i imm  uimm  Immediate; zero selects Rd += Rs
+field s rs   reg   Source register
+syntax ADD Rd, Rs
+syntax ADD Rd, Rs, #imm
+end
+
+enc ADD8
+bits  0011 dddd iiii iiii
+field d rd   reg   Destination register
+field i imm  uimm  Unsigned immediate added to Rd
+syntax ADD Rd, #imm
+end
+
+enc SUB3
+bits  0100 dddd iiii ssss
+field d rd   reg   Destination register
+field i imm  uimm  Immediate; zero selects Rd -= Rs
+field s rs   reg   Source register
+syntax SUB Rd, Rs
+syntax SUB Rd, Rs, #imm
+end
+
+enc SUB8
+bits  0101 dddd iiii iiii
+field d rd   reg   Destination register
+field i imm  uimm  Unsigned immediate subtracted from Rd
+syntax SUB Rd, #imm
+end
+
+enc CMPI
+bits  0110 nnnn iiii iiii
+field n rn   reg   Register compared
+field i imm  simm  Signed immediate compared against
+syntax CMP Rn, #imm
+end
+
+enc CMPR
+bits  0111 nnnn 00wx mmmm
+field n rn   reg   First register
+field w bn   bank  1 if Rn is in the alternative bank
+field x bm   bank  1 if Rm is in the alternative bank
+field m rm   reg   Second register
+syntax CMP {A}Rn, {A}Rm
+end
+
+enc TST
+bits  0111 nnnn 10wb bbbb
+field n rn   reg   Register tested
+field w bn   bank  1 if Rn is in the alternative bank
+field b bit  uimm  Bit number tested
+syntax TST {A}Rn, #value
+end
+
+enc MOV
+bits  1000 dddd bhwx ssss
+field d rd   reg   Destination register
+field b bsw  flag  Swap each byte with its neighbour (REV16)
+field h hsw  flag  Swap the two halfwords
+field w bd   bank  1 if Rd is in the alternative bank
+field x bs   bank  1 if Rs is in the alternative bank
+field s rs   reg   Source register
+syntax MOV{B}{W} {A}Rd, {A}Rs
+end
+
+enc LDI
+bits  1001 iiii iiii iiii
+field i imm  simm  Signed immediate loaded into ir
+syntax LDI #imm
+end
+
+enc SHI
+bits  101a rrrr dR0i iiii
+field a arith flag  Arithmetic (right shifts only)
+field r rd   reg   Register shifted
+field d left flag  1 shifts left, 0 shifts right
+field R rot  flag  1 rotates, 0 shifts
+field i imm  uimm  Shift amount
+syntax LSL|LSR|ASR|ROL|ROR Rd, #imm
+end
+
+enc SHR
+bits  101a rrrr dR10 ssss
+field a arith flag  Arithmetic (right shifts only)
+field r rd   reg   Register shifted
+field d left flag  1 shifts left, 0 shifts right
+field R rot  flag  1 rotates, 0 shifts
+field s rs   reg   Register holding the shift amount (low five bits used)
+syntax LSL|LSR|ASR|ROL|ROR Rd, Rs
+end
+
+enc BITR
+bits  110n dddd oo00 ssss
+field n inv  flag  Invert the operand before the operation
+field d rd   reg   Destination register
+field o op   op    0 NOT, 1 AND, 2 ORR, 3 EOR
+field s rs   reg   Operand register
+syntax MVN|AND|ORR|EOR|BIC|ORN|EON Rd, Rs
+end
+
+enc BITI
+bits  110n dddd oo1b bbbb
+field n inv  flag  Invert the operand before the operation
+field d rd   reg   Destination register
+field o op   op    0 NOT, 1 AND, 2 ORR, 3 EOR
+field b bit  uimm  Operand is 1 shifted left by this
+syntax MVN|AND|ORR|EOR|BIC|ORN|EON Rd, #value
+end
+
+enc MEM
+bits  111L vvvv SHWD aaaa
+field L store flag  1 stores, 0 loads
+field v rv   reg   Value register
+field S half flag  1 for a halfword access
+field H hilo flag  Halfword: 1 low half, 0 high half.  Otherwise: 1 word, 0 byte
+field W wb   flag  Writeback; with D: 00 none, 01 decrease before
+field D dir  flag  Writeback direction: 10 decrease after, 11 increase after
+field a ra   reg   Address register
+syntax LDR|STR{B|H|HH} Rv, [Ra]
+syntax LDR|STR{B|H|HH} Rv, [Ra], #size
+syntax LDR|STR{B|H|HH} Rv, [Ra], #-size
+syntax LDR|STR{B|H|HH} Rv, [Ra, #-size]!
+end
