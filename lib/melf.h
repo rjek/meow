@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define EM_MEOW 0x4d45		/* private machine number, "ME" */
 
@@ -93,6 +94,7 @@ void melf_add_rela(struct melf *e, int section, uint32_t offset, int sym,
  * locals precede globals; melf_symbol_index maps an add-time index to
  * the final one. */
 bool melf_write(struct melf *e, const char *path);
+bool melf_fwrite(struct melf *e, FILE *f);
 
 /* Read a MEOW ELF file into the same structure.  Section data is loaded;
  * relocations are decoded.  Returns NULL with a message in errbuf on

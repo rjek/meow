@@ -211,9 +211,8 @@ static uint32_t align_up(uint32_t v, uint32_t a)
 	return a > 1 ? (v + a - 1) & ~(a - 1) : v;
 }
 
-bool melf_write(struct melf *e, const char *path)
+bool melf_fwrite(struct melf *e, FILE *f)
 {
-	FILE *f = fopen(path, "wb");
 	struct strtab shstr = { NULL, 0, 0 };
 	struct strtab str = { NULL, 0, 0 };
 	uint8_t *symtab;
@@ -377,11 +376,22 @@ bool melf_write(struct melf *e, const char *path)
 	free(rela_name);
 	free(shstr.data);
 	free(str.data);
-	if (ferror(f) != 0) {
-		fclose(f);
+	return ferror(f) == 0;
+}
+
+bool melf_write(struct melf *e, const char *path)
+{
+	FILE *f = fopen(path, "wb");
+	bool ok;
+
+	if (f == NULL) {
 		return false;
 	}
-	return fclose(f) == 0;
+	ok = melf_fwrite(e, f);
+	if (fclose(f) != 0) {
+		ok = false;
+	}
+	return ok;
 }
 
 /* ---- reader ----------------------------------------------------------- */
