@@ -255,463 +255,258 @@ inline u_int16_t msim_fetch(struct msim_ctx *ctx)
 	return msim_memget(ctx, ctx->r[MSIM_PC], MSIM_ACCESS_HALFWORD);
 }
 
-void msim_decode(struct msim_ctx *ctx, u_int16_t instrword,
-			struct msim_instr *instr)
+static void set_nz(struct msim_ctx *ctx, u_int32_t v)
 {
-	memset(instr, 0, sizeof(struct msim_instr));
+	u_int32_t sr = ctx->r[MSIM_SR] & ~(MEOW_SR_N | MEOW_SR_Z);
 
-	switch (instrword >> 13) {
-	case 0:
-		instr->opcode = MSIM_OPCODE_B;
-		instr->condition = (instrword >> 9) & 15;
-		instr->immediate =
-			MSIM_SIGN_EXTEND(
-				(instrword & (~(127<<9))), 32, 9) * 2;
-		
-		break;
-		
-	case 1:
-		instr->opcode = MSIM_OPCODE_ADD;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->destination = MSIM_GET_DREG(instrword);
-		if (instr->subop == false) {
-			instr->source = MSIM_GET_SREG(instrword);
-			instr->immediate = (instrword >> 4) & 15;
-		} else {
-			instr->immediate = (instrword & 0xff);
-		}		
-		break;
-			
-	case 2:
-		instr->opcode = MSIM_OPCODE_SUB;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->destination = MSIM_GET_DREG(instrword);
-		if (instr->subop == false) {
-			instr->source = MSIM_GET_SREG(instrword);
-			instr->immediate = (instrword >> 4) & 15;
-		} else {
-			instr->immediate = (instrword & 0xff);
-		}
-		break;
-		
-	case 3:
-		instr->opcode = MSIM_OPCODE_CMP;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->destination = MSIM_GET_DREG(instrword);
-		instr->source = MSIM_GET_SREG(instrword);
-		if (instr->subop == false)
-			/* compare dreg to 8 bit immediate */
-			instr->immediate = MSIM_SIGN_EXTEND(
-				instrword & 0xff, 32, 8);
-		else {
-			if (instrword & (1<<7)) {
-				/* tst */
-				instr->destinationbank =
-					(instrword & (1<<5)) != 0;
-				instr->immediate = 1<<(instrword & 31);
-				instr->istst = true;
-			} else {
-				/* cmp two registers */
-				instr->source = MSIM_GET_SREG(instrword);
-				instr->destinationbank =
-					(instrword & (1<<5)) != 0;
-				instr->sourcebank =
-					(instrword & (1<<4)) != 0;
-				instr->cmp2reg = true;
-			}
-		}
-		break;
-			
-	case 4:
-		instr->opcode = MSIM_OPCODE_MOV;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		if (instr->subop == false) {
-			instr->destination = MSIM_GET_DREG(instrword);
-			instr->source = MSIM_GET_SREG(instrword);
-			instr->destinationbank =
-					(instrword & (1<<5)) != 0;
-			instr->sourcebank = (instrword & (1<<4)) != 0;
-			instr->byteswap = (instrword & (1<<6)) != 0;
-			instr->halfwordswap = (instrword & (1<<7)) != 0;
-		} else {
-			instr->destination = MSIM_IR;
-			instr->immediate = MSIM_SIGN_EXTEND(
-				instrword & (~(15<<12)), 32, 12);
-		}
-		break;
-			
-	case 5:
-		instr->opcode = MSIM_OPCODE_LSH;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->arithmetic = instr->subop;
-		instr->roll = (instrword & (1<<6)) != 0;
-		instr->destination = MSIM_GET_DREG(instrword);
-		instr->shiftdirection = (instrword & (1<<7))
-						? MSIM_SHIFT_LEFT
-						: MSIM_SHIFT_RIGHT;
-		if ((instrword & (1<<5)) != 0)
-			instr->source = MSIM_GET_SREG(instrword);
-		else {
-			instr->immediate = instrword & 31;
-			instr->immver = true;
-		}
-		
-		break;
-	
-	case 6:
-		instr->opcode = MSIM_OPCODE_BIT;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->inverted = instr->subop;
-		instr->destination = MSIM_GET_DREG(instrword);
-		if (instrword & (1<<5)) {
-			instr->immver = true;
-			instr->immediate = 1 << (instrword & 31);
-		} else {
-			instr->immver = false;
-			instr->source = MSIM_GET_SREG(instrword);
-		}
-		instr->bitop = (instrword >> 6) & 3;
-		break;
-			
-	case 7:
-		instr->opcode = MSIM_OPCODE_MEM;
-		instr->subop = MSIM_GET_SUBOP(instrword);
-		instr->memop = instr->subop ? MSIM_MEM_STORE :
-						MSIM_MEM_LOAD;
-		instr->destination = MSIM_GET_DREG(instrword);
-		instr->source = MSIM_GET_SREG(instrword);
-		
-		instr->memsize = (instrword & 1<<7) ?
-					MSIM_ACCESS_HALFWORD :
-					MSIM_ACCESS_BYTE;
-		
-		instr->memhilo = (instrword & 1<<6) ?
-					MSIM_MEM_LO : MSIM_MEM_HI;
-		
-		instr->writeback = ((instrword & 1<<5) != 0);
-		instr->memdirection = (instrword & 1<<4) ?
-					MSIM_MEM_INCREASE :
-					MSIM_MEM_DECREASE;
-					
-		/* make use of a useless encoding for doing 32 bit accesses */
-		if (instr->memsize == MSIM_ACCESS_BYTE &&
-			instr->memhilo == MSIM_MEM_LO)
-			instr->memsize = MSIM_ACCESS_WORD;
-		break;
+	if ((v & 0x80000000u) != 0) {
+		sr |= MEOW_SR_N;
 	}
-						
+	if (v == 0) {
+		sr |= MEOW_SR_Z;
+	}
+	ctx->r[MSIM_SR] = sr;
 }
 
-void msim_execute(struct msim_ctx *ctx, struct msim_instr *instr)
+/* CMP is SUBS with the result discarded: ARM flag semantics. */
+static void compare(struct msim_ctx *ctx, u_int32_t a, u_int32_t b)
 {
-	u_int32_t tmp = 0, alu;
-	switch (instr->opcode) {
-	case MSIM_OPCODE_B:
-		if (msim_cond_match(ctx->r[MSIM_SR], instr->condition)) {
-			ctx->r[MSIM_PC] += instr->immediate;
-			ctx->nopcincrement = true;
-		} else if (instr->condition == MSIM_COND_NV) {
-			signed int operation = (instr->immediate) + 256;
-			if (ctx->bnvops[operation] == NULL) {
+	u_int32_t d = a - b;
+	u_int32_t sr;
+
+	set_nz(ctx, d);
+	sr = ctx->r[MSIM_SR] & ~(MEOW_SR_C | MEOW_SR_V);
+	if (a >= b) {
+		sr |= MEOW_SR_C;
+	}
+	if (((a ^ b) & (a ^ d) & 0x80000000u) != 0) {
+		sr |= MEOW_SR_V;
+	}
+	ctx->r[MSIM_SR] = sr;
+}
+
+static u_int32_t *bank_reg(struct msim_ctx *ctx, unsigned reg, unsigned alt)
+{
+	return alt != 0 ? &ctx->ar[reg] : &ctx->r[reg];
+}
+
+static void reserved(struct msim_ctx *ctx, u_int16_t w)
+{
+	fprintf(stderr, "msim: reserved instruction %04x at %08x\n", w,
+		ctx->r[MSIM_PC]);
+}
+
+static void shift(struct msim_ctx *ctx, u_int16_t w, unsigned reg,
+		  unsigned arith, unsigned left, unsigned rot, unsigned amount)
+{
+	u_int32_t v = ctx->r[reg];
+
+	amount &= 31;
+	if (rot != 0) {
+		if (arith != 0) {
+			reserved(ctx, w);
+			return;
+		}
+		if (amount != 0) {
+			v = left != 0 ? (v << amount) | (v >> (32 - amount))
+				      : (v >> amount) | (v << (32 - amount));
+		}
+	} else if (left != 0) {
+		if (arith != 0) {
+			reserved(ctx, w);
+			return;
+		}
+		v <<= amount;
+	} else if (arith != 0) {
+		v = (u_int32_t)((int32_t)v >> amount);
+	} else {
+		v >>= amount;
+	}
+	ctx->r[reg] = v;
+	if (reg == MSIM_PC) {
+		ctx->nopcincrement = true;
+	}
+}
+
+static void bitop(struct msim_ctx *ctx, u_int16_t w, unsigned reg,
+		  unsigned op, unsigned inv, u_int32_t operand)
+{
+	if (inv != 0) {
+		if (op == MEOW_BITOP_NOT) {
+			reserved(ctx, w);
+			return;
+		}
+		operand = ~operand;
+	}
+	switch (op) {
+	case MEOW_BITOP_NOT: ctx->r[reg] = ~operand; break;
+	case MEOW_BITOP_AND: ctx->r[reg] &= operand; break;
+	case MEOW_BITOP_ORR: ctx->r[reg] |= operand; break;
+	case MEOW_BITOP_EOR: ctx->r[reg] ^= operand; break;
+	}
+	if (reg == MSIM_PC) {
+		ctx->nopcincrement = true;
+	}
+}
+
+static void mem(struct msim_ctx *ctx, u_int16_t w)
+{
+	unsigned rv = MEOW_MEM_RV(w);
+	unsigned ra = MEOW_MEM_RA(w);
+	unsigned half = MEOW_MEM_HALF(w);
+	unsigned hilo = MEOW_MEM_HILO(w);
+	unsigned wb = MEOW_MEM_WB(w);
+	unsigned dir = MEOW_MEM_DIR(w);
+	msim_mem_access_type type;
+	u_int32_t size;
+	u_int32_t addr;
+
+	if (half != 0) {
+		type = MSIM_ACCESS_HALFWORD;
+		size = 2;
+	} else if (hilo != 0) {
+		type = MSIM_ACCESS_WORD;
+		size = 4;
+	} else {
+		type = MSIM_ACCESS_BYTE;
+		size = 1;
+	}
+	if (wb == 0 && dir != 0) {
+		ctx->r[ra] -= size;	/* decrease before */
+	}
+	addr = ctx->r[ra];
+	if (MEOW_MEM_STORE(w) != 0) {
+		u_int32_t v = ctx->r[rv];
+
+		if (half != 0 && hilo == 0) {
+			v >>= 16;
+		}
+		msim_memset(ctx, addr, type, v);
+	} else {
+		u_int32_t v = msim_memget(ctx, addr, type);
+
+		if (half != 0 && hilo == 0) {
+			ctx->r[rv] = (ctx->r[rv] & 0xffffu) | (v << 16);
+		} else {
+			ctx->r[rv] = v;
+		}
+	}
+	if (wb != 0) {
+		ctx->r[ra] += dir != 0 ? size : (u_int32_t)-(int32_t)size;
+	}
+	if (rv == MSIM_PC || (wb != 0 && ra == MSIM_PC)) {
+		ctx->nopcincrement = true;
+	}
+}
+
+void msim_execute(struct msim_ctx *ctx, u_int16_t w)
+{
+	switch (meow_enc_of(w)) {
+	case MEOW_ENC_B: {
+		unsigned cond = MEOW_B_COND(w);
+		int32_t off = MEOW_B_OFF_S(w) * 2;
+
+		if (cond == MEOW_COND_NV) {
+			int op = off + 256;
+
+			if (ctx->bnvops[op] == NULL) {
 				fprintf(stderr,
-				"msim: unhandled BNV %d at %08x\n",
-				instr->immediate,
-				ctx->r[MSIM_PC]);	
+					"msim: unhandled BNV %d at %08x\n",
+					(int)off, ctx->r[MSIM_PC]);
 			} else {
-				ctx->bnvops[operation](ctx, instr->immediate,
-					ctx->bnvopsctx[operation]);
+				ctx->bnvops[op](ctx, off, ctx->bnvopsctx[op]);
 			}
+		} else if (meow_cond_true(ctx->r[MSIM_SR], cond) == true) {
+			ctx->r[MSIM_PC] += (u_int32_t)off;
+			ctx->nopcincrement = true;
 		}
-		break;
-		
-	case MSIM_OPCODE_ADD:
-		if (instr->subop == false)
-		  	if (instr->immediate == 0)
-				ctx->r[instr->destination] +=
-					ctx->r[instr->source];
-			else
-				ctx->r[instr->destination] = 
-					ctx->r[instr->source] +
-					instr->immediate;
-		else
-			ctx->r[instr->destination] = 
-				ctx->r[instr->destination] +
-				instr->immediate;
-		
-		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
-		break;
-		
-	case MSIM_OPCODE_SUB:
-		if (instr->subop == false)
-		  	if (instr->immediate == 0)
-				ctx->r[instr->destination] -=
-					ctx->r[instr->source];
-			else
-				ctx->r[instr->destination] = 
-					ctx->r[instr->source] -
-					instr->immediate;
-		else
-			ctx->r[instr->destination] = 
-				ctx->r[instr->destination] -
-				instr->immediate;
-		
-		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
-		break;
-
-	case MSIM_OPCODE_CMP:
-		if (instr->subop == true && instr->istst == true) {
-			tmp = (instr->destinationbank == MSIM_THIS_BANK)
-				? ctx->r[instr->destination]
-				: ctx->ar[instr->destination];
-			tmp &= (instr->immediate);
-			
-			if (tmp & (1<<31))
-				MSIM_SET_NFLAG(ctx->r[MSIM_SR]);
-			else
-				MSIM_CLEAR_NFLAG(ctx->r[MSIM_SR]);
-					
-			if (tmp == 0)
-				MSIM_SET_ZFLAG(ctx->r[MSIM_SR]);
-			else
-				MSIM_CLEAR_ZFLAG(ctx->r[MSIM_SR]);
-			
-			break;
-		} else if (instr->subop == true) {
-			tmp = (instr->sourcebank == MSIM_THIS_BANK)
-				? ctx->r[instr->source]
-				: ctx->ar[instr->source];
-			
-		} else {
-			tmp = instr->immediate;
-		}
-		
-		alu = (instr->destinationbank == MSIM_THIS_BANK)
-			? ctx->r[instr->destination]
-			: ctx->ar[instr->destination];
-		
-		if (alu < tmp)
-			MSIM_SET_CFLAG(ctx->r[MSIM_SR]);
-		else
-			MSIM_CLEAR_CFLAG(ctx->r[MSIM_SR]);		
-	
-		alu -= tmp;
-		
-		if (alu & (1<<31))
-			MSIM_SET_NFLAG(ctx->r[MSIM_SR]);
-		else
-			MSIM_CLEAR_NFLAG(ctx->r[MSIM_SR]);
-			
-		if (alu == 0)
-			MSIM_SET_ZFLAG(ctx->r[MSIM_SR]);
-		else
-			MSIM_CLEAR_ZFLAG(ctx->r[MSIM_SR]);
-		
-		MSIM_CLEAR_VFLAG(ctx->r[MSIM_SR]);
-			
-		break;
-		
-	case MSIM_OPCODE_MOV:
-		if (instr->subop == false) {
-			/* mov rather than ldi */
-			u_int32_t s;
-			s = (instr->sourcebank == MSIM_THIS_BANK) ?
-				ctx->r[instr->source] :
-				ctx->ar[instr->source];
-			
-			if (instr->byteswap)
-				s = (s & 0xff00ff00) >> 8 |
-					(s & 0x00ff00ff) << 8;
-			
-			if (instr->halfwordswap)
-				s = (s << 16) |	(s >> 16);
-			
-			if (instr->destinationbank == MSIM_THIS_BANK) {
-				ctx->r[instr->destination] = s;
-				if (instr->destination == MSIM_PC)
-					ctx->nopcincrement = true;
-			} else {
-				ctx->ar[instr->destination] = s;
-			}
-		} else {
-			/* ldi rather than mov */
-			ctx->r[MSIM_IR] = instr->immediate;
-		}
-		break;
-		
-	case MSIM_OPCODE_LSH:
-		tmp = (instr->immver == true) ? instr->immediate :
-			ctx->r[instr->source];
-
-		if (instr->arithmetic == false &&
-		    instr->roll == false) {
-			if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
-				ctx->r[instr->destination] >>= tmp;
-			else
-				ctx->r[instr->destination] <<= tmp;
-		}
-			
-		if (instr->arithmetic == true &&
-			instr->roll == false) {
-			if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
-				ctx->r[instr->destination] =
-				 MSIM_SIGN_EXTEND(
-				  ctx->r[instr->destination] >> tmp,
-				   32, 32 - tmp);
-			else
-				ctx->r[instr->destination] = 
-				(ctx->r[instr->destination] & 1<<31) |
-				 ((ctx->r[instr->destination] << tmp) &
-				  (~(1<<31)));
-		}
-				
-		if (instr->roll == true) {
-			if (instr->shiftdirection == MSIM_SHIFT_RIGHT)
-				ctx->r[instr->destination] =
-				 ((ctx->r[instr->destination]) >> tmp) | 
-				  ((ctx->r[instr->destination]) << 
-				   (32 - tmp));
-			else
-				ctx->r[instr->destination] =
-				((ctx->r[instr->destination]) << tmp) | 
-				 ((ctx->r[instr->destination]) >> 
-				  (32 - tmp));
-		}
-		
-		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
-		break;
-			
-	case MSIM_OPCODE_BIT:
-		tmp = (instr->immver == true) ? instr->immediate :
-			ctx->r[instr->source];
-		if (instr->inverted)
-			tmp = ~tmp;
-			
-		switch (instr->bitop) {
-		case MSIM_BITOP_NOT:
-			ctx->r[instr->destination] = ~tmp;
-			break;
-		case MSIM_BITOP_AND:
-			ctx->r[instr->destination] &= tmp;
-			break;
-		case MSIM_BITOP_ORR:
-			ctx->r[instr->destination] |= tmp;
-			break;
-		case MSIM_BITOP_EOR:
-			ctx->r[instr->destination] ^= tmp;
-			break;
-		}
-		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
-		break;
-			
-	case MSIM_OPCODE_MEM:	
-		if (instr->memop == MSIM_MEM_LOAD) {
-			tmp = msim_memget(ctx, ctx->r[instr->source],
-						instr->memsize);
-		
-			if (instr->memsize == MSIM_ACCESS_BYTE) {
-				ctx->r[instr->destination] &= (~0xff);
-				ctx->r[instr->destination] |= tmp & 0xff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
-				instr->memhilo == MSIM_MEM_LO) {
-				ctx->r[instr->destination] &= (~0xffff);
-				ctx->r[instr->destination] |= tmp & 0xffff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
-				instr->memhilo == MSIM_MEM_HI) {
-				ctx->r[instr->destination] &= (~0xffff0000);
-				ctx->r[instr->destination] |=
-					((tmp & 0xffff) << 16);	
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_WORD) {
-				ctx->r[instr->destination] = tmp;
-			}
-		} else {
-			if (instr->memsize == MSIM_ACCESS_BYTE) {
-				tmp = ctx->r[instr->destination] & 0xff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
-				instr->memhilo == MSIM_MEM_LO) {
-				tmp = ctx->r[instr->destination] & 0xffff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_HALFWORD &&
-				instr->memhilo == MSIM_MEM_HI) {
-				tmp = (ctx->r[instr->destination] >> 16) & 
-					0xffff;
-			}
-			
-			if (instr->memsize == MSIM_ACCESS_WORD) {
-				tmp = ctx->r[instr->destination];
-			}
-			
-			msim_memset(ctx, ctx->r[instr->source],
-					instr->memsize, tmp);
-		}
-			
-		if (instr->writeback == true) {
-			int delta = 0;
-			
-			switch (instr->memsize) {
-			case MSIM_ACCESS_BYTE:
-				delta = 1;
-				break;
-			case MSIM_ACCESS_HALFWORD:
-				delta = 2;
-				break;
-			case MSIM_ACCESS_WORD:
-				delta = 4;
-				break;
-			}
-			if (instr->memdirection == MSIM_MEM_DECREASE)
-				delta = -delta;
-			ctx->r[instr->source] += delta;
-		}
-		
-		if (instr->destination == MSIM_PC) ctx->nopcincrement = true;
 		break;
 	}
-	
-	if (ctx->nopcincrement == true)
+	case MEOW_ENC_ADD3:
+	case MEOW_ENC_SUB3: {
+		unsigned rd = MEOW_ADD3_RD(w);
+		u_int32_t src = ctx->r[MEOW_ADD3_RS(w)];
+		u_int32_t imm = MEOW_ADD3_IMM(w);
+		u_int32_t v = imm == 0 ? ctx->r[rd] : src;
+		u_int32_t operand = imm == 0 ? src : imm;
+
+		ctx->r[rd] = meow_enc_of(w) == MEOW_ENC_ADD3 ? v + operand
+							     : v - operand;
+		if (rd == MSIM_PC) {
+			ctx->nopcincrement = true;
+		}
+		break;
+	}
+	case MEOW_ENC_ADD8:
+		ctx->r[MEOW_ADD8_RD(w)] += MEOW_ADD8_IMM(w);
+		if (MEOW_ADD8_RD(w) == MSIM_PC) {
+			ctx->nopcincrement = true;
+		}
+		break;
+	case MEOW_ENC_SUB8:
+		ctx->r[MEOW_SUB8_RD(w)] -= MEOW_SUB8_IMM(w);
+		if (MEOW_SUB8_RD(w) == MSIM_PC) {
+			ctx->nopcincrement = true;
+		}
+		break;
+	case MEOW_ENC_CMPI:
+		compare(ctx, ctx->r[MEOW_CMPI_RN(w)],
+			(u_int32_t)MEOW_CMPI_IMM_S(w));
+		break;
+	case MEOW_ENC_CMPR:
+		compare(ctx, *bank_reg(ctx, MEOW_CMPR_RN(w), MEOW_CMPR_BN(w)),
+			*bank_reg(ctx, MEOW_CMPR_RM(w), MEOW_CMPR_BM(w)));
+		break;
+	case MEOW_ENC_TST:
+		set_nz(ctx, *bank_reg(ctx, MEOW_TST_RN(w), MEOW_TST_BN(w)) &
+			    (1u << MEOW_TST_BIT(w)));
+		break;
+	case MEOW_ENC_MOV: {
+		u_int32_t v = *bank_reg(ctx, MEOW_MOV_RS(w), MEOW_MOV_BS(w));
+
+		if (MEOW_MOV_BSW(w) != 0) {
+			v = ((v & 0xff00ff00u) >> 8) | ((v & 0x00ff00ffu) << 8);
+		}
+		if (MEOW_MOV_HSW(w) != 0) {
+			v = (v << 16) | (v >> 16);
+		}
+		*bank_reg(ctx, MEOW_MOV_RD(w), MEOW_MOV_BD(w)) = v;
+		if (MEOW_MOV_RD(w) == MSIM_PC && MEOW_MOV_BD(w) == 0) {
+			ctx->nopcincrement = true;
+		}
+		break;
+	}
+	case MEOW_ENC_LDI:
+		ctx->r[MSIM_IR] = (u_int32_t)MEOW_LDI_IMM_S(w);
+		break;
+	case MEOW_ENC_SHI:
+		shift(ctx, w, MEOW_SHI_RD(w), MEOW_SHI_ARITH(w),
+		      MEOW_SHI_LEFT(w), MEOW_SHI_ROT(w), MEOW_SHI_IMM(w));
+		break;
+	case MEOW_ENC_SHR:
+		shift(ctx, w, MEOW_SHR_RD(w), MEOW_SHR_ARITH(w),
+		      MEOW_SHR_LEFT(w), MEOW_SHR_ROT(w),
+		      ctx->r[MEOW_SHR_RS(w)]);
+		break;
+	case MEOW_ENC_BITR:
+		bitop(ctx, w, MEOW_BITR_RD(w), MEOW_BITR_OP(w),
+		      MEOW_BITR_INV(w), ctx->r[MEOW_BITR_RS(w)]);
+		break;
+	case MEOW_ENC_BITI:
+		bitop(ctx, w, MEOW_BITI_RD(w), MEOW_BITI_OP(w),
+		      MEOW_BITI_INV(w), 1u << MEOW_BITI_BIT(w));
+		break;
+	case MEOW_ENC_MEM:
+		mem(ctx, w);
+		break;
+	default:
+		reserved(ctx, w);
+		break;
+	}
+	if (ctx->nopcincrement == true) {
 		ctx->nopcincrement = false;
-	else
+	} else {
 		ctx->r[MSIM_PC] += 2;
-}
-
-inline bool msim_cond_match(u_int32_t sr, msim_condition_type condition)
-{
-	bool nflag, zflag, cflag, vflag;
-	
-	if (condition == MSIM_COND_AL)
-		return true;
-
-	nflag = MSIM_SR_NFLAG(sr);
-	zflag = MSIM_SR_ZFLAG(sr);
-	cflag = MSIM_SR_CFLAG(sr);
-	vflag = MSIM_SR_VFLAG(sr);
-
-	switch (condition) {
-	case MSIM_COND_EQ: return zflag == true;
-	case MSIM_COND_NE: return zflag == false;
-	case MSIM_COND_CS: return cflag == true;
-	case MSIM_COND_CC: return cflag == false;
-	case MSIM_COND_MI: return nflag == true;
-	case MSIM_COND_PL: return nflag == false;
-	case MSIM_COND_VS: return vflag == true;
-	case MSIM_COND_VC: return vflag == false;
-	case MSIM_COND_HI: return (cflag == true) && (zflag == false);
-	case MSIM_COND_LS: return (cflag == false) && (zflag == true);
-	case MSIM_COND_GE: return nflag == vflag;
-	case MSIM_COND_LT: return nflag != vflag;
-	case MSIM_COND_GT: return (nflag == vflag) && (zflag == false);
-	case MSIM_COND_LE: return (nflag != vflag) || (zflag == true);
-	case MSIM_COND_AL: return true;
-	case MSIM_COND_NV: return false;
-	default: return false;
 	}
 }
 
@@ -733,8 +528,7 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 		u_int16_t i = msim_fetch(ctx);
 		char dis[256];
 		int ticks;
-		
-		msim_decode(ctx, i, &(ctx->instr));
+
 		if (trace == true) {
 			int b;
 			
@@ -745,12 +539,11 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 				if (b % 4 == 0) printf(" ");
 			}
 			
-			printf(": %-30s cycle %d\n",
-				msim_mnemonic(ctx, dis, 256, &(ctx->instr)),
-				ctx->cyclecount);
+			meow_disasm(i, ctx->r[MSIM_PC], dis, sizeof dis);
+			printf(": %-30s cycle %d\n", dis, ctx->cyclecount);
 		}
 				
-		msim_execute(ctx, &(ctx->instr));
+		msim_execute(ctx, i);
 
 		/* run the tickers in our ticker shortlist */
 		if (ctx->sticks != 0) {

@@ -77,13 +77,12 @@ void msim_watchpoint_del(struct msim_ctx *ctx, int watchpoint);
  * other steps for you.  Returned string points to a static buffer, copy it
  * before calling again.
  */
-const char *msim_disassemble(u_int16_t instrword);
+const char *msim_disassemble(u_int16_t instrword, u_int32_t pc);
 
 /* returns a string with the disassembled code pointed to by a decoded
  * instruction.
  */
-char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 
-			struct msim_instr *instr);
+
 			
 /* print out some useful debug information (contents of registers, etc) to
  * stdout.

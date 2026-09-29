@@ -1,4 +1,5 @@
-CFLAGS=-std=c99 -pedantic -Wall -g
+CFLAGS=-std=c99 -pedantic -Wall -g -I../lib
+LIBMEOW=../lib/libmeow.a
 
 LUA=lua5.1
 
@@ -7,8 +8,15 @@ all: msim
 clean:
 	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim.o msim_watchpoints.c
 
-msim: msim_core.o msim_chairman.o msim_debug.o msim.o
-	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim.o -ledit -llua5.1
+msim: msim_core.o msim_chairman.o msim_debug.o msim.o $(LIBMEOW)
+	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim.o $(LIBMEOW) -ledit -llua5.1
+
+$(LIBMEOW):
+	$(MAKE) -C ../lib
+
+check: msim
+
+.PHONY: all clean check
 
 msim_core.o: msim_core.c msim_core.h config.h
 	$(CC) $(CFLAGS) -c msim_core.c -o msim_core.o

@@ -265,7 +265,7 @@ static inline void msim_print_next_instruction(struct msim_ctx *ctx)
 {
 	u_int32_t instr = msim_memget(ctx, ctx->r[MSIM_PC],
 					MSIM_ACCESS_HALFWORD);
-	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr));
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr, ctx->r[MSIM_PC]));
 }
 
 static void msim_debug_step(struct msim_ctx *ctx, const int argc,
@@ -393,7 +393,7 @@ static void msim_debug_peek(struct msim_ctx *ctx, const int argc,
 		return;
 	} else if (instr == true) {
 		d = msim_memget(ctx, a, t);
-		printf("0x%08x: %s\n", a, msim_disassemble(d));
+		printf("0x%08x: %s\n", a, msim_disassemble(d, a));
 		return;
 	}
 
@@ -590,7 +590,7 @@ static void msim_debug_breakpoint(struct msim_ctx *ctx, const int argc,
 				t++;
 				printf("%2d: 0x%08x %s\n", t,
 					ctx->breakpoints[i],
-					msim_disassemble(instrword));
+					msim_disassemble(instrword, ctx->breakpoints[i]));
 			}
 		}
 		
@@ -768,7 +768,7 @@ void msim_debugger(struct msim_ctx *ctx)
 	
 	instr = msim_memget(ctx, ctx->r[MSIM_PC],
 				MSIM_ACCESS_HALFWORD);
-	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr));
+	printf("0x%08x\t%s\n", ctx->r[MSIM_PC], msim_disassemble(instr, ctx->r[MSIM_PC]));
 	
 	signal(SIGINT, msim_debug_signal);
 	
@@ -931,204 +931,12 @@ void msim_breakpoint_del(struct msim_ctx *ctx, u_int32_t address)
 	}
 }
 
-const char *msim_disassemble(u_int16_t instrword)
+const char *msim_disassemble(u_int16_t instrword, u_int32_t pc)
 {
-	static char mnem[256];
-	struct msim_instr decoded;
-	
-	/* we have internal knowledge that neither of these functions require
-	 * an msim context to operate.  Naughty us.
-	 */
-	msim_decode(NULL, instrword, &decoded);
-	msim_mnemonic(NULL, mnem, 256, &decoded);
-	
+	static char mnem[64];
+
+	meow_disasm(instrword, pc, mnem, sizeof mnem);
 	return mnem;
-}
-
-char *msim_mnemonic(struct msim_ctx *ctx, char *buf, unsigned int bufl, 
-			struct msim_instr *instr)
-{
-	char tmp[256];
-	static char *r[16] = {
-		"r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9",
-		"r10", "sp", "lr", "ir", "sr", "pc" };
-	
-	if (bufl == 0)
-		return buf;
-
-	buf[0] = '\0';
-	bufl--;
-
-#define APPEND(x) do { strncat(buf, x, bufl); bufl -= strlen(x); } while(false)
-
-	switch (instr->opcode) {
-	case MSIM_OPCODE_B:
-		APPEND("B");
-		switch (instr->condition) {
-		case MSIM_COND_EQ: APPEND("EQ"); break;
-		case MSIM_COND_NE: APPEND("NE"); break;
-		case MSIM_COND_CS: APPEND("CS"); break;
-		case MSIM_COND_CC: APPEND("CC"); break;
-		case MSIM_COND_MI: APPEND("MI"); break;
-		case MSIM_COND_PL: APPEND("PL"); break;
-		case MSIM_COND_VS: APPEND("VS"); break;
-		case MSIM_COND_VC: APPEND("VC"); break;
-		case MSIM_COND_HI: APPEND("HI"); break;
-		case MSIM_COND_LS: APPEND("LS"); break;
-		case MSIM_COND_GE: APPEND("GE"); break;
-		case MSIM_COND_LT: APPEND("LT"); break;
-		case MSIM_COND_GT: APPEND("GT"); break;
-		case MSIM_COND_LE: APPEND("LE"); break;
-		case MSIM_COND_AL: APPEND("  "); break;
-		case MSIM_COND_NV: APPEND("NV"); break;
-		}
-		snprintf(tmp, 256, "\t#%d\t; 0x%08x", instr->immediate,
-							instr->immediate);
-		APPEND(tmp);
-		break;
-	
-	case MSIM_OPCODE_ADD:
-	case MSIM_OPCODE_SUB:
-		APPEND(instr->opcode == MSIM_OPCODE_ADD ? "ADD" : "SUB");
-		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
-		APPEND(tmp);
-		if (instr->subop == true) {
-			snprintf(tmp, 256, "#%d  ; 0x%08x", instr->immediate,
-							instr->immediate);
-			APPEND(tmp);
-		} else {
-			snprintf(tmp, 256, "%s, #%d  ; 0x%08x",
-					r[instr->source],
-					instr->immediate, instr->immediate);
-			APPEND(tmp);
-		}
-		break;
-	
-	case MSIM_OPCODE_CMP:
-		if (instr->subop == false) {
-			APPEND("CMP");
-			snprintf(tmp, 256, "\t%s, #%d  ; 0x%08d",
-				r[instr->destination], instr->immediate,
-				instr->immediate);
-			APPEND(tmp);
-		} else if (instr->istst == true) {
-			APPEND("TST");
-			snprintf(tmp, 256, "\t%s%s, #%d",
-				instr->destinationbank == MSIM_THIS_BANK ?
-				"" : "a", r[instr->destination],
-				ffs(instr->immediate));
-			APPEND(tmp);
-		} else {
-			APPEND("CMP");
-			snprintf(tmp, 256, "\t%s%s, %s%s",
-				instr->destinationbank == MSIM_THIS_BANK ?
-				"" : "a", r[instr->destination],
-				instr->sourcebank == MSIM_THIS_BANK ?
-				"" : "a", r[instr->source]);
-			APPEND(tmp);
-		}
-		break;
-		
-	case MSIM_OPCODE_MOV:
-		if (instr->subop == true) {
-			APPEND("LDI");
-			snprintf(tmp, 256, "\t#%d  ; 0x%08x",
-				instr->immediate,
-				instr->immediate);
-			APPEND(tmp);	
-		} else {
-			APPEND("MOV");
-			if (instr->halfwordswap == true) APPEND("W");
-			if (instr->byteswap == true) APPEND("B");
-			snprintf(tmp, 256, "\t%s%s, %s%s",
-				instr->destinationbank == MSIM_THIS_BANK
-				? "" : "a", r[instr->destination],
-				instr->sourcebank == MSIM_THIS_BANK
-				? "" : "a", r[instr->source]);
-			APPEND(tmp);
-		}
-	
-		break;
-		
-	case MSIM_OPCODE_LSH:
-		if (instr->shiftdirection == MSIM_SHIFT_LEFT &&
-			instr->roll == false &&
-			instr->arithmetic == false) APPEND("LSL");
-		if (instr->shiftdirection == MSIM_SHIFT_RIGHT &&
-			instr->roll == false &&
-			instr->arithmetic == false) APPEND("LSR");
-		if (instr->shiftdirection == MSIM_SHIFT_LEFT &&
-			instr->roll == false &&
-			instr->arithmetic == true) APPEND("ASL");
-		if (instr->shiftdirection == MSIM_SHIFT_RIGHT &&
-			instr->roll == false &&
-			instr->arithmetic == true) APPEND("ASR");
-		if (instr->shiftdirection == MSIM_SHIFT_LEFT &&
-			instr->roll == true) APPEND("ROL");
-		if (instr->shiftdirection == MSIM_SHIFT_RIGHT &&
-			instr->roll == true) APPEND("ROR");
-		
-		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
-		APPEND(tmp);
-		
-		if (instr->immver)
-			snprintf(tmp, 256, "#%d", instr->immediate);
-		else
-			snprintf(tmp, 256, "%s", r[instr->source]);
-		APPEND(tmp);
-	
-		break;
-		
-	case MSIM_OPCODE_BIT:
-		switch (instr->bitop) {
-		case MSIM_BITOP_NOT: APPEND("NOT"); break;
-		case MSIM_BITOP_AND: APPEND("AND"); break;
-		case MSIM_BITOP_ORR: APPEND("ORR"); break;
-		case MSIM_BITOP_EOR: APPEND("EOR"); break;
-		}
-		if (instr->inverted == true) APPEND(" INVERTED");
-		snprintf(tmp, 256, "\t%s, ", r[instr->destination]);
-		APPEND(tmp);
-		if (instr->immver == true)
-			snprintf(tmp, 256, "#%d", ffs(instr->immediate));
-		else
-			snprintf(tmp, 256, "%s", r[instr->source]);
-		APPEND(tmp);
-		break;
-			
-	case MSIM_OPCODE_MEM:
-		if (instr->memop == MSIM_MEM_LOAD)
-			APPEND("LDR");
-		else
-			APPEND("STR");
-		
-		if (instr->memsize != MSIM_ACCESS_WORD) {
-			if (instr->memsize == MSIM_ACCESS_BYTE)
-				APPEND("B");
-			else {
-				if (instr->memhilo == MSIM_MEM_HI)
-					APPEND("H");
-				else
-					APPEND("L");
-			}
-		}
-			
-		if (instr->writeback == true) {
-			if (instr->memdirection == MSIM_MEM_DECREASE)
-				APPEND("D");
-			else
-				APPEND("I");
-		}
-		
-		snprintf(tmp, 256, "\t%s, %s", r[instr->destination],
-						r[instr->source]);
-		APPEND(tmp);
-		
-		break;
-	}
-	
-	return buf;
-#undef APPEND
 }
 
 void msim_print_state(struct msim_ctx *ctx)
