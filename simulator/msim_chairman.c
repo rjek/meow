@@ -132,26 +132,30 @@ static u_int32_t msim_sys_read_serial(struct msim_ctx *ctx, u_int32_t p,
 	struct timeval tv;
 	fd_set rfds;
 
-	/* check to see if there are any bytes waiting on the console */
-	
-	tv.tv_sec = 0;
-	tv.tv_usec = 50;
-	
-	FD_ZERO(&rfds);
-	FD_SET(0, &rfds);
-//	fprintf(stderr, "Checking console...\n");
-	setvbuf(stdin, NULL, _IONBF, 0);
-	if (select(1, &rfds, NULL, NULL, &tv) > 0) {
-		s->serial.flags = 1;	/* set fresh bit */
-		s->serial.input = getc(stdin);
-//		fprintf(stderr, "Read fresh byte %d.\n", s->serial.input);
-	} else {
-//		fprintf(stderr, "No fresh byte.\n");
+	/* Look for a byte on the host's standard input, unless one is
+	 * already waiting, which the program has yet to take.  Bit 0 of the
+	 * flags is fresh; bit 1, msim's own, says the input has ended. */
+	if ((s->serial.flags & 3) == 0) {
+		tv.tv_sec = 0;
+		tv.tv_usec = 50;
+		FD_ZERO(&rfds);
+		FD_SET(0, &rfds);
+		setvbuf(stdin, NULL, _IONBF, 0);
+		if (select(1, &rfds, NULL, NULL, &tv) > 0) {
+			int c = getc(stdin);
+
+			if (c == EOF) {
+				s->serial.flags |= 2;
+			} else {
+				s->serial.flags |= 1;
+				s->serial.input = (u_int32_t)c;
+			}
+		}
 	}
 	
 	switch (p) {
 	case 0x2410: return s->serial.flags;
-	case 0x2414: return s->serial.input;
+	case 0x2414: s->serial.flags &= ~1u; return s->serial.input;
 	case 0x2418: 
 		fprintf(stderr,
 			"msim: attempt to read from serial output register.\n");

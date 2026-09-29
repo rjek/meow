@@ -55,7 +55,8 @@ programs to talk to the outside world.
 | `BNV #-16` | The number of instructions executed so far into `ir` |
 
 The Chairman's serial console reads from standard input and writes to
-standard output.  Its timer counts one tick per instruction and reports a
+standard output.  Bit 1 of its flags register, which the architecture
+leaves reserved, is set by `msim` once standard input has ended.  Its timer counts one tick per instruction and reports a
 1 MHz clock.
 
 ## Debugger

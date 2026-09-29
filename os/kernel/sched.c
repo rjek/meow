@@ -257,6 +257,9 @@ static void tick_work(void)
         enqueue(s);
         woke = 1;
     }
+    if (console_poll() != NULL) {
+        woke = 1;
+    }
     if (t->state != T_RUNNING) {
         return;                         /* already going somewhere */
     }

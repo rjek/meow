@@ -80,10 +80,52 @@ void kvprintf(const char *fmt, va_list ap);
 void kprintf(const char *fmt, ...);
 void kpanic(const char *fmt, ...);
 
+/* sync.c */
+struct waitq {
+    struct thread *head, *tail;
+};
+
+struct sem {
+    int count;
+    struct waitq q;
+};
+
+struct mutex {
+    struct thread *owner;
+    int owner_prio;                     /* to restore after inheritance */
+    struct waitq q;
+};
+
+struct mq {
+    char *buf;
+    size_t msgsize;
+    unsigned depth, head, count;
+    struct waitq readers, writers;
+};
+
+void waitq_init(struct waitq *q);
+void waitq_wait(struct waitq *q);
+struct thread *waitq_wake_one(struct waitq *q);
+void preempt_if(struct thread *t);
+void sem_init(struct sem *s, int count);
+void sem_wait(struct sem *s);
+int sem_trywait(struct sem *s);
+void sem_post(struct sem *s);
+void mutex_init(struct mutex *m);
+void mutex_lock(struct mutex *m);
+void mutex_unlock(struct mutex *m);
+int mq_init(struct mq *q, size_t msgsize, unsigned depth);
+void mq_destroy(struct mq *q);
+int mq_send(struct mq *q, const void *msg, int block);
+int mq_receive(struct mq *q, void *msg, int block);
+
 /* console.c */
 void console_init(void);
 void console_putc(int c);
 void console_puts(const char *s);
+struct thread *console_poll(void);
+int console_getc(void);
+int console_gets(char *buf, size_t size);
 
 /* alloc.c */
 void alloc_init(void *base, void *limit);
