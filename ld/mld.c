@@ -11,7 +11,8 @@ struct osec {
 	uint32_t type;
 	uint32_t flags;
 	uint32_t align;
-	uint32_t addr;
+	uint32_t addr;		/* where it runs */
+	uint32_t load;		/* where a flat image stores it */
 	uint8_t *data;
 	uint32_t size;
 	int order;		/* 0 code, 1 data, 2 bss */
@@ -43,8 +44,8 @@ static int error_count;
 
 static void usage(void)
 {
-	fputs("usage: mld [-o output] [-f elf|bin] [-b base] [-M map] [-e entry]\n"
-	      "           input.o...\n", stderr);
+	fputs("usage: mld [-o output] [-f elf|bin] [-b base] [-d data base]\n"
+	      "           [-M map] [-e entry] input.o...\n", stderr);
 	exit(2);
 }
 
@@ -174,13 +175,18 @@ static void merge_input(struct input *in)
 }
 
 /* Stable ordering: code, then data, then bss, each in first-seen order. */
-static void layout(uint32_t base)
+/* Code runs where the image is loaded.  Data and BSS run at data_base if
+ * one was given (a RAM address, for an image in ROM), else straight after
+ * the code; the flat image always stores the data straight after the code
+ * for start-up code to copy. */
+static void layout(uint32_t base, bool have_data_base, uint32_t data_base)
 {
 	struct osec **sorted = xalloc(nosecs * sizeof *sorted);
 	unsigned n = 0;
 	unsigned i;
 	int order;
 	uint32_t addr = base;
+	uint32_t load;
 
 	for (order = 0; order < 3; order++) {
 		for (i = 0; i < nosecs; i++) {
@@ -197,9 +203,29 @@ static void layout(uint32_t base)
 		if (o->align < 4) {
 			o->align = 4;
 		}
-		addr = align_up(addr, o->align);
-		o->addr = addr;
-		addr += o->size;
+		if (o->order == 0) {
+			addr = align_up(addr, o->align);
+			o->addr = o->load = addr;
+			addr += o->size;
+		}
+	}
+	load = addr;
+	if (have_data_base == true) {
+		addr = data_base;
+	}
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+
+		if (o->order != 0) {
+			addr = align_up(addr, o->align);
+			load = align_up(load, o->align);
+			o->addr = addr;
+			o->load = o->order == 1 ? load : addr;
+			addr += o->size;
+			if (o->order == 1) {
+				load += o->size;
+			}
+		}
 	}
 }
 
@@ -274,6 +300,61 @@ static void collect_globals(void)
 			g->type = s->type;
 		}
 	}
+}
+
+static void define_absolute(const char *name, uint32_t value)
+{
+	struct gsym *g = gsym_lookup(name);
+
+	if (g->def != NULL) {
+		error(g->def->path, "'%s' is defined by the linker", name);
+		return;
+	}
+	g->def = &inputs[0];
+	g->value = value;
+	g->type = MELF_STT_NOTYPE;
+	g->sec = NULL;
+}
+
+/* __data_load is where the initialised data sits in the image, __data_start
+ * where it must be when the program runs; they differ only in a flat image
+ * linked with -d.  __bss_start to __bss_end must be zeroed. */
+static void define_layout_symbols(bool flat)
+{
+	uint32_t data_load = 0, data_start = 0, data_end = 0;
+	uint32_t bss_start = 0, bss_end = 0;
+	bool have_data = false, have_bss = false;
+	unsigned i;
+
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+
+		if (o->order == 1) {
+			if (have_data == false) {
+				data_load = flat == true ? o->load : o->addr;
+				data_start = o->addr;
+				have_data = true;
+			}
+			data_end = o->addr + o->size;
+		} else if (o->order == 2) {
+			if (have_bss == false) {
+				bss_start = o->addr;
+				have_bss = true;
+			}
+			bss_end = o->addr + o->size;
+		}
+	}
+	if (have_data == false) {
+		data_load = data_start = data_end = have_bss == true ? bss_start : 0;
+	}
+	if (have_bss == false) {
+		bss_start = bss_end = data_end;
+	}
+	define_absolute("__data_load", data_load);
+	define_absolute("__data_start", data_start);
+	define_absolute("__data_end", data_end);
+	define_absolute("__bss_start", bss_start);
+	define_absolute("__bss_end", bss_end);
 }
 
 static void check_undefined(void)
@@ -417,7 +498,11 @@ static void write_flat(const char *path, uint32_t base)
 		if (o->type == MELF_SHT_NOBITS || o->size == 0) {
 			continue;
 		}
-		while (pos < o->addr) {
+		if (o->load < pos) {
+			error(NULL, "section '%s' overlaps the one before it", o->name);
+			break;
+		}
+		while (pos < o->load) {
 			fputc(0, f);
 			pos++;
 		}
@@ -480,8 +565,12 @@ static void write_map(FILE *f)
 
 	fputs("Sections\n", f);
 	for (i = 0; i < nosecs; i++) {
-		fprintf(f, "  %08x %8u %s\n", osecs[i]->addr, osecs[i]->size,
+		fprintf(f, "  %08x %8u %s", osecs[i]->addr, osecs[i]->size,
 			osecs[i]->name);
+		if (osecs[i]->load != osecs[i]->addr) {
+			fprintf(f, " (stored at %08x)", osecs[i]->load);
+		}
+		fputc('\n', f);
 	}
 	fputs("Symbols\n", f);
 	for (i = 0; i < ngsyms; i++) {
@@ -541,6 +630,8 @@ int main(int argc, char *argv[])
 	const char *map = NULL;
 	const char *entry_name = NULL;
 	uint32_t base = 0;
+	uint32_t data_base = 0;
+	bool have_data_base = false;
 	uint32_t entry;
 	bool elf;
 	int i;
@@ -555,7 +646,7 @@ int main(int argc, char *argv[])
 			inputs[ninputs++].path = a;
 			continue;
 		}
-		if (strlen(a) == 2 && strchr("ofbMe", a[1]) != NULL) {
+		if (strlen(a) == 2 && strchr("ofbdMe", a[1]) != NULL) {
 			const char *v;
 
 			if (i + 1 == argc) {
@@ -566,6 +657,10 @@ int main(int argc, char *argv[])
 			case 'o': output = v; break;
 			case 'f': format = v; break;
 			case 'b': base = (uint32_t)strtoul(v, NULL, 0); break;
+			case 'd':
+				data_base = (uint32_t)strtoul(v, NULL, 0);
+				have_data_base = true;
+				break;
 			case 'M': map = v; break;
 			case 'e': entry_name = v; break;
 			}
@@ -606,8 +701,9 @@ int main(int argc, char *argv[])
 	if (error_count > 0) {
 		return 1;
 	}
-	layout(base);
+	layout(base, have_data_base, data_base);
 	collect_globals();
+	define_layout_symbols(elf == false);
 	check_undefined();
 	for (k = 0; k < ninputs; k++) {
 		apply_relocs(&inputs[k]);

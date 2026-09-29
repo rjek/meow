@@ -12,6 +12,11 @@ Symbols
     6 0x00000078 GLOBAL NONE 3       buffer
     7 0x00000042 GLOBAL NONE 1       __entry
     8 0x00000058 GLOBAL FUNC 1       helper
+    9 0x0000005c GLOBAL NONE ABS     __data_load
+   10 0x0000005c GLOBAL NONE ABS     __data_start
+   11 0x00000074 GLOBAL NONE ABS     __data_end
+   12 0x00000078 GLOBAL NONE ABS     __bss_start
+   13 0x00000088 GLOBAL NONE ABS     __bss_end
 Disassembly of .text
   00000040 8f0c  MOV pc, lr
   00000042 2def  ADD ir, pc, #14

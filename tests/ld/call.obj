@@ -4,6 +4,11 @@ Sections
 Symbols
     1 0x00000000 GLOBAL FUNC 1       start
     2 0x0000000c GLOBAL FUNC 1       func
+    3 0x00000000 GLOBAL NONE ABS     __data_load
+    4 0x00000000 GLOBAL NONE ABS     __data_start
+    5 0x00000000 GLOBAL NONE ABS     __data_end
+    6 0x00000000 GLOBAL NONE ABS     __bss_start
+    7 0x00000000 GLOBAL NONE ABS     __bss_end
 Disassembly of .text
   00000000 9001  LDI #1
   00000002 800d  MOV r0, ir

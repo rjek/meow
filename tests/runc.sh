@@ -31,13 +31,13 @@ for src in c/*.c; do
 		fail=$((fail + 1))
 		continue
 	fi
-	if ! $MLD -f bin -o "$tmp.bin" $RT "$tmp.o" 2>"$tmp.err"; then
+	if ! $MLD -f bin -d 0x08000000 -o "$tmp.bin" $RT "$tmp.o" 2>"$tmp.err"; then
 		echo "FAIL $src: does not link"
 		cat "$tmp.err"
 		fail=$((fail + 1))
 		continue
 	fi
-	$MSIM -q -r "$tmp.bin" -c 5000000 > "$tmp.out" 2>"$tmp.err"
+	$MSIM -q -r "$tmp.bin" -c 50000000 > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if [ -f "$name.out" ]; then
 		if cmp -s "$tmp.out" "$name.out"; then
@@ -50,9 +50,26 @@ for src in c/*.c; do
 			fail=$((fail + 1))
 		fi
 	else
-		echo "NEW  $src: writing $name.out"
-		cp "$tmp.out" "$name.out"
-		pass=$((pass + 1))
+		# the host compiler is the oracle for a new test
+		if cc -w -o "$tmp.host" -I../rt "$src" ../rt/msim-host.c 2>"$tmp.err"; then
+			"$tmp.host" > "$name.out"
+			echo "exit $?" >> "$name.out"
+			rm -f "$tmp.host"
+			if cmp -s "$tmp.out" "$name.out"; then
+				echo "NEW  $src: matches the host, wrote $name.out"
+				pass=$((pass + 1))
+			else
+				echo "FAIL $src: differs from the host"
+				diff "$name.out" "$tmp.out" | head -20
+				cp "$tmp.s" "$name.failed.s"
+				rm -f "$name.out"
+				fail=$((fail + 1))
+			fi
+		else
+			echo "NEW  $src: no host compiler, wrote $name.out unchecked"
+			cp "$tmp.out" "$name.out"
+			pass=$((pass + 1))
+		fi
 	fi
 done
 rm -f "$tmp.s" "$tmp.o" "$tmp.bin" "$tmp.out" "$tmp.err"

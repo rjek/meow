@@ -1,0 +1,49 @@
+EXE: executable, entry 0x00000100
+Sections
+   1 .text            A-X addr 0x00000100 size 0x40 align 4
+   2 .data            AW- addr 0x08000000 size 0xc align 4
+   3 .bss             AW- addr 0x0800000c size 0x8 align 4
+Symbols
+    1 0x08000000 LOCAL  NONE 2       table
+    2 0x00000124 LOCAL  FUNC 1       loop
+    3 0x0800000c LOCAL  NONE 3       buffer
+    4 0x00000100 GLOBAL FUNC 1       start
+    5 0x08000000 GLOBAL NONE ABS     __data_load
+    6 0x08000000 GLOBAL NONE ABS     __data_start
+    7 0x0800000c GLOBAL NONE ABS     __data_end
+    8 0x0800000c GLOBAL NONE ABS     __bss_start
+    9 0x08000014 GLOBAL NONE ABS     __bss_end
+   10 0x00000100 GLOBAL NONE 1       __entry
+Disassembly of .text
+  00000100 8d0f  MOV ir, pc
+  00000102 3d28  ADD ir, #40
+  00000104 e04d  LDR r0, [ir]
+  00000106 8d0f  MOV ir, pc
+  00000108 3d26  ADD ir, #38
+  0000010a e14d  LDR r1, [ir]
+  0000010c 8d0f  MOV ir, pc
+  0000010e 3d24  ADD ir, #36
+  00000110 e24d  LDR r2, [ir]
+  00000112 8d0f  MOV ir, pc
+  00000114 3d22  ADD ir, #34
+  00000116 e34d  LDR r3, [ir]
+  00000118 8d0f  MOV ir, pc
+  0000011a 3d20  ADD ir, #32
+  0000011c e44d  LDR r4, [ir]
+  0000011e 8d0f  MOV ir, pc
+  00000120 3d1e  ADD ir, #30
+  00000122 e54d  LDR r5, [ir]
+  00000124 1c00  B 0x00000124
+  00000126 0000  Beq 0x00000126
+  00000128 0000  Beq 0x00000128
+  0000012a 0800  Bmi 0x0000012a
+  0000012c 0000  Beq 0x0000012c
+  0000012e 0800  Bmi 0x0000012e
+  00000130 000c  Beq 0x00000148
+  00000132 0800  Bmi 0x00000132
+  00000134 000c  Beq 0x0000014c
+  00000136 0800  Bmi 0x00000136
+  00000138 0014  Beq 0x00000160
+  0000013a 0800  Bmi 0x0000013a
+  0000013c 0000  Beq 0x0000013c
+  0000013e 0800  Bmi 0x0000013e

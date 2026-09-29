@@ -119,9 +119,16 @@ live in the runtime library:
 | Function | Operation |
 |---|---|
 | `__mul` | a1 = a1 * a2 |
-| `__div`, `__udiv` | a1 = a1 / a2, signed and unsigned |
-| `__mod`, `__umod` | a1 = a1 % a2, signed and unsigned |
-| `__divmod`, `__udivmod` | a1 = a1 / a2, a2 = a1 % a2 |
+| `__div`, `__udiv` | a1 = a2 / a1 and a2 = a2 % a1, signed and unsigned |
+| `__divmod`, `__udivmod` | Aliases of `__div` and `__udiv` |
+| `__mod`, `__umod` | a1 = a2 % a1, signed and unsigned |
+| `__div10`, `__udiv10` | a1 = a1 / 10 and a2 = a1 % 10, signed and unsigned |
+| `__divtest` | Traps if a1 is zero; called before a division by a variable |
+
+The division routines take the divisor first, as Arm's `__rt_sdiv` does,
+because that is the order compilers find convenient to evaluate the
+operands in.  Both quotient and remainder come back, so `x / y` and
+`x % y` share one call.
 | `__mul64`, `__div64`, `__udiv64`, `__mod64`, `__umod64` | 64-bit versions taking two-word operands in a1:a2 and a3:a4 |
 | `__lsl64`, `__lsr64`, `__asr64` | 64-bit shifts of a1:a2 by a3 |
 | `__memcpy`, `__memset` | Block copy and fill with the C semantics |

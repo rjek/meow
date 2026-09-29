@@ -250,6 +250,8 @@ int main(int argc, char *argv[])
 		} else {
 			msim_run(ctx, cycles, false);
 		}
+		fprintf(stderr, "msim: stopped after %d cycles\n", cycles);
+		exit(3);
 	}
 	
 	msim_destroy(ctx);
