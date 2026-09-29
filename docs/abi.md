@@ -57,7 +57,8 @@ pc}` save and restore a frame and return.
 costs two extra instructions.  Little-endian throughout.  Structure members
 are aligned to their own alignment and structures to their most-aligned
 member.  Bit-fields are allocated from the least significant bit of their
-unit.  There is no floating-point hardware; `float` and `double` are IEEE
+unit, and a plain `int` bit-field is unsigned, as on Arm; write `signed
+int` to get sign extension.  There is no floating-point hardware; `float` and `double` are IEEE
 754 values manipulated by library calls.
 
 ## Calls and returns
