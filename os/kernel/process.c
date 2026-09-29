@@ -36,6 +36,7 @@ void process_init(const uint32_t *relocs, uint32_t n)
     lib_relocs = relocs;
     lib_nrelocs = n;
     waitq_init(&kproc.waiters);
+    waitq_init(&kproc.childq);
 }
 
 /* A private copy of the library's data for a new process, with the
@@ -97,7 +98,8 @@ static int slurp(const char *path, char **out, uint32_t *size)
 
 struct cfx_header {
     char magic[4];
-    uint32_t image_size, mem_size, entry, nrelocs, reserved;
+    uint32_t image_size, mem_size, entry, nrelocs;
+    uint32_t stack;                     /* bytes the main thread wants, or 0 */
 };
 
 /* Load a cfx image: copy, zero the rest, add the load address to every
@@ -137,8 +139,49 @@ static int load_image(struct process *p, const char *path, uint32_t *entry)
         *(uint32_t *)(p->image + relocs[i]) += (uint32_t)p->image;
     }
     *entry = (uint32_t)p->image + h->entry;
+    p->stack_size = h->stack != 0 ? (h->stack + 7) & ~7u : STACK_USER;
     kfree(file);
     return 0;
+}
+
+static void heap_free(struct process *p)
+{
+    while (p->heap != NULL) {
+        struct heapblk *b = p->heap;
+
+        p->heap = b->next;
+        kfree(b);
+    }
+}
+
+/* Everything a process owns but its threads, which have gone already. */
+static void process_free(struct process *p)
+{
+    struct process **pp;
+
+    for (pp = &procs; *pp != p; pp = &(*pp)->next) {
+    }
+    *pp = p->next;
+    kfree(p->image);
+    kfree(p->libdata);
+    kfree(p->argv);
+    heap_free(p);
+    kfree(p);
+}
+
+/* Free the orphans that have ended: nobody else will. */
+void reap_orphans(void)
+{
+    struct process *p = procs, *next;
+
+    kenter();
+    for (; p != NULL; p = next) {
+        next = p->next;
+        if (p->orphan != 0 && p->dead != 0 && p->nthreads == 0) {
+            process_free(p);
+        }
+    }
+    kexit();
 }
 
 /* argv, copied into the new process's memory as one block: the pointer
@@ -185,6 +228,7 @@ int process_spawn(const char *path, int argc, char *const argv[])
     memset(p, 0, sizeof *p);
     p->parent = parent;
     waitq_init(&p->waiters);
+    waitq_init(&p->childq);
     rc = load_image(p, path, &entry);
     if (rc == 0) {
         rc = lib_instance(p);
@@ -216,7 +260,7 @@ int process_spawn(const char *path, int argc, char *const argv[])
 
     p->next = procs;
     procs = p;
-    p->main = thread_create_in(p, p->name, process_main, p, PRIO_DEFAULT, STACK_USER);
+    p->main = thread_create_in(p, p->name, process_main, p, PRIO_DEFAULT, p->stack_size);
     if (p->main == NULL) {
         procs = p->next;
         kfree(p->image);
@@ -243,11 +287,12 @@ static int process_main(void *arg)
 }
 
 /* End the current process: every other thread of it dies now, its files
-   close, and whoever waits for it is told.  The memory goes when it is
-   waited for. */
+   close, its children become the kernel's, and whoever waits for it is
+   told.  The memory goes when it is waited for, or, for an orphan, as
+   soon as it ends. */
 void process_exit(int status)
 {
-    struct process *p = current_process();
+    struct process *p = current_process(), *q;
     int i;
 
     kenter();
@@ -256,6 +301,12 @@ void process_exit(int status)
     }
     p->exit_status = status;
     p->dead = 1;
+    for (q = procs; q != NULL; q = q->next) {
+        if (q->parent == p) {
+            q->parent = &kproc;
+            q->orphan = 1;
+        }
+    }
     thread_kill_others(p);
     for (i = 0; i < NFD; i++) {
         if (p->fds[i] != NULL) {
@@ -267,14 +318,14 @@ void process_exit(int status)
     thread_exit(status);
 }
 
-/* Wait for a child to end.  Returns its exit status. */
+/* Wait for a child to end, and free it.  Returns 0 and its status. */
 int process_wait(int pid, int *status)
 {
-    struct process *p, **pp;
+    struct process *p;
 
     kenter();
     p = process_find(pid);
-    if (p == NULL || p->parent != current_process()) {
+    if (p == NULL || p->parent != current_process() || p->orphan != 0) {
         kexit();
         return -ECHILD;
     }
@@ -282,19 +333,51 @@ int process_wait(int pid, int *status)
         waitq_wait(&p->waiters);
     }
     reap_zombies();                     /* its threads, before its memory is counted */
-    for (pp = &procs; *pp != p; pp = &(*pp)->next) {
-    }
-    *pp = p->next;
     if (status != NULL) {
         *status = p->exit_status;
     }
-    kfree(p->image);
-    kfree(p->libdata);
-    kfree(p->argv);
-    kfree(p->heap);
-    kfree(p);
+    process_free(p);
     kexit();
     return 0;
+}
+
+/* Any child that has ended: its pid, 0 if none has and block is 0, or
+   -ECHILD if there are no children at all. */
+int process_waitany(int *status, int block)
+{
+    struct process *me = current_process(), *p;
+    int pid;
+
+    kenter();
+    for (;;) {
+        int children = 0;
+
+        for (p = procs; p != NULL; p = p->next) {
+            if (p->parent != me || p->orphan != 0) {
+                continue;
+            }
+            children++;
+            if (p->dead != 0 && p->nthreads == 0) {
+                break;
+            }
+        }
+        if (p != NULL) {
+            break;
+        }
+        if (children == 0 || block == 0) {
+            kexit();
+            return children == 0 ? -ECHILD : 0;
+        }
+        waitq_wait(&me->childq);
+    }
+    reap_zombies();
+    pid = p->pid;
+    if (status != NULL) {
+        *status = p->exit_status;
+    }
+    process_free(p);
+    kexit();
+    return pid;
 }
 
 int process_pid(void)
@@ -321,30 +404,36 @@ int process_info(int index, struct procinfo *info)
     return 1;
 }
 
-/* The program's heap: one block, taken from the kernel's on first use,
-   handed out in pieces.  A process that wants more asks before it
-   starts, one day. */
+/* The program's heap: blocks taken from the kernel's as it grows, each
+   handed out in pieces.  Blocks need not be next to each other, and the
+   C library's allocator is built knowing that.  It never gives memory
+   back, so a negative increment is refused. */
 void *process_sbrk(int increment)
 {
     struct process *p = current_process();
+    struct heapblk *b = p->heap;
     char *old;
 
     kenter();
-    if (p->heap == NULL) {
-        p->heap_size = HEAP_DEFAULT;
-        p->heap = kmalloc(p->heap_size);
-        if (p->heap == NULL) {
-            kexit();
-            return (void *)-1;
-        }
-    }
-    if ((increment > 0 && (size_t)increment > p->heap_size - p->brk) ||
-        (increment < 0 && (size_t)-increment > p->brk)) {
+    if (increment < 0) {
         kexit();
         return (void *)-1;
     }
-    old = p->heap + p->brk;
-    p->brk += (size_t)increment;
+    if (b == NULL || (size_t)increment > b->size - b->used) {
+        size_t size = (size_t)increment > HEAP_CHUNK ? (size_t)increment : HEAP_CHUNK;
+
+        b = kmalloc(sizeof *b + size);
+        if (b == NULL) {
+            kexit();
+            return (void *)-1;
+        }
+        b->size = size;
+        b->used = 0;
+        b->next = p->heap;
+        p->heap = b;
+    }
+    old = (char *)(b + 1) + b->used;
+    b->used += (size_t)increment;
     kexit();
     return old;
 }
@@ -355,6 +444,10 @@ void process_thread_gone(struct process *p)
     p->nthreads--;
     if (p->nthreads == 0 && p->dead != 0) {
         while (waitq_wake_one(&p->waiters) != NULL) {
+        }
+        if (p->parent != NULL) {
+            while (waitq_wake_one(&p->parent->childq) != NULL) {
+            }
         }
     }
 }

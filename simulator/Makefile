@@ -6,10 +6,10 @@ LUA=lua5.1
 all: msim
 
 clean:
-	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim.o msim_watchpoints.c
+	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o msim_watchpoints.c
 
-msim: msim_core.o msim_chairman.o msim_debug.o msim.o $(LIBMEOW)
-	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim.o $(LIBMEOW) -ledit -llua5.1
+msim: msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o $(LIBMEOW)
+	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o $(LIBMEOW) -ledit -llua5.1
 
 $(LIBMEOW):
 	$(MAKE) -C ../lib

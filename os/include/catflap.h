@@ -52,6 +52,7 @@ int vfs_pipe(int fds[2]);
 int process_spawn(const char *path, int argc, char *const argv[]);
 void process_exit(int status);
 int process_wait(int pid, int *status);
+int process_waitany(int *status, int block);   /* a pid, 0, or -ECHILD */
 void *process_sbrk(int increment);
 int process_pid(void);
 struct cf_procinfo {

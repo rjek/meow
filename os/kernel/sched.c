@@ -178,6 +178,7 @@ struct thread *thread_create_in(struct process *p, const char *name,
 
     kenter();
     reap_zombies();
+    reap_orphans();
     t = kmalloc(sizeof *t);
     if (t == NULL) {
         kexit();
@@ -191,6 +192,7 @@ struct thread *thread_create_in(struct process *p, const char *name,
         return NULL;
     }
     t->stack_size = stack_size;
+    *(uint32_t *)t->stack = STACK_MAGIC;
     t->name = name;
     t->prio = prio;
     t->regs[0] = (uint32_t)arg;
@@ -303,6 +305,7 @@ void reap_zombies(void)
 void idle_work(void)
 {
     reap_zombies();
+    reap_orphans();
 }
 
 /* Choose the next thread and tell boot.s.  Runs in the interrupt bank. */
@@ -313,6 +316,10 @@ static void do_switch(void)
 
     c->switch_wanted = 0;
     c->slice = SLICE;
+    if (c->current->stack != NULL && *(uint32_t *)c->current->stack != STACK_MAGIC) {
+        kpanic("thread %s overran its %u byte stack", c->current->name,
+               (unsigned)c->current->stack_size);
+    }
     if (next == c->current) {
         next->state = T_RUNNING;
         return;

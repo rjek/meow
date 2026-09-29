@@ -6,6 +6,7 @@
         EXPORT  kernel_halt
         EXPORT  cpu_id
         EXPORT  kernel_time
+        EXPORT  host_call
         IMPORT  kmain
         IMPORT  irq_dispatch
         IMPORT  switch_from
@@ -148,6 +149,19 @@ kernel_halt
 kernel_time
         BNV     #-14
         MOV     r0, ir
+        RET
+
+; int host_call(int op, int a, int b, int c, int d): msim's hostfs, which
+; takes the operation in r0 and its arguments in r1 to r4.  The fifth
+; argument arrives on the stack.  With nothing there the BNV does nothing
+; and ir keeps -ENOSYS.
+host_call
+        STR     r4, [sp, #-4]!
+        LDR     r4, [sp, #4]
+        LDI     #-38
+        BNV     #-18
+        MOV     r0, ir
+        LDR     r4, [sp], #4
         RET
 
 ; int cpu_id(void): this CPU's bus ID

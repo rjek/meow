@@ -63,6 +63,7 @@ static const char **symfiles;	/* -S: executables whose symbols resolve ours */
 static unsigned nsymfiles;
 static bool bss_backwards;	/* -B */
 static bool pad_flat;		/* -p: a flat image padded to a word, for what follows it */
+static uint32_t cfx_stack;	/* -k: the stack a cfx image asks for */
 
 static struct input *inputs;
 static unsigned ninputs;
@@ -77,7 +78,7 @@ static int error_count;
 static void usage(void)
 {
 	fprintf(stderr, "usage: mld [-o output] [-f elf|bin|cfx] [-b base] [-d data base]\n"
-		"           [-M map] [-e entry] [-S executable] [-B] [-p]\n"
+		"           [-M map] [-e entry] [-S executable] [-B] [-p] [-k stack]\n"
 		"           [-R start,end,file] input.o...\n");
 	exit(2);
 }
@@ -717,7 +718,7 @@ static void write_cfx(const char *path, uint32_t entry)
 	hdr[2] = mem_size;
 	hdr[3] = entry;
 	hdr[4] = n;
-	hdr[5] = 0;
+	hdr[5] = cfx_stack;
 	fwrite(hdr, 4, 6, f);
 	for (i = 0; i < nosecs; i++) {
 		struct osec *o = osecs[i];
@@ -1126,7 +1127,7 @@ int main(int argc, char *argv[])
 			pad_flat = true;
 			continue;
 		}
-		if (strlen(a) == 2 && strchr("ofbdMeSR", a[1]) != NULL) {
+		if (strlen(a) == 2 && strchr("ofbdMeSRk", a[1]) != NULL) {
 			const char *v;
 
 			if (i + 1 == argc) {
@@ -1148,6 +1149,7 @@ int main(int argc, char *argv[])
 				symfiles[nsymfiles++] = v;
 				break;
 			case 'R': reloc_list = v; break;
+			case 'k': cfx_stack = (uint32_t)strtoul(v, NULL, 0); break;
 			}
 			continue;
 		}

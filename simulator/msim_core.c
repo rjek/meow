@@ -111,8 +111,6 @@ static void msim_builtin_dump_state(struct msim_ctx *ctx, signed int op,
 	msim_print_state(ctx);
 }
 
-/* One character from standard input into ir, or -1 at its end.  Output
- * is flushed first so a prompt shows before the wait. */
 static void msim_builtin_time(struct msim_ctx *ctx, signed int op,
 				void *bnvctx)
 {
@@ -125,6 +123,8 @@ static void msim_builtin_cycles(struct msim_ctx *ctx, signed int op,
 	ctx->r[MSIM_IR] = ctx->cyclecount;
 }
 
+/* One character from standard input into ir, or -1 at its end.  Output
+ * is flushed first so a prompt shows before the wait. */
 static void msim_builtin_getc(struct msim_ctx *ctx, signed int op,
 				void *bnvctx)
 {

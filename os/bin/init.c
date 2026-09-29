@@ -1,4 +1,5 @@
-/* init: a shell on the console, again if it ends */
+/* init: a shell on the console, again if it fails.  A shell that ends
+   cleanly, by exit or at the end of input, shuts the system down. */
 #include <stdio.h>
 #include "catflap.h"
 
@@ -16,6 +17,9 @@ int main(int argc, char **argv)
             return 1;
         }
         process_wait(pid, &status);
-        printf("init: sh exited with %d\n", status);
+        if (status == 0) {
+            return 0;
+        }
+        printf("init: sh exited with %d, starting another\n", status);
     }
 }

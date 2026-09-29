@@ -4,7 +4,8 @@
 # os/bin are linked against that kernel's addresses, packed into a romfs
 # with os/root, and the ROM runs under msim with 256 KB of RAM.  Standard
 # output and the exit status must match os/NAME.out; os/NAME.in, if there
-# is one, is standard input.
+# is one, is standard input; os/NAME.ram, if there is one, holds the RAM
+# size in KB instead; os/NAME.host, if there is one, is lent as /host.
 cd "$(dirname "$0")" || exit 2
 NMCC=${NMCC:-../../norcroft-ng/bin/nmcc}
 MLD=${MLD:-../ld/mld}
@@ -41,9 +42,12 @@ for src in os/*.c; do
 		continue
 	fi
 	cp -r "$OS/root/." "$tmp.root" && mkdir -p "$tmp.root/bin"
-	for prog in "$OS"/obj/bin/*.o; do
-		p=$(basename "$prog" .o)
-		if ! $MLD -f cfx -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" 2>"$tmp.err"; then
+	for prog in "$OS"/obj/bin/*.o "$OS"/obj/bin/*.a; do
+		[ -f "$prog" ] || continue
+		p=$(basename "$prog"); p=${p%.[oa]}
+		stack=0
+		[ "$p" = lua ] && stack=16384
+		if ! $MLD -f cfx -k $stack -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" 2>"$tmp.err"; then
 			echo "FAIL $src: cannot link program $p"
 			cat "$tmp.err"
 			break
@@ -52,7 +56,9 @@ for src in os/*.c; do
 	"$OS/obj/mkromfs" "$tmp.img" "$tmp.root" > /dev/null
 	cat "$tmp.bin" "$tmp.rl" "$tmp.img" > "$tmp.rom"
 	if [ -f "$name.in" ]; then stdin="$name.in"; else stdin=/dev/null; fi
-	$MSIM -q -r "$tmp.rom" -m 256 -c 50000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
+	if [ -f "$name.ram" ]; then ram=$(cat "$name.ram"); else ram=256; fi
+	if [ -d "$name.host" ]; then host="-H $name.host"; else host=; fi
+	$MSIM -q -r "$tmp.rom" -m $ram $host -c 200000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if cmp -s "$tmp.out" "$name.out"; then
 		pass=$((pass + 1))

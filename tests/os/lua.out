@@ -1,0 +1,13 @@
+Catflap: 1024 KB RAM
+hello from lua	Lua 5.4	1024.0
+lua -e exited 0
+script: 1 4 9 16 25 36 49 64 81 100
+pi 3.14159, 2^40 1099511627776, 7//2 3
+coroutine	42	42
+pcall	false	caught
+data.txt	4	lines, sum	100
+[line 1][line 2][line 3]
+heap grew to	3000	strings	true
+args	a	b
+lua script exited 7
+exit 0

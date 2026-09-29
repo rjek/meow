@@ -46,6 +46,13 @@ void kmain(void)
         kpanic("cannot mount");
     }
     strcpy(kproc.cwd, "/");
+    {
+        struct vnode *host = hostfs_init();
+
+        if (host != NULL) {
+            vfs_mount("/host", host);
+        }
+    }
     for (i = 0; i < 3; i++) {           /* the streams every process inherits */
         if (vfs_open("/dev/console", i == 0 ? O_RDONLY : O_WRONLY) != i) {
             kpanic("no console");

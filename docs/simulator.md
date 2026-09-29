@@ -5,13 +5,14 @@ controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
 build (`liblua5.1-0-dev libedit-dev` on Debian and Ubuntu).
 
 ```
-msim [-vhiqs] {-f spec | -r rom [-m KB]} [-c cycles] [-P file]
+msim [-vhiqs] {-f spec | -r rom [-m KB]} [-H dir] [-c cycles] [-P file]
 ```
 
 | Option | Meaning |
 |---|---|
 | `-r rom` | Load a flat image as ROM at chip select 0, with RAM at chip select 1 and the Chairman at 31 |
 | `-m KB` | How much RAM `-r` provides, in KB; 64 unless told otherwise.  A program finds the figure in the Chairman's chip-select table, which is how `crt0` places the stack |
+| `-H dir` | Lend a host directory to the program through `BNV #-18`.  Catflap mounts it at `/host` |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
 | `-v` | Trace: print every instruction as it executes, with the registers after it |
@@ -53,6 +54,7 @@ programs to talk to the outside world.
 | `BNV #-12` | Read one character from standard input into `ir`, or -1 at its end.  Standard output is flushed first |
 | `BNV #-14` | The host's time in seconds since 1970 into `ir` |
 | `BNV #-16` | The number of instructions executed so far into `ir` |
+| `BNV #-18` | The directory lent with `-H`: `r0` is the operation (0 probe, 1 open, 2 close, 3 read, 4 write, 5 stat, 6 readdir, 7 mkdir, 8 unlink), `r1` to `r4` its arguments, and `ir` the result or a negative `errno`.  Without `-H` every operation answers `-ENOSYS`.  Paths are relative to the directory and may not contain `..`; see `simulator/msim_hostfs.c` for the layouts |
 
 The Chairman's serial console reads from standard input and writes to
 standard output.  Bit 1 of its flags register, which the architecture

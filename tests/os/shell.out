@@ -1,5 +1,6 @@
 Catflap: 256 KB RAM
 $ hello world
+$ quoted  words and more
 $ $       28 config
       39 motd
 $ Catflap, an operating system for MEOW.
@@ -17,9 +18,10 @@ $ cat: /nowhere: cannot open
 sh: cat: exit 1
 $      dev console
      dev null
-$ $   pid parent threads name
-   19      1       1 ps
-   18      1       1 sleep
+$ [19]
+$   pid parent threads name
+   20      1       1 ps
+   19      1       1 sleep
     1      0       1 sh
     0     -1       1 kernel
 $ 1 1 2

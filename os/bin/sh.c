@@ -1,6 +1,7 @@
-/* sh: a small shell.  Words, pipelines, < > >>, & at the end, # to the
-   end of the line, and cd, pwd, exit as builtins.  Programs are found
-   in /bin unless named with a slash. */
+/* sh: a small shell.  Words, 'quoted' or "quoted" to keep spaces,
+   pipelines, < > >>, & at the end, # to the end of the line, and cd,
+   pwd, exit as builtins.  Programs are found in /bin unless named with
+   a slash. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,11 +43,33 @@ static int tokenise(char *line)
             return -1;
         }
         words[nwords++] = p;
-        while (*p != '\0' && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
-            p++;
-        }
-        if (*p != '\0') {
-            *p++ = '\0';
+        {
+            char *w = p;                /* the word is rewritten in place, less its quotes */
+            char quote = '\0';
+
+            while (*p != '\0') {
+                if (quote != '\0') {
+                    if (*p == quote) {
+                        quote = '\0';
+                        p++;
+                        continue;
+                    }
+                } else if (*p == '\'' || *p == '"') {
+                    quote = *p++;
+                    continue;
+                } else if (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
+                    break;
+                }
+                *w++ = *p++;
+            }
+            if (quote != '\0') {
+                say("sh: unmatched quote\n");
+                return -1;
+            }
+            if (*p != '\0') {
+                p++;
+            }
+            *w = '\0';
         }
     }
 }
@@ -206,6 +229,8 @@ static void run(struct cmd *cmds, int n, int background)
             if (status != 0 && i == n - 1) {
                 fprintf(stderr, "sh: %s: exit %d\n", cmds[i].argv[0], status);
             }
+        } else if (pids[i] >= 0 && i == n - 1) {
+            fprintf(stderr, "[%d]\n", pids[i]);
         }
     }
 }
@@ -219,6 +244,11 @@ int main(int argc, char **argv)
     (void)argc;
     (void)argv;
     for (;;) {
+        int pid, status;
+
+        while ((pid = process_waitany(&status, 0)) > 0) {
+            fprintf(stderr, "[%d] done, exit %d\n", pid, status);
+        }
         fputs("$ ", stdout);
         fflush(stdout);
         if (fgets(line, sizeof line, stdin) == NULL) {

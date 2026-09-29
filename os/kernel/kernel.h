@@ -31,7 +31,8 @@
 #define PRIO_DEFAULT    4
 #define PRIO_INIT       7
 #define STACK_DEFAULT   1024
-#define STACK_USER      4096            /* a program's main thread */
+#define STACK_USER      4096            /* a program's main thread, unless it says */
+#define STACK_MAGIC     0x57ac6ed5u     /* the lowest word of every thread stack */
 
 enum thread_state { T_READY, T_RUNNING, T_SLEEPING, T_BLOCKED, T_ZOMBIE };
 
@@ -154,6 +155,11 @@ struct file {
 };
 
 /* process.c */
+struct heapblk {
+    struct heapblk *next;
+    size_t size, used;                  /* bytes after this header */
+};
+
 struct process {
     int pid;
     const char *name;
@@ -170,12 +176,13 @@ struct process {
     uint32_t sb;                        /* its displacement from the linked copy */
     int argc;
     char **argv;
-    char *heap;                         /* the program's, handed out by sbrk */
-    size_t heap_size;
-    size_t brk;
+    struct heapblk *heap;               /* the program's, newest first, handed out by sbrk */
+    int orphan;                         /* its parent ended first: nobody will wait */
+    size_t stack_size;
     struct file *fds[NFD];
     char cwd[PATH_MAX];
-    struct waitq waiters;
+    struct waitq waiters;               /* for this one to end */
+    struct waitq childq;                /* for any of its children to end */
 };
 
 extern struct process kproc;
@@ -194,8 +201,9 @@ struct procinfo {
     char name[32];
 };
 int process_info(int index, struct procinfo *info);
-#define HEAP_DEFAULT    (32 * 1024)     /* a process's heap until it asks for more */
-
+#define HEAP_CHUNK      (32 * 1024)     /* the least sbrk takes from the kernel at a time */
+int process_waitany(int *status, int block);
+void reap_orphans(void);
 /* vfs.c */
 struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
                         uint32_t ino, uint32_t size);
@@ -225,12 +233,14 @@ void pipe_end_closed(struct vnode *v, int flags);
 struct vnode *romfs_init(const void *image);
 struct vnode *devfs_init(void);
 struct vnode *ramfs_init(void);
+struct vnode *hostfs_init(void);
 int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
 
 /* boot.s */
 void kernel_halt(int status);
 int cpu_id(void);
 long kernel_time(void);
+int host_call(int op, int a, int b, int c, int d);
 extern struct thread *switch_from, *switch_to;
 
 /* lib.c: the kernel's own, under the usual names here but not clashing

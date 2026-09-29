@@ -35,6 +35,7 @@
 
 #include "msim_core.h"
 #include "msim_chairman.h"
+#include "msim_hostfs.h"
 
 static inline void chomp(char *c)
 {
@@ -155,6 +156,7 @@ static void display_help(const char *argv0)
 	printf("Usage: %s [-vhiqs] {-f spec file | -r rom} [-c cycles]\n", argv0);
 	printf("  -r rom   ROM image at chip select 0, RAM at 1, Chairman at 31\n");
 	printf("  -m KB    size of that RAM, default 64\n");
+	printf("  -H dir   lend a host directory to the program through BNV #-18\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
 	printf("  -P file  write an execution count for every address run to file\n");
@@ -187,12 +189,13 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:m:";
+	static char optstring[] = "vhiqsf:r:c:P:m:H:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
 	char *specfile = NULL;
 	char *romfile = NULL;
+	char *hostdir = NULL;
 	size_t ramsize = 65536;
 	struct msim_ctx *ctx;
 	
@@ -233,6 +236,9 @@ int main(int argc, char *argv[])
 		case 'r':
 			romfile = optarg;
 			break;
+		case 'H':
+			hostdir = optarg;
+			break;
 		case 'm':
 			ramsize = (size_t)atoi(optarg) * 1024;
 			break;
@@ -267,6 +273,8 @@ int main(int argc, char *argv[])
 		exit(2);
 	}
 	
+	msim_add_hostfs(ctx, hostdir);
+
 	if (quiet == false) {
 		printf("msim %s - The MEOW Simulator and Debugger\n", MSIM_VERSION);
 		printf("Copyright (c) 2006-2007 Rob Kendrick\n\n");

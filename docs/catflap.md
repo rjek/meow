@@ -313,9 +313,12 @@ unless the shell redirected them.  libc's `fopen` maps onto `open`,
   `&`, `cd`, `exit`, and nothing else.
 - **utilities**: `ls`, `cat`, `echo`, `ps`, `free`, `mount`, `uptime`,
   `kill`.  Each a page of C.
-- **lua**: the interpreter as built now, relinked against the Catflap
-  libc, becomes the scripting language of the system and a test of it,
-  and `io.open` starts to work.
+- **lua**: the interpreter, relinked against the Catflap libc, is the
+  scripting language of the system and a test of it.  Its 270 KB image
+  is copied into RAM to be relocated, which is the largest cost in the
+  system; running programs in place from ROM would need code that does
+  not hold absolute addresses in its literal pools, and is the obvious
+  next saving.
 
 ## 10. What is in assembler
 
@@ -374,7 +377,18 @@ output compared.
    reached through a library function, not by address; and read-only
    data belongs in ROM, which `mld` now does, halving what a process
    costs on a 256 KB machine.
-6. **hostfs and Lua.**  Test: Lua runs a script from `/host`.
+6. **hostfs and Lua.**  Done: `msim -H` lends a directory through
+   `BNV #-18` and the kernel mounts it at `/host`; the stock Lua 5.4.7
+   is a Catflap program, `/bin/lua`, calling the shared C library, so
+   `io.open` works on every file system.  To get there: a process heap
+   of chained blocks (`sbrk` is not contiguous, and dlmalloc is built to
+   know), a stack size in the `cfx` header (`mld -k`; Lua asks for
+   16 KB), a guard word at the foot of every thread stack checked at
+   each switch, orphans handed to the kernel and freed when they end,
+   `process_waitany` so the shell reaps background jobs, quoting in the
+   shell, and init halting the machine when the shell ends cleanly.
+   `tests/os/lua.c`, with `tests/os/lua.host` as `/host`.  `make -C os
+   run` boots with 1 MB and `os/` as `/host`.
 
 ## 13. Decisions taken, and open ones
 

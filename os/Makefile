@@ -11,7 +11,7 @@ HOSTCC = cc
 CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
 PCFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Iinclude
 RT = ../rt/mul.o ../rt/div.o ../rt/ll.o ../rt/softfp.o
-RAM = 256
+RAM = 1024
 
 KSRCS := $(wildcard kernel/*.c)
 KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS)))
@@ -24,7 +24,7 @@ LIBC = ../libc
 LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=8 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
 MUSL_CFLAGS = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
               -I$(LIBC)/meow/musl -I$(LIBC)/musl/src/internal
-DLMALLOC_CFLAGS = -DHAVE_MMAP=0 -DHAVE_MORECORE=1 -DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H \
+DLMALLOC_CFLAGS = -DHAVE_MMAP=0 -DHAVE_MORECORE=1 -DMORECORE_CONTIGUOUS=0 -DMORECORE_CANNOT_TRIM -DLACKS_UNISTD_H -DLACKS_SYS_PARAM_H \
               -DLACKS_SYS_MMAN_H -DLACKS_SCHED_H -DLACKS_FCNTL_H -DLACKS_TIME_H -Dmalloc_getpagesize=4096
 MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
 PDCLIB_SRCS := $(filter-out $(LIBC)/pdclib/functions/stdio/remove.c,$(wildcard $(LIBC)/pdclib/functions/*/*.c))
@@ -35,7 +35,12 @@ CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
 LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(PDCLIB_SRCS) $(MUSL_SRCS) $(CATFLAP_SRCS)) \
            $(patsubst $(LIBC)/%.s,obj/libc/%.o,$(CATFLAP_ASM))
 LINK = $(KOBJS) obj/kernel/init.o $(RT) obj/kernel/libc_start.o $(LIBOBJS) obj/kernel/libc_end.o
-PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c))
+# Each bin/NAME.c is a program; Lua, from ../lua, is an archive whose
+# lua.o member holds main, and the linker takes what it needs from it.
+PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c)) obj/root/bin/lua
+LUA_SRCS := $(wildcard ../lua/*.c)
+LUA_OBJS := $(patsubst ../lua/%.c,obj/lua/%.o,$(LUA_SRCS))
+LUA_STACK = 16384
 ROOT := $(shell find root -type f)
 
 all: catflap.rom obj/link.list
@@ -61,6 +66,18 @@ obj/root/bin/%: obj/bin/%.o obj/lib/crt0.o obj/catflap.elf
 	@mkdir -p obj/root/bin
 	$(MLD) -f cfx -S obj/catflap.elf -o $@ obj/lib/crt0.o $<
 
+obj/bin/lua.a: $(LUA_OBJS)
+	rm -f $@
+	ar rc $@ $(LUA_OBJS)
+
+obj/lua/%.o: ../lua/%.c
+	@mkdir -p obj/lua
+	$(NMCC) $(PCFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/root/bin/lua: obj/bin/lua.a obj/lib/crt0.o obj/catflap.elf
+	@mkdir -p obj/root/bin
+	$(MLD) -f cfx -k $(LUA_STACK) -S obj/catflap.elf -o $@ obj/lib/crt0.o obj/bin/lua.a
+
 obj/romfs.img: obj/mkromfs $(ROOT) $(PROGS)
 	cp -r root/. obj/root/
 	obj/mkromfs $@ obj/root
@@ -77,7 +94,7 @@ obj/%.o: %.s
 	@mkdir -p $(dir $@)
 	$(MAS) -o $@ $<
 
-obj/libc/pdclib/functions/_dlmalloc/%.o: $(LIBC)/pdclib/functions/_dlmalloc/%.c
+obj/libc/pdclib/functions/_dlmalloc/%.o: $(LIBC)/pdclib/functions/_dlmalloc/%.c Makefile
 	@mkdir -p $(dir $@)
 	$(NMCC) $(LIBC_CFLAGS) $(DLMALLOC_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
 
@@ -98,9 +115,9 @@ obj/mkromfs: tools/mkromfs.c
 	$(HOSTCC) -O -Wall -o $@ $<
 
 run: catflap.rom
-	$(MSIM) -q -r catflap.rom -m $(RAM)
+	$(MSIM) -q -r catflap.rom -m $(RAM) -H .
 
-check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c))
+check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) obj/bin/lua.a
 	../tests/runos.sh
 
 clean:

@@ -4,17 +4,23 @@
 executable or a flat image.
 
 ```
-mld [-o output] [-f elf|bin] [-b base] [-d base] [-M map] [-e symbol] input.o...
+mld [-o output] [-f elf|bin|cfx] [-b base] [-d base] [-M map] [-e symbol]
+    [-S executable] [-B] [-p] [-k stack] [-R start,end,file] input.o...
 ```
 
 | Option | Meaning |
 |---|---|
 | `-o output` | Output file.  Default `a.out`.  A name ending `.bin` or `.rom` selects a flat image |
-| `-f elf` or `-f bin` | Output format: an ELF executable with final addresses and a symbol table, or a flat image |
+| `-f elf`, `-f bin` or `-f cfx` | Output format: an ELF executable with final addresses and a symbol table, a flat image, or a Catflap program (below) |
 | `-b base` | Address of the first byte.  Default 0 |
 | `-d base` | Run address of writable data and BSS, for an image that lives in ROM; read-only data stays with the code.  Without it they follow the code |
 | `-M map` | Write a map of sections and symbols (`-` for standard output) |
 | `-e symbol` | Entry point.  Otherwise `__entry` (which `mas` defines from `ENTRY`), then `start`, then `main`, then 0 |
+| `-S executable` | Resolve whatever is still undefined from an ELF executable's global symbols, as absolute addresses.  A Catflap program links against the kernel and its C library this way |
+| `-B` | Lay out BSS in reverse input order, so that the last inputs' BSS directly follows their data.  Catflap uses it to make the shared library's data and BSS one range |
+| `-p` | Pad a flat image to a multiple of 4 bytes, for whatever is appended to it |
+| `-k stack` | For `-f cfx`: the bytes of stack the program's main thread wants |
+| `-R start,end,file` | Write to `file` the addresses of every word within the range from symbol `start` to symbol `end` that points into that range, for whoever copies the range elsewhere |
 
 An input may be an `ar` archive of objects, as `ar rcs` makes one.  Its
 members are loaded only when they define a symbol that is still undefined
@@ -27,6 +33,13 @@ each contribution aligned as its object declares.  The output places code
 sections first, then data, then BSS, consecutively from the base address,
 each aligned to at least 4 bytes.  A flat image ends after the last data
 section; BSS occupies no bytes in the file.
+
+A `cfx` image is what Catflap loads: linked at 0 with data following
+code, a six-word header (`CFX1`, image size, memory size including BSS,
+entry offset, relocation count, stack size), the image, then the offset
+of every word holding an address that the loader must add the load
+address to.  Addresses of symbols that `-S` resolved are absolute and
+left out of the list.
 
 With `-d`, data and BSS are linked to run at that address, typically RAM,
 while a flat image still stores the data initialisers straight after the
