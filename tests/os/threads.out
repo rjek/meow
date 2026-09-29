@@ -1,0 +1,15 @@
+Catflap: 256 KB RAM, 247 KB free
+init: all started at tick 0
+sleeper 1 step 0 at tick 0
+sleeper 2 step 0 at tick 0
+sleeper 3 step 0 at tick 0
+sleeper 1 step 1 at tick 1
+sleeper 2 step 1 at tick 2
+sleeper 1 step 2 at tick 2
+sleeper 3 step 1 at tick 3
+sleeper 2 step 2 at tick 4
+sleeper 3 step 2 at tick 6
+spinner until 5 done
+spinner until 8 done
+boss: 246 KB free, tick 12
+exit 0
