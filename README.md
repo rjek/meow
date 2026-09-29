@@ -14,6 +14,8 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/assembler.md](docs/assembler.md) | The `mas` assembler and its language |
 | [docs/linker.md](docs/linker.md) | The `mld` linker |
 | [docs/simulator.md](docs/simulator.md) | The `msim` simulator and debugger |
+| [docs/libc.md](docs/libc.md) | The C library: building against it, the platform layer, what was patched |
+| [docs/lua.md](docs/lua.md) | Lua on MEOW: building it, running it, what it took |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 
 ## Layout
@@ -26,7 +28,9 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | `ld/` | `mld` the linker |
 | `rt/` | Runtime for compiled C: start-up code, multiply and divide, msim console output |
 | `simulator/` | `msim` |
-| `tests/` | Regression tests for the assembler, linker, simulator and C compiler |
+| `libc/` | C library: PDCLib, musl's maths and the MEOW platform layer |
+| `lua/` | Lua 5.4.7, built for MEOW and run under `msim` |
+| `tests/` | Regression tests for the assembler, linker, simulator, C compiler, C library and Lua |
 | `attic/` | Abandoned work: the Lua assembler, lcc port, libc, VHDL, Catflap OS.  Not maintained |
 
 ## Building
@@ -96,6 +100,22 @@ MEOW under `msim`.  `make` builds it into `libc/libc.a`, an archive that
 `mld` takes members from as they are needed.  `docs/libc.md` says how to
 compile and link against it, what the platform layer can and cannot do,
 and what was changed in the imported sources.
+
+## Lua
+
+`lua/` is Lua 5.4.7, unmodified, compiled by `nmcc` against `libc/` into
+`lua/lua.bin`.  `make -C lua run` starts it interactively under `msim`
+with a megabyte of RAM:
+
+```
+$ make -C lua run
+Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio
+> print(2^10, 7//2, ("x"):rep(3), os.time() > 0)
+1024.0  3       xxx     true
+```
+
+`docs/lua.md` has the details, and `tests/lua/` runs scripts through it
+and compares with what Lua 5.4 on the host prints.
 
 ## A first program
 

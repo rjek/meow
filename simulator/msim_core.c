@@ -24,6 +24,7 @@
  */
 
 #include <stdlib.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -112,6 +113,18 @@ static void msim_builtin_dump_state(struct msim_ctx *ctx, signed int op,
 
 /* One character from standard input into ir, or -1 at its end.  Output
  * is flushed first so a prompt shows before the wait. */
+static void msim_builtin_time(struct msim_ctx *ctx, signed int op,
+				void *bnvctx)
+{
+	ctx->r[MSIM_IR] = (u_int32_t)time(NULL);
+}
+
+static void msim_builtin_cycles(struct msim_ctx *ctx, signed int op,
+				void *bnvctx)
+{
+	ctx->r[MSIM_IR] = ctx->cyclecount;
+}
+
 static void msim_builtin_getc(struct msim_ctx *ctx, signed int op,
 				void *bnvctx)
 {
@@ -150,6 +163,8 @@ void msim_add_builtin_bnvs(struct msim_ctx *ctx)
 	msim_add_bnv(ctx, -8, msim_builtin_print, (void *) 1);
 	msim_add_bnv(ctx, -10, msim_builtin_print, (void *) 2);
 	msim_add_bnv(ctx, -12, msim_builtin_getc, NULL);
+	msim_add_bnv(ctx, -14, msim_builtin_time, NULL);
+	msim_add_bnv(ctx, -16, msim_builtin_cycles, NULL);
 }
 
 void msim_del_builtin_bnvs(struct msim_ctx *ctx)
@@ -173,6 +188,7 @@ void msim_device_add(struct msim_ctx *ctx, const unsigned int area,
 	ctx->areas[area].tick = tick;
 	ctx->areas[area].ctx = fctx;
 	ctx->areas[area].deviceid = id;
+	ctx->areas[area].size = 0;
 	
 	if (tick != NULL) {
 		assert(ctx->sticks < 31);
@@ -651,6 +667,7 @@ void msim_add_rom_from_file(struct msim_ctx *ctx, int area, char *filename)
 	
 	msim_device_add(ctx, area, 0x00000000, msim_rom_read, msim_rom_write,
 			NULL, NULL, mctx);
+	ctx->areas[area].size = fs;
 }
 
 void msim_del_rom(struct msim_ctx *ctx, int area)
@@ -730,6 +747,7 @@ void msim_add_ram(struct msim_ctx *ctx, int area, size_t size)
 	
 	msim_device_add(ctx, area, 0x00000001, msim_ram_read, msim_ram_write, 
 			NULL, NULL, mctx);
+	ctx->areas[area].size = size;
 }
 
 void msim_del_ram(struct msim_ctx *ctx, int area)

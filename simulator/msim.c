@@ -153,7 +153,8 @@ static bool parse_spec(struct msim_ctx *ctx, const char *specfile)
 static void display_help(const char *argv0)
 {
 	printf("Usage: %s [-vhiqs] {-f spec file | -r rom} [-c cycles]\n", argv0);
-	printf("  -r rom   ROM image at chip select 0, 64K RAM at 1, Chairman at 31\n");
+	printf("  -r rom   ROM image at chip select 0, RAM at 1, Chairman at 31\n");
+	printf("  -m KB    size of that RAM, default 64\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
 	printf("  -P file  write an execution count for every address run to file\n");
@@ -186,12 +187,13 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:";
+	static char optstring[] = "vhiqsf:r:c:P:m:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
 	char *specfile = NULL;
 	char *romfile = NULL;
+	size_t ramsize = 65536;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -231,6 +233,9 @@ int main(int argc, char *argv[])
 		case 'r':
 			romfile = optarg;
 			break;
+		case 'm':
+			ramsize = (size_t)atoi(optarg) * 1024;
+			break;
 		}
 	}
 	
@@ -255,7 +260,7 @@ int main(int argc, char *argv[])
 	
 	if (romfile != NULL) {
 		msim_add_rom_from_file(ctx, 0, romfile);
-		msim_add_ram(ctx, 1, 65536);
+		msim_add_ram(ctx, 1, ramsize);
 		msim_add_sys(ctx, 31);
 	} else if (parse_spec(ctx, specfile) == false) {
 		msim_destroy(ctx);

@@ -12,7 +12,9 @@ INC = -Ipdclib/include -Imeow/include
 MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
            -Imeow/musl -Imusl/src/internal $(INC)
 
-PDCLIB_SRCS := $(wildcard pdclib/functions/*/*.c)
+# remove() upstream wants a POSIX unlink; meow/functions/remove.c goes
+# through the platform hook instead
+PDCLIB_SRCS := $(filter-out pdclib/functions/stdio/remove.c,$(wildcard pdclib/functions/*/*.c))
 MEOW_SRCS := $(wildcard meow/functions/*.c)
 MEOW_ASM := $(wildcard meow/functions/*.s)
 # PDCLib has these itself, in every precision

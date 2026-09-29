@@ -4,9 +4,16 @@
 */
 #include <time.h>
 
+/* whole seconds from msim's host clock */
+extern long _PDCLIB_meow_time( void );
+
 int timespec_get( struct timespec * ts, int base )
 {
-    ( void )ts;
-    ( void )base;
-    return 0;
+    if ( base != TIME_UTC )
+    {
+        return 0;
+    }
+    ts->tv_sec = ( time_t )_PDCLIB_meow_time();
+    ts->tv_nsec = 0;
+    return base;
 }

@@ -10,7 +10,10 @@
         IMPORT  __bss_end
         ENTRY   start
 
-start   LDR     sp, =0x08010000         ; top of msim's 64 KB of RAM
+start   LDR     r0, =0xF8000104         ; the Chairman's size word for chip 1
+        LDR     r0, [r0]                ; msim's RAM, however much was asked for
+        LDR     sp, =0x08000000
+        ADD     sp, r0
         LDR     r0, =__data_load
         LDR     r1, =__data_start
         LDR     r2, =__data_end
@@ -28,11 +31,17 @@ start   LDR     sp, =0x08010000         ; top of msim's 64 KB of RAM
         BHS     .go
         STR     r3, [r1], #4
         B       .zero
-.go     MOV     r0, #0                  ; argc
-        MOV     r1, #0                  ; argv
+.go     MOV     r0, #1                  ; argc: an empty program name
+        LDR     r1, =argv               ; and nothing else
         LDR     r2, =main
         ADD     lr, pc, #4
         MOV     pc, r2
         LDR     r2, =exit               ; main's result is exit's argument
         MOV     pc, r2
         LTORG
+
+        AREA    |.rodata|, DATA, READONLY
+argv    DCD     name
+        DCD     0
+name    DCB     "", 0
+        ALIGN

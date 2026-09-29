@@ -5,12 +5,13 @@ controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
 build (`liblua5.1-0-dev libedit-dev` on Debian and Ubuntu).
 
 ```
-msim [-vhiqs] {-f spec | -r rom} [-c cycles] [-P file]
+msim [-vhiqs] {-f spec | -r rom [-m KB]} [-c cycles] [-P file]
 ```
 
 | Option | Meaning |
 |---|---|
-| `-r rom` | Load a flat image as ROM at chip select 0, with 64 KB of RAM at chip select 1 and the Chairman at 31 |
+| `-r rom` | Load a flat image as ROM at chip select 0, with RAM at chip select 1 and the Chairman at 31 |
+| `-m KB` | How much RAM `-r` provides, in KB; 64 unless told otherwise.  A program finds the figure in the Chairman's chip-select table, which is how `crt0` places the stack |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
 | `-v` | Trace: print every instruction as it executes, with the registers after it |
@@ -50,6 +51,8 @@ programs to talk to the outside world.
 | `BNV #-8` | Write `ir` to standard output as a signed decimal number |
 | `BNV #-10` | Write `ir` to standard output in hexadecimal |
 | `BNV #-12` | Read one character from standard input into `ir`, or -1 at its end.  Standard output is flushed first |
+| `BNV #-14` | The host's time in seconds since 1970 into `ir` |
+| `BNV #-16` | The number of instructions executed so far into `ir` |
 
 The Chairman's serial console reads from standard input and writes to
 standard output.  Its timer counts one tick per instruction and reports a

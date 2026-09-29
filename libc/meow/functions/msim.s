@@ -3,6 +3,8 @@
         EXPORT  _PDCLIB_meow_putc
         EXPORT  _PDCLIB_meow_getc
         EXPORT  _PDCLIB_meow_halt
+        EXPORT  _PDCLIB_meow_time
+        EXPORT  _PDCLIB_meow_cycles
 
 ; void _PDCLIB_meow_putc(int c): one character to the console
 _PDCLIB_meow_putc
@@ -22,3 +24,15 @@ _PDCLIB_meow_halt
         MOV     ir, r0
         BNV     #-2
         B       _PDCLIB_meow_halt
+
+; long _PDCLIB_meow_time(void): the host's time in seconds since 1970
+_PDCLIB_meow_time
+        BNV     #-14
+        MOV     r0, ir
+        RET
+
+; unsigned long _PDCLIB_meow_cycles(void): instructions executed so far
+_PDCLIB_meow_cycles
+        BNV     #-16
+        MOV     r0, ir
+        RET

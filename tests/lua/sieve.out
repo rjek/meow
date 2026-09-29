@@ -1,0 +1,8 @@
+Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio
+> primes below	2000	303
+600	919838757676595514433352271190	043962881800
+0	5057	9988
+2477414	825804.667
+brown=1 dog=1 end=1 fox=1 jumps=1 lazy=1 over=1 quick=1 the=3
+> 
+exit 0

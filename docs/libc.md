@@ -49,16 +49,23 @@ with a console and nothing else:
   file can be opened; `fopen` fails with `ENOENT`, `tmpfile` returns
   `NULL`, and `fseek` fails with `ESPIPE`.
 - The heap is dlmalloc, PDCLib's allocator, fed by `sbrk()`, which hands
-  out the memory between the end of `.bss` and `0x0800E000`, leaving the
-  top 8 KB of `msim`'s 64 KB of RAM for the stack that `crt0` starts at
-  the top.
+  out the memory between the end of `.bss` and 16 KB below the top of
+  RAM, which is the stack's.  `crt0` and `sbrk` both read the size of
+  the RAM from the Chairman's chip-select table, so `msim -m` decides
+  how much there is.
 - `exit` halts `msim` with the status.  `signal` and `raise` are PDCLib's
   example ones: nothing raises a signal but `raise` itself.
-- There is no clock: `time` and `clock` return -1, `timespec_get` fails.
+- `time` is the host's clock, through `msim`'s `BNV #-14`, and `clock`
+  is the number of instructions executed, through `BNV #-16`, so
+  `CLOCKS_PER_SEC` is 1000000 as if the machine ran at 1 MHz.
   The time zone tables are cut from 2000 transitions to 200, and the zone
   state lives in its own object so that a program that prints but never
   asks the time does not carry 30 KB of it.
 - `getenv` finds nothing and `system` has no command processor.
+- `<setjmp.h>` is the platform's, since PDCLib has none: `setjmp` saves
+  v1 to v6, sp and lr.
+- `remove` and `rename` fail: PDCLib's own `remove` wants a POSIX
+  `unlink`, so the platform supplies one that goes through its hook.
 - `<fenv.h>` reports round-to-nearest and never sees an exception, which
   is what the soft-float library does.
 
@@ -92,6 +99,8 @@ PDCLib:
   it dropped every digit after it, generated one digit too many and
   truncated it instead of rounding, and ignored `#`; a carry that ran
   off the front of the digits gained an extra power of ten.
+- `functions/stdio/remove.c` is left out of the build: it calls `unlink`
+  rather than the `_PDCLIB_remove` hook the rest of the glue uses.
 - `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end
   pointer is allowed, as the standard requires.  Upstream reads through
   it.

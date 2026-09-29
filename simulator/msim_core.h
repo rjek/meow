@@ -99,6 +99,7 @@ struct msim_ctx {
 		 msim_device_tick tick;
 		 void		*ctx;
 		 u_int32_t	deviceid;
+		 u_int32_t	size;		/* bytes, for the chip select table */
 	}		areas[32];
 	
 	/* we also keep a pre-compiled non-sparse list of the tick functions

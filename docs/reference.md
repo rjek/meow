@@ -771,7 +771,7 @@ Offsets below are from 0xf8000000.
 
 | Offset | Access | Register |
 |---|---|---|
-| 0x0000 to 0x1fff | R | Chip-select table: 32 entries of 256 bytes |
+| 0x0000 to 0x1fff | R | Chip-select table: 32 entries of 256 bytes.  The first word of an entry is the device ID, the second the device's size in bytes, or 0 where that means nothing |
 | 0x2000 to 0x207f | RW | Interrupt masks: one word per CPU, 32 CPUs |
 | 0x2400 | RW | Pending interrupts |
 | 0x2404 | R | Timer clock frequency in Hz |

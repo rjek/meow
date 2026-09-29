@@ -58,6 +58,10 @@ static u_int32_t msim_sys_read_chip_selects(struct msim_ctx *ctx, u_int32_t p,
 		/* chip select device ID (first word of each 256 byte entry) */
 		return ctx->areas[(p >> 8) & 31].deviceid;
 	}
+	if (p % 256 == 4) {
+		/* size in bytes, where the device has one */
+		return ctx->areas[(p >> 8) & 31].size;
+	}
 	
 	return 0;
 }

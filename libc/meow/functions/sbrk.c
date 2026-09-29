@@ -6,10 +6,13 @@
 #include <stddef.h>
 
 /* The heap is whatever lies between the end of the program's data and
-   the stack, which crt0 starts at the top of msim's RAM.  The stack is
-   allowed the top 8 KB. */
+   the stack, which crt0 starts at the top of msim's RAM, whose size the
+   Chairman's chip select table gives.  The stack is allowed the top
+   16 KB. */
 extern char __bss_end[];
-#define HEAP_LIMIT ( ( char * )0x0800E000 )
+#define RAM_BASE ( ( char * )0x08000000 )
+#define RAM_SIZE ( *( volatile uint32_t * )0xF8000104 )
+#define HEAP_LIMIT ( RAM_BASE + RAM_SIZE - 16384 )
 
 static char * brk_now;
 

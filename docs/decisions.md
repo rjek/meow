@@ -105,12 +105,26 @@ same build with only that change switched off.
     the right one, with musl's `src/math` (MIT) for the maths PDCLib lacks
     and nothing else from musl, whose lowest layer is Linux system calls.
     The platform layer is a console and a heap; there is no filesystem or
-    clock to pretend to.  The imports are verbatim bar four small patches
-    listed in `libc.md`, two of them for compiler limitations (compound
-    literals from 64-bit expressions, 32-bit `#if` arithmetic) and two
-    for upstream bugs.  `mld` grew `ar` archive support rather than the
+    clock to pretend to.  The imports are verbatim bar the small patches
+    listed in `libc.md`, all for upstream bugs; the two that worked round
+    compiler limitations went once the C99 front end fixed them.  `mld` grew `ar` archive support rather than the
     project growing an archiver: the host's `ar` writes the format, and a
     library is no use if every program links all of it.
+
+## Lua
+
+15. **Lua as the acceptance test.**  A 370 KB interpreter that leans on
+    setjmp, 64-bit integers, doubles, varargs, unions and the whole of
+    stdio is a better test of a toolchain than anything written for the
+    purpose.  It compiled unchanged.  Getting it to run found a register
+    allocation bug (a block copy's operand could be allocated `at`, the
+    register the copy counts through), a typing bug in the middle end
+    (unsigned 64-bit results treated as signed), and in PDCLib a
+    misspelt `remquo`, empty comparison macros and five faults in `%g`.
+    The runtime grew a real `argv`, `setjmp`, a clock from the host, and
+    a stack placed from the RAM size the Chairman reports, so `msim -m`
+    can give a program as much memory as it needs.  None of that is Lua
+    specific, and the sources are stock so that a new Lua drops in.
 
 ## Toolchain
 

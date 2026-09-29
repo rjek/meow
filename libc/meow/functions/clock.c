@@ -4,8 +4,10 @@
 */
 #include <time.h>
 
-/* Nothing keeps time. */
+/* msim's instruction count, so CLOCKS_PER_SEC pretends to 1 MHz */
+extern unsigned long _PDCLIB_meow_cycles( void );
+
 clock_t clock( void )
 {
-    return ( clock_t )-1;
+    return ( clock_t )_PDCLIB_meow_cycles();
 }
