@@ -18,6 +18,13 @@ ls /tmp
 nosuch
 cat /nowhere
 ls /dev
+ls /
+cd /
+cd dev
+pwd
+cd ../tmp
+pwd
+cd /
 sleep 500 &
 ps
 echo a | cat | cat | wc

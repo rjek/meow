@@ -18,10 +18,16 @@ $ cat: /nowhere: cannot open
 sh: cat: exit 1
 $      dev console
      dev null
-$ [19]
+$          bin/
+         etc/
+         dev/
+         tmp/
+$ $ $ /dev
+$ $ /tmp
+$ $ [20]
 $   pid parent threads name
-   20      1       1 ps
-   19      1       1 sleep
+   21      1       1 ps
+   20      1       1 sleep
     1      0       1 sh
     0     -1       1 kernel
 $ 1 1 2

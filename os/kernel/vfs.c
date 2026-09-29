@@ -97,7 +97,7 @@ static int normalise(const char *path, char *out)
     char *w = out;
     size_t len = 0;
 
-    if (path[0] != '/') {
+    if (path[0] != '/' && strcmp(cwd, "/") != 0) {
         len = strlen(cwd);
         memcpy(out, cwd, len);
         w = out + len;
@@ -255,6 +255,7 @@ int vfs_open_vnode(struct vnode *v, int flags)
     if (f == NULL) {
         return -ENOMEM;
     }
+    memset(f, 0, sizeof *f);
     f->v = v;
     f->off = (flags & O_APPEND) != 0 ? v->size : 0;
     f->flags = flags;
@@ -321,6 +322,18 @@ int vfs_open(const char *path, int flags)
     rc = vfs_open_vnode(v, flags);
     if (rc < 0) {
         vnode_put(v);
+    } else if (v->type == V_DIR) {
+        char full[PATH_MAX];
+        struct file *f = fds[rc];
+
+        normalise(path, full);          /* it resolved, so it normalises */
+        f->path = kmalloc(strlen(full) + 1);
+        if (f->path == NULL) {
+            vfs_close(rc);
+            kexit();
+            return -ENOMEM;
+        }
+        strcpy(f->path, full);
     }
     kexit();
     return rc;
@@ -443,6 +456,7 @@ int vfs_close(int fd)
             pipe_end_closed(f->v, f->flags);
         }
         vnode_put(f->v);
+        kfree(f->path);
         kfree(f);
     }
     kexit();
@@ -515,23 +529,87 @@ int vfs_seek(int fd, int32_t off, int whence)
     return (int)f->off;
 }
 
-/* The next entry of an open directory; 0 at the end. */
+/* The name of a mount point directly inside dir, or NULL if m is not
+   one: "/dev" is in "/", "/host/x" is in "/host", "/" is in nothing. */
+static const char *mount_in(const struct mount *m, const char *dir)
+{
+    size_t len = strlen(dir);
+    const char *name;
+
+    if (m->len == 1) {
+        return NULL;
+    }
+    if (len == 1) {
+        name = m->path + 1;
+    } else if (strncmp(m->path, dir, len) == 0 && m->path[len] == '/') {
+        name = m->path + len + 1;
+    } else {
+        return NULL;
+    }
+    return strchr(name, '/') == NULL ? name : NULL;
+}
+
+/* Whether the directory's own file system lists name */
+static int fs_lists(struct file *f, const char *name)
+{
+    struct dirent de;
+    uint32_t i;
+
+    for (i = 0; i < f->fs_entries; i++) {
+        if (f->v->ops->readdir(f->v, i, &de) > 0 && strcmp(de.name, name) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The next entry of an open directory; 0 at the end.  First what its
+   file system holds, then the mount points in it that the file system
+   does not already list, since those live only in the mount table. */
 int vfs_readdir(int fd, struct dirent *de)
 {
     struct file *f = fd_get(fd);
+    uint32_t k;
+    unsigned i;
     int rc;
 
     if (f == NULL) {
         return -EBADF;
     }
-    if (f->v->type != V_DIR || f->v->ops->readdir == NULL) {
+    if (f->v->type != V_DIR) {
         return -ENOTDIR;
     }
-    rc = f->v->ops->readdir(f->v, f->off, de);
-    if (rc > 0) {
-        f->off++;
+    kenter();
+    if (f->fs_done == 0) {
+        rc = f->v->ops->readdir == NULL ? 0 : f->v->ops->readdir(f->v, f->off, de);
+        if (rc != 0) {
+            if (rc > 0) {
+                f->off++;
+            }
+            kexit();
+            return rc;
+        }
+        f->fs_entries = f->off;
+        f->fs_done = 1;
     }
-    return rc;
+    k = f->off - f->fs_entries;
+    for (i = 0; f->path != NULL && i < nmounts; i++) {
+        const char *name = mount_in(&mounts[i], f->path);
+
+        if (name == NULL || fs_lists(f, name)) {
+            continue;
+        }
+        if (k-- == 0) {
+            strncpy_(de->name, name, sizeof de->name);
+            de->type = V_DIR;
+            de->size = 0;
+            f->off++;
+            kexit();
+            return 1;
+        }
+    }
+    kexit();
+    return 0;
 }
 
 int vfs_stat(const char *path, struct stat *st)

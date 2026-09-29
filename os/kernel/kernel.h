@@ -152,6 +152,9 @@ struct file {
     uint32_t off;
     int flags;
     int refs;
+    char *path;                         /* a directory's, for listing the mounts in it */
+    uint32_t fs_entries;                /* how many its file system listed, once known */
+    int fs_done;
 };
 
 /* process.c */
