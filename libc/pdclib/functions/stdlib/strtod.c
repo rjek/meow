@@ -16,7 +16,14 @@ double strtod( const char * s, char ** endptr )
 {
     double rc = 0;
     char sign = '+';
-    int base = _PDCLIB_strtod_prelim( s, &sign, endptr );
+    char * end;                 /* endptr may be NULL (MEOW: upstream reads it) */
+    int base;
+
+    if ( endptr == NULL )
+    {
+        endptr = &end;
+    }
+    base = _PDCLIB_strtod_prelim( s, &sign, endptr );
 
     s = *endptr;
 

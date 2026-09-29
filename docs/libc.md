@@ -83,6 +83,9 @@ PDCLib:
 - `include/math.h`: `ilogb` returns `int`, `scalbln` takes a `long`, and
   `nexttoward` takes a `long double`, as the standard says.  The upstream
   header has them wrong.
+- `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end
+  pointer is allowed, as the standard requires.  Upstream reads through
+  it.
 - `functions/_dlmalloc/malloc.c`: `USE_LOCKS` is 0 when
   `__STDC_NO_THREADS__` is defined.  Upstream sets it to 1 whatever the
   configuration says.
