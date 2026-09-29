@@ -1,0 +1,9 @@
+exp, log, log2, log10 and pow as musl 1.1.19 had them, taken from
+src/math/ at that tag: the FreeBSD msun versions of the fdlibm
+originals, Sun's licence at the head of each file.  musl replaced them
+in 2018 with the ARM optimized-routines versions, which are faster on
+a machine with a floating point unit and cache and carry 2 to 4 KB of
+tables each.  On MEOW, where every operation is a library call, they
+are no faster and the tables are the size of the kernel's scheduler.
+exp2 stays as musl has it now: its table is shared with the new exp,
+and the old exp2's own table was twice the size.

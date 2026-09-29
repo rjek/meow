@@ -1,0 +1,16 @@
+0: 1970-01-01 00:00:00 Thu 001 wday 4 yday 0 isdst 0 back 0 local 00:00 same Thu Jan  1 00:00:00 1970
+1: 1970-01-01 00:00:01 Thu 001 wday 4 yday 0 isdst 0 back 1 local 00:00 same Thu Jan  1 00:00:01 1970
+86399: 1970-01-01 23:59:59 Thu 001 wday 4 yday 0 isdst 0 back 86399 local 23:59 same Thu Jan  1 23:59:59 1970
+86400: 1970-01-02 00:00:00 Fri 002 wday 5 yday 1 isdst 0 back 86400 local 00:00 same Fri Jan  2 00:00:00 1970
+951782400: 2000-02-29 00:00:00 Tue 060 wday 2 yday 59 isdst 0 back 951782400 local 00:00 same Tue Feb 29 00:00:00 2000
+951868800: 2000-03-01 00:00:00 Wed 061 wday 3 yday 60 isdst 0 back 951868800 local 00:00 same Wed Mar  1 00:00:00 2000
+1234567890: 2009-02-13 23:31:30 Fri 044 wday 5 yday 43 isdst 0 back 1234567890 local 23:31 same Fri Feb 13 23:31:30 2009
+2147483647: 2038-01-19 03:14:07 Tue 019 wday 2 yday 18 isdst 0 back 2147483647 local 03:14 same Tue Jan 19 03:14:07 2038
+-1: 1969-12-31 23:59:59 Wed 365 wday 3 yday 364 isdst 0 back -1 local 23:59 same Wed Dec 31 23:59:59 1969
+-86400: 1969-12-31 00:00:00 Wed 365 wday 3 yday 364 isdst 0 back -86400 local 00:00 same Wed Dec 31 00:00:00 1969
+-2147483648: 1901-12-13 20:45:52 Fri 347 wday 5 yday 346 isdst 0 back -2147483648 local 20:45 same Fri Dec 13 20:45:52 1901
+4102444800: 2100-01-01 00:00:00 Fri 001 wday 5 yday 0 isdst 0 back 4102444800 local 00:00 same Fri Jan  1 00:00:00 2100
+253402300799: 9999-12-31 23:59:59 Fri 365 wday 5 yday 364 isdst 0 back 253402300799 local 23:59 same Fri Dec 31 23:59:59 9999
+normalised: 986432170 2001-04-05 00:56:10 wday 4 yday 94
+difftime 86400
+exit 0

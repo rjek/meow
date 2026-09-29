@@ -11,10 +11,33 @@ MEOW under `msim`.  `make` builds `libc/libc.a`, an `ar` archive that
 |---|---|---|
 | `libc/pdclib/` | PDCLib, `master` as of 29 September 2026 (`functions/`, `include/` and the example platform, kept for reference) | CC0 1.0, `libc/pdclib/COPYING.CC0` |
 | `libc/musl/` | musl 1.2.6: `src/math/`, `src/internal/libm.h` and `COPYRIGHT` | MIT, `libc/musl/COPYRIGHT` |
-| `libc/meow/` | The MEOW platform layer, written for this repository | Public domain, as PDCLib's platform layers are |
+| `libc/fdlibm/` | musl 1.1.19: `exp`, `log`, `log2`, `log10` and `pow`, the FreeBSD msun versions of fdlibm's | Sun's notice in each file |
+| `libc/meow/` | The platform layer for `msim`, written for this repository | Public domain, as PDCLib's platform layers are |
+| `libc/catflap/` | The platform layer for Catflap, likewise | Public domain |
+| `libc/common/` | What both platforms share: `malloc`, the float maths functions, and `gmtime`, `localtime` and `mktime` | Public domain |
 
-Both are imported as they come, so that a newer release can be dropped in.
-The few changes made to them are listed at the end.
+The imports are as they come, so that a newer release can be dropped in;
+the few changes made to them are listed at the end.  Not all of them are
+built.  `libc/sources.mk`, which both builds include, leaves out:
+
+- PDCLib's `remove`, which wants a POSIX `unlink`; dlmalloc, 13 KB
+  against the 1 KB of the K&R allocator in `common/`; and the time zone
+  code, 12 KB of zoneinfo parsing for a machine with no zoneinfo, in
+  favour of the UTC `gmtime`, `localtime` and `mktime` in `common/`.
+- musl's float functions.  `common/mathf.c` has every one of them as the
+  double function rounded, which on a machine where both are software is
+  no slower, correctly rounded wherever the double function is, and 40 KB
+  shorter.  `fmaf`, `nextafterf` and `nexttowardf` cannot be had that way
+  and stay musl's.
+- musl's `exp`, `log`, `log2`, `log10` and `pow`, the ARM
+  optimized-routines versions with 2 to 4 KB of tables each, in favour
+  of the table-free fdlibm ones in `libc/fdlibm/`.  `exp2` stays: its
+  table is shared with the new `exp`, and the old `exp2`'s was bigger.
+- musl's long double internals, since `long double` is `double`, and the
+  functions that are not C: the Bessel functions, `exp10`, `scalb`,
+  `significand`, `sincos`, `finite`.
+
+Every function of C99's `<math.h>` and `<time.h>` is still there.
 
 ## Building and using it
 
@@ -61,10 +84,9 @@ with a console and nothing else:
   example ones: nothing raises a signal but `raise` itself.
 - `time` is the host's clock, through `msim`'s `BNV #-14`, and `clock`
   is the number of instructions executed, through `BNV #-16`, so
-  `CLOCKS_PER_SEC` is 1000000 as if the machine ran at 1 MHz.
-  The time zone tables are cut from 2000 transitions to 200, and the zone
-  state lives in its own object so that a program that prints but never
-  asks the time does not carry 30 KB of it.
+  `CLOCKS_PER_SEC` is 1000000 as if the machine ran at 1 MHz.  Local
+  time is UTC, and `time_t` is 64 bits, so 2038 is not the end.
+
 - `getenv` finds nothing and `system` has no command processor.
 - `<setjmp.h>` is the platform's, since PDCLib has none: `setjmp` saves
   v1 to v6, sp and lr.

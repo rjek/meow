@@ -126,7 +126,10 @@ implementations musl chose for a 64-bit server:
   place; Lua wants the exact one for round trips.  Keep it.
 
 Together about 85 KB, taking the library from 217 KB to 130 KB, with no
-function lost.
+function lost.  Done: the ROM went from 460 KB to 377 KB, the library
+in the kernel image from 240 KB to 145 KB, and each process's copy of
+the library's data from 16 KB to 6 KB, since the zone state went with
+the zone code.  The maths tests still match the host to six digits.
 
 ## Lua
 

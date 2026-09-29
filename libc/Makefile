@@ -4,25 +4,12 @@
 NMCC = ../../norcroft-ng/bin/nmcc
 MAS = ../as/mas
 AR = ar
-# TZ_MAX_TIMES sizes the time zone tables: 2000 transitions is 15 KB each
-CFLAGS = -std=c99 -c -DTZ_MAX_TIMES=200
+CFLAGS = -std=c99 -c
 INC = -Ipdclib/include -Imeow/include
-# musl's linkage attributes mean nothing here; its two weak aliases are
-# done by hand in meow/functions/lgamma_r.c
-MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
-           -Imeow/musl -Imusl/src/internal $(INC)
 
-# remove() upstream wants a POSIX unlink; meow/functions/remove.c goes
-# through the platform hook instead.  dlmalloc gives way to the small
-# allocator in common/, as it does in Catflap's build.
-PDCLIB_SRCS := $(filter-out pdclib/functions/stdio/remove.c pdclib/functions/_dlmalloc/malloc.c,\
-                            $(wildcard pdclib/functions/*/*.c))
-MEOW_SRCS := $(wildcard meow/functions/*.c) $(wildcard common/*.c)
+include sources.mk
+MEOW_SRCS := $(wildcard meow/functions/*.c) $(COMMON_SRCS) $(FDLIBM_SRCS)
 MEOW_ASM := $(wildcard meow/functions/*.s)
-# PDCLib has these itself, in every precision
-MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
-MUSL_SRCS := $(filter-out $(addprefix musl/src/math/,$(addsuffix .c,$(MUSL_DUP))),\
-                          $(wildcard musl/src/math/*.c))
 OBJS := $(patsubst %.c,obj/%.o,$(PDCLIB_SRCS) $(MEOW_SRCS) $(MUSL_SRCS)) \
         $(patsubst %.s,obj/%.o,$(MEOW_ASM))
 
@@ -31,13 +18,20 @@ all:
 	@if [ -x $(NMCC) ]; then $(MAKE) libc.a; \
 	else echo "libc.a not built: no compiler at $(NMCC)"; fi
 
+# everything is compiled against the configuration
+$(OBJS): meow/include/pdclib/_PDCLIB_config.h sources.mk
+
 libc.a: $(OBJS)
 	rm -f $@
 	$(AR) rcs $@ $(OBJS)
 
 obj/musl/%.o: musl/%.c
 	@mkdir -p $(dir $@)
-	$(NMCC) $(CFLAGS) $(MUSL_INC) -o $@ $<
+	$(NMCC) $(CFLAGS) $(MUSL_INC) $(INC) -o $@ $<
+
+obj/fdlibm/%.o: fdlibm/%.c
+	@mkdir -p $(dir $@)
+	$(NMCC) $(CFLAGS) $(MUSL_INC) $(INC) -o $@ $<
 
 obj/%.o: %.c
 	@mkdir -p $(dir $@)

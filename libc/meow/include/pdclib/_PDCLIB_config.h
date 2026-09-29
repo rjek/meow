@@ -317,9 +317,11 @@ struct _PDCLIB_imaxdiv_t
 #define _PDCLIB_TIME_MAX 9223372036854775807LL
 #define _PDCLIB_TIME_MIN _PDCLIB_MIN_CALC( 9223372036854775807LL )
 #else
-#define _PDCLIB_time_t long
-#define _PDCLIB_TIME_MAX 2147483647L
-#define _PDCLIB_TIME_MIN _PDCLIB_MIN_CALC( 2147483647L )
+/* MEOW: 64 bits, so that 2038 is not the end; the calendar code in
+   libc/common/time_utc.c works in long long anyway */
+#define _PDCLIB_time_t long long
+#define _PDCLIB_TIME_MAX 9223372036854775807LL
+#define _PDCLIB_TIME_MIN _PDCLIB_MIN_CALC( 9223372036854775807LL )
 #endif
 
 /* "Unix time" uses 1970-01-01T00:00:00 as "epoch". If your system uses a     */

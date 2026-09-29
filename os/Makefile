@@ -24,15 +24,9 @@ KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o
 # through each process's displacement, and linked between the two marker
 # objects.  The flags are libc/Makefile's.
 LIBC = ../libc
-LIBC_CFLAGS = -zsb -std=c99 -c -DTZ_MAX_TIMES=8 -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
-MUSL_CFLAGS = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
-              -I$(LIBC)/meow/musl -I$(LIBC)/musl/src/internal
-MUSL_DUP := fabs fabsf fabsl fdim fdimf fdiml fmax fmaxf fmaxl fmin fminf fminl
-PDCLIB_SRCS := $(filter-out $(LIBC)/pdclib/functions/stdio/remove.c $(LIBC)/pdclib/functions/_dlmalloc/malloc.c,\
-                            $(wildcard $(LIBC)/pdclib/functions/*/*.c))
-MUSL_SRCS := $(filter-out $(addprefix $(LIBC)/musl/src/math/,$(addsuffix .c,$(MUSL_DUP))),\
-                          $(wildcard $(LIBC)/musl/src/math/*.c))
-CATFLAP_SRCS := $(wildcard $(LIBC)/catflap/functions/*.c) $(wildcard $(LIBC)/common/*.c)
+include $(LIBC)/sources.mk
+LIBC_CFLAGS = -zsb -std=c99 -c -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
+CATFLAP_SRCS := $(wildcard $(LIBC)/catflap/functions/*.c) $(COMMON_SRCS) $(FDLIBM_SRCS)
 CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
 LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(PDCLIB_SRCS) $(MUSL_SRCS) $(CATFLAP_SRCS)) \
            $(patsubst $(LIBC)/%.s,obj/libc/%.o,$(CATFLAP_ASM))
@@ -100,7 +94,13 @@ obj/%.o: %.s
 
 obj/libc/musl/%.o: $(LIBC)/musl/%.c
 	@mkdir -p $(dir $@)
-	$(NMCC) $(LIBC_CFLAGS) $(MUSL_CFLAGS) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+	$(NMCC) $(LIBC_CFLAGS) $(MUSL_INC) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+obj/libc/fdlibm/%.o: $(LIBC)/fdlibm/%.c
+	@mkdir -p $(dir $@)
+	$(NMCC) $(LIBC_CFLAGS) $(MUSL_INC) -o $@ $< > $(@:.o=.log) 2>&1 || (cat $(@:.o=.log); false)
+
+$(LIBOBJS): $(LIBC)/meow/include/pdclib/_PDCLIB_config.h $(LIBC)/sources.mk
 
 obj/libc/%.o: $(LIBC)/%.c
 	@mkdir -p $(dir $@)

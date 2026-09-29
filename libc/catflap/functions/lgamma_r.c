@@ -1,16 +1,11 @@
-/* lgamma_r and lgammaf_r: musl declares these as weak aliases of its
-   internal versions, which Norcroft cannot express, so they are calls. */
+/* lgamma_r: musl declares it as a weak alias of its internal version,
+   which Norcroft cannot express, so it is a call.  lgammaf_r is with
+   the other float wrappers in libc/common/mathf.c. */
 #include <math.h>
 
 double __lgamma_r( double x, int * signgamp );
-float __lgammaf_r( float x, int * signgamp );
 
 double lgamma_r( double x, int * signgamp )
 {
     return __lgamma_r( x, signgamp );
-}
-
-float lgammaf_r( float x, int * signgamp )
-{
-    return __lgammaf_r( x, signgamp );
 }
