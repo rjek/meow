@@ -31,16 +31,21 @@ input run with `-i`.
 
 | | |
 |---|---|
-| Code | 370 KB |
+| Code | 284 KB, the C library's included |
 | Read-only data | 22 KB |
 | Data and bss | 18 KB |
 | RAM to start | 64 KB is not enough; a fresh state takes 15 KB of heap |
 | RAM to be useful | 192 KB; `make run` gives 1024 KB |
-| `fib(25)` | 857 million instructions, about 3400 per Lua call |
-| The sieve test | 27 million instructions |
+| `fib(25)` | 204 million instructions, about 830 per Lua call |
+| The sieve test | 15 million instructions |
 
 Integers are 64 bits and numbers are doubles, both in software, which is
 a good part of the cost.  `LUA_32BITS` in `luaconf.h` makes integers
+The table below was measured before a compiler fix that stopped branch
+islands repeating every pending branch.  That fix took 77 KB out of the
+VM's code and three quarters of its instructions out of dispatch, so
+the absolute figures are stale, but the comparison between the two
+builds is not.
 32-bit and numbers single-precision floats.  Measured with it on:
 
 | | 64-bit | `LUA_32BITS` | |
