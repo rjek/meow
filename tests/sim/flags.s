@@ -23,4 +23,20 @@ start   COMPARE 5, 3
         FLAGS
         TST     r0, #1                  ; Z set
         FLAGS
+        LDR     r0, =0xffffffff         ; ADDS: carry out, no overflow
+        ADDS    r0, #1
+        FLAGS
+        LDR     r0, =0x7fffffff         ; ADDS: signed overflow
+        LDR     r1, =1
+        ADDS    r0, r1
+        FLAGS
+        LDR     r0, =5                  ; SUBS is CMP that keeps the result
+        SUBS    r0, #5
+        FLAGS
+        LDR     r0, =3
+        LDR     r1, =5
+        SUBS    r0, r1
+        FLAGS
+        CMP     r0, #-2                 ; the results were kept
+        FLAGS
         HALT

@@ -285,6 +285,36 @@ static void compare(struct msim_ctx *ctx, u_int32_t a, u_int32_t b)
 	ctx->r[MSIM_SR] = sr;
 }
 
+/* ADDS and SUBS: the result is kept, and the flags are those of ARM's
+ * ADDS and SUBS, so SUBS sets what CMP would. */
+static void add_flags(struct msim_ctx *ctx, unsigned rd, unsigned sub,
+		      u_int32_t b)
+{
+	u_int32_t a = ctx->r[rd];
+	u_int32_t r;
+	u_int32_t sr;
+
+	if (sub != 0) {
+		compare(ctx, a, b);
+		r = a - b;
+	} else {
+		r = a + b;
+		set_nz(ctx, r);
+		sr = ctx->r[MSIM_SR] & ~(MEOW_SR_C | MEOW_SR_V);
+		if (r < a) {
+			sr |= MEOW_SR_C;
+		}
+		if (((a ^ r) & (b ^ r) & 0x80000000u) != 0) {
+			sr |= MEOW_SR_V;
+		}
+		ctx->r[MSIM_SR] = sr;
+	}
+	ctx->r[rd] = r;
+	if (rd == MSIM_PC) {
+		ctx->nopcincrement = true;
+	}
+}
+
 static u_int32_t *bank_reg(struct msim_ctx *ctx, unsigned reg, unsigned alt)
 {
 	return alt != 0 ? &ctx->ar[reg] : &ctx->r[reg];
@@ -296,26 +326,18 @@ static void reserved(struct msim_ctx *ctx, u_int16_t w)
 		ctx->r[MSIM_PC]);
 }
 
-static void shift(struct msim_ctx *ctx, u_int16_t w, unsigned reg,
-		  unsigned arith, unsigned left, unsigned rot, unsigned amount)
+static void shift(struct msim_ctx *ctx, unsigned reg, unsigned arith,
+		  unsigned left, unsigned rot, unsigned amount)
 {
 	u_int32_t v = ctx->r[reg];
 
 	amount &= 31;
 	if (rot != 0) {
-		if (arith != 0) {
-			reserved(ctx, w);
-			return;
-		}
 		if (amount != 0) {
 			v = left != 0 ? (v << amount) | (v >> (32 - amount))
 				      : (v >> amount) | (v << (32 - amount));
 		}
 	} else if (left != 0) {
-		if (arith != 0) {
-			reserved(ctx, w);
-			return;
-		}
 		v <<= amount;
 	} else if (arith != 0) {
 		v = (u_int32_t)((int32_t)v >> amount);
@@ -480,13 +502,26 @@ void msim_execute(struct msim_ctx *ctx, u_int16_t w)
 		ctx->r[MSIM_IR] = (u_int32_t)MEOW_LDI_IMM_S(w);
 		break;
 	case MEOW_ENC_SHI:
-		shift(ctx, w, MEOW_SHI_RD(w), MEOW_SHI_ARITH(w),
-		      MEOW_SHI_LEFT(w), MEOW_SHI_ROT(w), MEOW_SHI_IMM(w));
+		shift(ctx, MEOW_SHI_RD(w), 0, MEOW_SHI_LEFT(w), MEOW_SHI_ROT(w),
+		      MEOW_SHI_IMM(w));
 		break;
 	case MEOW_ENC_SHR:
-		shift(ctx, w, MEOW_SHR_RD(w), MEOW_SHR_ARITH(w),
-		      MEOW_SHR_LEFT(w), MEOW_SHR_ROT(w),
+		shift(ctx, MEOW_SHR_RD(w), 0, MEOW_SHR_LEFT(w), MEOW_SHR_ROT(w),
 		      ctx->r[MEOW_SHR_RS(w)]);
+		break;
+	case MEOW_ENC_ASRI:
+		shift(ctx, MEOW_ASRI_RD(w), 1, 0, 0, MEOW_ASRI_IMM(w));
+		break;
+	case MEOW_ENC_ASRR:
+		shift(ctx, MEOW_ASRR_RD(w), 1, 0, 0, ctx->r[MEOW_ASRR_RS(w)]);
+		break;
+	case MEOW_ENC_ADDSI:
+		add_flags(ctx, MEOW_ADDSI_RD(w), MEOW_ADDSI_SUB(w),
+			  MEOW_ADDSI_IMM(w));
+		break;
+	case MEOW_ENC_ADDSR:
+		add_flags(ctx, MEOW_ADDSR_RD(w), MEOW_ADDSR_SUB(w),
+			  ctx->r[MEOW_ADDSR_RS(w)]);
 		break;
 	case MEOW_ENC_BITR:
 		bitop(ctx, w, MEOW_BITR_RD(w), MEOW_BITR_OP(w),

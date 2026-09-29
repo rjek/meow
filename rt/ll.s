@@ -51,26 +51,23 @@
         MACRO   NEG64 $lo, $hi
         MVN     $lo, $lo
         MVN     $hi, $hi
-        ADD     $lo, #1
-        CMP     $lo, #0
-        BNE     .n\@
+        ADDS    $lo, #1
+        BCC     .n\@
         ADD     $hi, #1
 .n\@
         MEND
 
 ; $lo:$hi += $blo:$bhi
         MACRO   ADD64 $lo, $hi, $blo, $bhi
-        ADD     $lo, $blo
-        CMP     $lo, $blo
-        BHS     .n\@
+        ADDS    $lo, $blo
+        BCC     .n\@
         ADD     $hi, #1
 .n\@   ADD     $hi, $bhi
         MEND
 
 ; $lo:$hi -= $blo:$bhi
         MACRO   SUB64 $lo, $hi, $blo, $bhi
-        CMP     $lo, $blo
-        SUB     $lo, $blo
+        SUBS    $lo, $blo
         SUB     $hi, $bhi
         BHS     .n\@
         SUB     $hi, #1

@@ -91,23 +91,51 @@ syntax LDI #imm
 end
 
 enc SHI
-bits  101a rrrr dR0i iiii
-field a arith flag  Arithmetic (right shifts only)
+bits  1010 rrrr dR0i iiii
 field r rd   reg   Register shifted
 field d left flag  1 shifts left, 0 shifts right
 field R rot  flag  1 rotates, 0 shifts
 field i imm  uimm  Shift amount
-syntax LSL|LSR|ASR|ROL|ROR Rd, #imm
+syntax LSL|LSR|ROL|ROR Rd, #imm
 end
 
 enc SHR
-bits  101a rrrr dR10 ssss
-field a arith flag  Arithmetic (right shifts only)
+bits  1010 rrrr dR10 ssss
 field r rd   reg   Register shifted
 field d left flag  1 shifts left, 0 shifts right
 field R rot  flag  1 rotates, 0 shifts
 field s rs   reg   Register holding the shift amount (low five bits used)
-syntax LSL|LSR|ASR|ROL|ROR Rd, Rs
+syntax LSL|LSR|ROL|ROR Rd, Rs
+end
+
+enc ASRI
+bits  1011 rrrr 000i iiii
+field r rd   reg   Register shifted
+field i imm  uimm  Shift amount
+syntax ASR Rd, #imm
+end
+
+enc ASRR
+bits  1011 rrrr 0010 ssss
+field r rd   reg   Register shifted
+field s rs   reg   Register holding the shift amount (low five bits used)
+syntax ASR Rd, Rs
+end
+
+enc ADDSI
+bits  1011 dddd 1s0i iiii
+field d rd   reg   Destination register
+field s sub  flag  1 subtracts (SUBS), 0 adds (ADDS)
+field i imm  uimm  Unsigned immediate
+syntax ADDS|SUBS Rd, #imm
+end
+
+enc ADDSR
+bits  1011 dddd 1s10 rrrr
+field d rd   reg   Destination register
+field s sub  flag  1 subtracts (SUBS), 0 adds (ADDS)
+field r rs   reg   Source register
+syntax ADDS|SUBS Rd, Rs
 end
 
 enc BITR

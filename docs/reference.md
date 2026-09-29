@@ -144,7 +144,7 @@ Summary:
 | 010 | SUB | Subtraction |
 | 011 | CMP, TST | Compare and test, setting flags |
 | 100 | MOV, LDI | Register move with swaps; load immediate |
-| 101 | LSL, LSR, ASR, ROL, ROR | Shifts and rotates |
+| 101 | LSL, LSR, ASR, ROL, ROR, ADDS, SUBS | Shifts and rotates; add and subtract setting the flags |
 | 110 | MVN, AND, ORR, EOR, BIC, ORN, EON | Bitwise operations |
 | 111 | LDR, STR | Memory access |
 
@@ -262,8 +262,8 @@ ADD Rd, #imm
 
 `ADD Rd, #imm` adds an 8-bit unsigned immediate (0 to 255) to `Rd`.
 
-Neither form sets the flags.  Adding to `pc` is a relative jump; `ADD pc,
-ir` after an `LDI` is the standard long jump.
+Neither form sets the flags; `ADDS` (section 2.9) does.  Adding to `pc`
+is a relative jump; `ADD pc, ir` after an `LDI` is the standard long jump.
 
 ### 2.3 SUB: subtraction
 
@@ -315,7 +315,7 @@ SUB Rd, #imm
 <!-- /isa -->
 
 `SUB Rd, #imm` subtracts an 8-bit unsigned immediate from `Rd`.  Neither
-form sets the flags.
+form sets the flags; `SUBS` (section 2.9) does.
 
 ### 2.4 CMP: compare
 
@@ -474,13 +474,12 @@ shifting and adding, or loaded from memory.
 ```
  15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-| 1| 0| 1| a|    rd     | d| R| 0|     imm      |
+| 1| 0| 1| 0|    rd     | d| R| 0|     imm      |
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 ```
 
 | Bits | Field | Meaning |
 |---|---|---|
-| 12 (a) | arith | Arithmetic (right shifts only) |
 | 11:8 | rd | Register shifted |
 | 7 (d) | left | 1 shifts left, 0 shifts right |
 | 6 (R) | rot | 1 rotates, 0 shifts |
@@ -489,7 +488,7 @@ shifting and adding, or loaded from memory.
 Syntax:
 
 ```
-LSL|LSR|ASR|ROL|ROR Rd, #imm
+LSL|LSR|ROL|ROR Rd, #imm
 ```
 <!-- /isa -->
 
@@ -497,13 +496,12 @@ LSL|LSR|ASR|ROL|ROR Rd, #imm
 ```
  15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-| 1| 0| 1| a|    rd     | d| R| 1| 0|    rs     |
+| 1| 0| 1| 0|    rd     | d| R| 1| 0|    rs     |
 +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 ```
 
 | Bits | Field | Meaning |
 |---|---|---|
-| 12 (a) | arith | Arithmetic (right shifts only) |
 | 11:8 | rd | Register shifted |
 | 7 (d) | left | 1 shifts left, 0 shifts right |
 | 6 (R) | rot | 1 rotates, 0 shifts |
@@ -512,28 +510,137 @@ LSL|LSR|ASR|ROL|ROR Rd, #imm
 Syntax:
 
 ```
-LSL|LSR|ASR|ROL|ROR Rd, Rs
+LSL|LSR|ROL|ROR Rd, Rs
 ```
 <!-- /isa -->
 
-The three option bits select the operation:
+<!-- isa:ASRI -->
+```
+ 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1| 0| 1| 1|    rd     | 0| 0| 0|     imm      |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
 
-| A | D | R | Mnemonic | Operation |
-|---|---|---|---|---|
-| 0 | 1 | 0 | LSL | Logical shift left, zeros in |
-| 0 | 0 | 0 | LSR | Logical shift right, zeros in |
-| 1 | 0 | 0 | ASR | Arithmetic shift right, sign bit replicated |
-| 0 | 1 | 1 | ROL | Rotate left |
-| 0 | 0 | 1 | ROR | Rotate right |
-| 1 | 1 | x | | Reserved |
-| 1 | 0 | 1 | | Reserved |
+| Bits | Field | Meaning |
+|---|---|---|
+| 11:8 | rd | Register shifted |
+| 4:0 | imm | Shift amount |
+
+Syntax:
+
+```
+ASR Rd, #imm
+```
+<!-- /isa -->
+
+<!-- isa:ASRR -->
+```
+ 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1| 0| 1| 1|    rd     | 0| 0| 1| 0|    rs     |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+| Bits | Field | Meaning |
+|---|---|---|
+| 11:8 | rd | Register shifted |
+| 3:0 | rs | Register holding the shift amount (low five bits used) |
+
+Syntax:
+
+```
+ASR Rd, Rs
+```
+<!-- /isa -->
+
+The two option bits of the logical form select the operation:
+
+| D | R | Mnemonic | Operation |
+|---|---|---|---|
+| 1 | 0 | LSL | Logical shift left, zeros in |
+| 0 | 0 | LSR | Logical shift right, zeros in |
+| 1 | 1 | ROL | Rotate left |
+| 0 | 1 | ROR | Rotate right |
+
+`ASR`, the arithmetic shift right, has its own encodings with bit 12 set;
+the rest of that space holds `ADDS` and `SUBS` (section 2.9) and the
+encodings `1011 rrrr 01xx xxxx` are reserved.
 
 `ASL` is accepted by the assembler as another name for `LSL`.  The shift
 amount is 0 to 31, either a 5-bit immediate or the low five bits of `Rs`;
 higher bits of `Rs` are ignored.  A shift by zero leaves the register
 unchanged.  Flags are not affected.
 
-### 2.9 Bitwise operations
+### 2.9 ADDS and SUBS: add and subtract setting the flags
+
+<!-- isa:ADDSI -->
+```
+ 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1| 0| 1| 1|    rd     | 1| s| 0|     imm      |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+| Bits | Field | Meaning |
+|---|---|---|
+| 11:8 | rd | Destination register |
+| 6 (s) | sub | 1 subtracts (SUBS), 0 adds (ADDS) |
+| 4:0 | imm | Unsigned immediate |
+
+Syntax:
+
+```
+ADDS|SUBS Rd, #imm
+```
+<!-- /isa -->
+
+<!-- isa:ADDSR -->
+```
+ 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1| 0| 1| 1|    rd     | 1| s| 1| 0|    rs     |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+| Bits | Field | Meaning |
+|---|---|---|
+| 11:8 | rd | Destination register |
+| 6 (s) | sub | 1 subtracts (SUBS), 0 adds (ADDS) |
+| 3:0 | rs | Source register |
+
+Syntax:
+
+```
+ADDS|SUBS Rd, Rs
+```
+<!-- /isa -->
+
+`ADDS` and `SUBS` are `ADD` and `SUB` that also set the flags, as ARM's
+do: `SUBS` leaves exactly what `CMP` would for the same operands, and
+`ADDS` sets C to the carry out of the addition and V to its signed
+overflow.  The immediate is 0 to 31, so a counted loop can step and test
+its counter in one instruction:
+
+```
+loop    ...
+        SUBS    r4, #1
+        BNE     loop
+```
+
+and a 64-bit addition needs no separate compare to find the carry:
+
+```
+        ADDS    r0, r2
+        BCC     nocarry
+        ADD     r1, #1
+nocarry ADD     r1, r3
+```
+
+There is no three-operand form.  Writing `pc` with either is a relative
+jump that also sets the flags.
+
+### 2.10 Bitwise operations
 
 <!-- isa:BITR -->
 ```
@@ -598,7 +705,7 @@ In assembler the immediate is written as the mask value, as on ARM, and
 must have exactly one bit set: `AND r0, #0x10`.  Masks with several bits
 set are synthesised through `ir` by the assembler.  Flags are not affected.
 
-### 2.10 LDR and STR: memory access
+### 2.11 LDR and STR: memory access
 
 <!-- isa:MEM -->
 ```

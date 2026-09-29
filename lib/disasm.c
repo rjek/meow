@@ -8,15 +8,12 @@ static const char *bank_reg(unsigned reg, unsigned alt, char *tmp)
 	return tmp;
 }
 
-static const char *shift_mnemonic(unsigned arith, unsigned left, unsigned rot)
+static const char *shift_mnemonic(unsigned left, unsigned rot)
 {
 	if (rot != 0) {
-		return arith != 0 ? NULL : (left != 0 ? "ROL" : "ROR");
+		return left != 0 ? "ROL" : "ROR";
 	}
-	if (left != 0) {
-		return arith != 0 ? NULL : "LSL";
-	}
-	return arith != 0 ? "ASR" : "LSR";
+	return left != 0 ? "LSL" : "LSR";
 }
 
 static const char *bit_mnemonic(unsigned op, unsigned inv)
@@ -96,23 +93,35 @@ size_t meow_disasm(uint16_t w, uint32_t pc, char *buf, size_t len)
 		n = snprintf(buf, len, "LDI #%d", (int)MEOW_LDI_IMM_S(w));
 		break;
 	case MEOW_ENC_SHI:
-		m = shift_mnemonic(MEOW_SHI_ARITH(w), MEOW_SHI_LEFT(w),
-				   MEOW_SHI_ROT(w));
-		if (m == NULL) {
-			goto reserved;
-		}
-		n = snprintf(buf, len, "%s %s, #%u", m,
+		n = snprintf(buf, len, "%s %s, #%u",
+			     shift_mnemonic(MEOW_SHI_LEFT(w), MEOW_SHI_ROT(w)),
 			     meow_reg_name(MEOW_SHI_RD(w)), MEOW_SHI_IMM(w));
 		break;
 	case MEOW_ENC_SHR:
-		m = shift_mnemonic(MEOW_SHR_ARITH(w), MEOW_SHR_LEFT(w),
-				   MEOW_SHR_ROT(w));
-		if (m == NULL) {
-			goto reserved;
-		}
-		n = snprintf(buf, len, "%s %s, %s", m,
+		n = snprintf(buf, len, "%s %s, %s",
+			     shift_mnemonic(MEOW_SHR_LEFT(w), MEOW_SHR_ROT(w)),
 			     meow_reg_name(MEOW_SHR_RD(w)),
 			     meow_reg_name(MEOW_SHR_RS(w)));
+		break;
+	case MEOW_ENC_ASRI:
+		n = snprintf(buf, len, "ASR %s, #%u",
+			     meow_reg_name(MEOW_ASRI_RD(w)), MEOW_ASRI_IMM(w));
+		break;
+	case MEOW_ENC_ASRR:
+		n = snprintf(buf, len, "ASR %s, %s",
+			     meow_reg_name(MEOW_ASRR_RD(w)),
+			     meow_reg_name(MEOW_ASRR_RS(w)));
+		break;
+	case MEOW_ENC_ADDSI:
+		n = snprintf(buf, len, "%s %s, #%u",
+			     MEOW_ADDSI_SUB(w) != 0 ? "SUBS" : "ADDS",
+			     meow_reg_name(MEOW_ADDSI_RD(w)), MEOW_ADDSI_IMM(w));
+		break;
+	case MEOW_ENC_ADDSR:
+		n = snprintf(buf, len, "%s %s, %s",
+			     MEOW_ADDSR_SUB(w) != 0 ? "SUBS" : "ADDS",
+			     meow_reg_name(MEOW_ADDSR_RD(w)),
+			     meow_reg_name(MEOW_ADDSR_RS(w)));
 		break;
 	case MEOW_ENC_BITR:
 		m = bit_mnemonic(MEOW_BITR_OP(w), MEOW_BITR_INV(w));
