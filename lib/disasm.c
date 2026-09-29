@@ -112,17 +112,6 @@ size_t meow_disasm(uint16_t w, uint32_t pc, char *buf, size_t len)
 			     meow_reg_name(MEOW_ASRR_RD(w)),
 			     meow_reg_name(MEOW_ASRR_RS(w)));
 		break;
-	case MEOW_ENC_ADDSI:
-		n = snprintf(buf, len, "%s %s, #%u",
-			     MEOW_ADDSI_SUB(w) != 0 ? "SUBS" : "ADDS",
-			     meow_reg_name(MEOW_ADDSI_RD(w)), MEOW_ADDSI_IMM(w));
-		break;
-	case MEOW_ENC_ADDSR:
-		n = snprintf(buf, len, "%s %s, %s",
-			     MEOW_ADDSR_SUB(w) != 0 ? "SUBS" : "ADDS",
-			     meow_reg_name(MEOW_ADDSR_RD(w)),
-			     meow_reg_name(MEOW_ADDSR_RS(w)));
-		break;
 	case MEOW_ENC_SPMEM:
 		n = snprintf(buf, len, "%s %s, [sp, #%u]",
 			     MEOW_SPMEM_STORE(w) != 0 ? "STR" : "LDR",

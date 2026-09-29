@@ -285,36 +285,6 @@ static void compare(struct msim_ctx *ctx, u_int32_t a, u_int32_t b)
 	ctx->r[MSIM_SR] = sr;
 }
 
-/* ADDS and SUBS: the result is kept, and the flags are those of ARM's
- * ADDS and SUBS, so SUBS sets what CMP would. */
-static void add_flags(struct msim_ctx *ctx, unsigned rd, unsigned sub,
-		      u_int32_t b)
-{
-	u_int32_t a = ctx->r[rd];
-	u_int32_t r;
-	u_int32_t sr;
-
-	if (sub != 0) {
-		compare(ctx, a, b);
-		r = a - b;
-	} else {
-		r = a + b;
-		set_nz(ctx, r);
-		sr = ctx->r[MSIM_SR] & ~(MEOW_SR_C | MEOW_SR_V);
-		if (r < a) {
-			sr |= MEOW_SR_C;
-		}
-		if (((a ^ r) & (b ^ r) & 0x80000000u) != 0) {
-			sr |= MEOW_SR_V;
-		}
-		ctx->r[MSIM_SR] = sr;
-	}
-	ctx->r[rd] = r;
-	if (rd == MSIM_PC) {
-		ctx->nopcincrement = true;
-	}
-}
-
 static u_int32_t *bank_reg(struct msim_ctx *ctx, unsigned reg, unsigned alt)
 {
 	return alt != 0 ? &ctx->ar[reg] : &ctx->r[reg];
@@ -514,14 +484,6 @@ void msim_execute(struct msim_ctx *ctx, u_int16_t w)
 		break;
 	case MEOW_ENC_ASRR:
 		shift(ctx, MEOW_ASRR_RD(w), 1, 0, 0, ctx->r[MEOW_ASRR_RS(w)]);
-		break;
-	case MEOW_ENC_ADDSI:
-		add_flags(ctx, MEOW_ADDSI_RD(w), MEOW_ADDSI_SUB(w),
-			  MEOW_ADDSI_IMM(w));
-		break;
-	case MEOW_ENC_ADDSR:
-		add_flags(ctx, MEOW_ADDSR_RD(w), MEOW_ADDSR_SUB(w),
-			  ctx->r[MEOW_ADDSR_RS(w)]);
 		break;
 	case MEOW_ENC_SPMEM: {
 		u_int32_t addr = ctx->r[MSIM_SP] + 4 * MEOW_SPMEM_IMM(w);

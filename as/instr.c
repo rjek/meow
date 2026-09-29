@@ -473,7 +473,7 @@ static int p_reglist(const struct mnemonic *mn, struct lexer *lx,
 /* ---- mnemonic table --------------------------------------------------- */
 
 enum {
-	M_B, M_BL, M_BNV, M_ADD, M_SUB, M_ADDS, M_CMP, M_TST, M_MOV, M_LDI, M_SHIFT,
+	M_B, M_BL, M_BNV, M_ADD, M_SUB, M_CMP, M_TST, M_MOV, M_LDI, M_SHIFT,
 	M_BIT, M_NOT, M_MEM, M_ADR, M_PUSH, M_POP, M_NOP, M_RET, M_IRQRTN
 };
 
@@ -490,8 +490,6 @@ static const struct mnemonic_def defs[] = {
 	{ "bnv",    p_bnv,    0, M_BNV },
 	{ "add",    p_arith,  F_ADD, M_ADD },
 	{ "sub",    p_arith,  F_SUB, M_SUB },
-	{ "adds",   p_arith,  F_ADD, M_ADDS },
-	{ "subs",   p_arith,  F_SUB, M_ADDS },
 	{ "cmp",    p_cmp,    0, M_CMP },
 	{ "tst",    p_tst,    0, M_TST },
 	{ "mov",    p_mov,    0, M_MOV },
@@ -650,18 +648,6 @@ static void enc_shift_imm(struct words *ws, unsigned rd, unsigned kind,
 
 	put(ws, arith != 0 ? MEOW_ENCODE_ASRI(rd, amount)
 			   : MEOW_ENCODE_SHI(rd, left, rot, amount));
-}
-
-static void enc_adds(struct words *ws, unsigned sub, unsigned rd,
-		     unsigned rs)
-{
-	put(ws, MEOW_ENCODE_ADDSR(rd, sub, rs));
-}
-
-static void enc_adds_imm(struct words *ws, unsigned sub, unsigned rd,
-			 unsigned imm)
-{
-	put(ws, MEOW_ENCODE_ADDSI(rd, sub, imm));
 }
 
 static void enc_bit_reg(struct words *ws, unsigned rd, unsigned op,
@@ -927,34 +913,6 @@ static bool enc_arith(struct words *ws, struct item *it, struct instr *in,
 		return false;
 	}
 	enc_add(ws, sub, rd, MEOW_IR, 0);
-	return true;
-}
-
-/* ADDS/SUBS rd, rs | rd, #0..31 */
-static bool enc_arith_s(struct words *ws, struct item *it, struct instr *in,
-			bool report)
-{
-	unsigned sub = in->mn->arg;
-	unsigned rd = in->ops[0].reg;
-	int64_t v;
-
-	if (in->nops == 3) {
-		if (report == true) {
-			error_at(&it->loc, "ADDS and SUBS have no three-operand form");
-		}
-		return false;
-	}
-	if (in->ops[1].kind == OP_REG) {
-		enc_adds(ws, sub, rd, in->ops[1].reg);
-		return true;
-	}
-	if (imm_value(&in->ops[1], it, report, &v) == false) {
-		v = 0;
-	}
-	if (check_range(&it->loc, v, 0, 31, report, "immediate") == false) {
-		return false;
-	}
-	enc_adds_imm(ws, sub, rd, (unsigned)v);
 	return true;
 }
 
@@ -1258,8 +1216,6 @@ static bool encode(struct words *ws, struct item *it, bool report)
 	case M_ADD:
 	case M_SUB:
 		return enc_arith(ws, it, in, report);
-	case M_ADDS:
-		return enc_arith_s(ws, it, in, report);
 	case M_CMP:
 		return enc_cmp(ws, it, in, report);
 	case M_TST:

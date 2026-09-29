@@ -180,8 +180,6 @@ must be within 2 KB of every `LDR =` that uses it, so long code needs an
 |---|---|
 | `LSL`, `LSR`, `ASR`, `ROL`, `ROR Rd, #0..31` | `ASL` is `LSL` |
 | `LSL`, `LSR`, `ASR`, `ROL`, `ROR Rd, Rs` | Low five bits of `Rs` |
-| `ADDS`, `SUBS Rd, #0..31` | Sets the flags; no three-operand form |
-| `ADDS`, `SUBS Rd, Rs` | Sets the flags |
 | `AND`, `ORR`, `EOR`, `BIC`, `ORN`, `EON Rd, Rs` | |
 | `AND`, `ORR`, `EOR`, `BIC`, `ORN`, `EON Rd, #mask` | A single-bit mask encodes directly; anything else goes through `ir` |
 | `MVN Rd, Rs`, `MVN Rd, #mask` | Rd = NOT operand |

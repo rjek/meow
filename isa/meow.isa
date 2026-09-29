@@ -122,22 +122,6 @@ field s rs   reg   Register holding the shift amount (low five bits used)
 syntax ASR Rd, Rs
 end
 
-enc ADDSI
-bits  1011 dddd 1s0i iiii
-field d rd   reg   Destination register
-field s sub  flag  1 subtracts (SUBS), 0 adds (ADDS)
-field i imm  uimm  Unsigned immediate
-syntax ADDS|SUBS Rd, #imm
-end
-
-enc ADDSR
-bits  1011 dddd 1s10 rrrr
-field d rd   reg   Destination register
-field s sub  flag  1 subtracts (SUBS), 0 adds (ADDS)
-field r rs   reg   Source register
-syntax ADDS|SUBS Rd, Rs
-end
-
 enc SPMEM
 bits  1011 vvvv 01Lo oooo
 field v rv   reg   Value register

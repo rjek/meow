@@ -144,7 +144,7 @@ Summary:
 | 010 | SUB | Subtraction |
 | 011 | CMP, TST | Compare and test, setting flags |
 | 100 | MOV, LDI | Register move with swaps; load immediate |
-| 101 | LSL, LSR, ASR, ROL, ROR, ADDS, SUBS, LDR, STR | Shifts and rotates; add and subtract setting the flags; stack words |
+| 101 | LSL, LSR, ASR, ROL, ROR, LDR, STR | Shifts and rotates; stack words |
 | 110 | MVN, AND, ORR, EOR, BIC, ORN, EON | Bitwise operations |
 | 111 | LDR, STR | Memory access |
 
@@ -262,8 +262,8 @@ ADD Rd, #imm
 
 `ADD Rd, #imm` adds an 8-bit unsigned immediate (0 to 255) to `Rd`.
 
-Neither form sets the flags; `ADDS` (section 2.9) does.  Adding to `pc`
-is a relative jump; `ADD pc, ir` after an `LDI` is the standard long jump.
+Neither form sets the flags.  Adding to `pc` is a relative jump; `ADD pc,
+ir` after an `LDI` is the standard long jump.
 
 ### 2.3 SUB: subtraction
 
@@ -315,7 +315,7 @@ SUB Rd, #imm
 <!-- /isa -->
 
 `SUB Rd, #imm` subtracts an 8-bit unsigned immediate from `Rd`.  Neither
-form sets the flags; `SUBS` (section 2.9) does.
+form sets the flags.
 
 ### 2.4 CMP: compare
 
@@ -563,84 +563,16 @@ The two option bits of the logical form select the operation:
 | 1 | 1 | ROL | Rotate left |
 | 0 | 1 | ROR | Rotate right |
 
-`ASR`, the arithmetic shift right, has its own encodings with bit 12 set;
-the rest of that space holds `ADDS` and `SUBS` (section 2.9) and the
-stack-relative `LDR` and `STR` (section 2.11).
+`ASR`, the arithmetic shift right, has its own encodings with bit 12 set.
+The rest of that space holds the stack-relative `LDR` and `STR` (section
+2.10); the encodings `1011 rrrr 1xxx xxxx` are reserved.
 
 `ASL` is accepted by the assembler as another name for `LSL`.  The shift
 amount is 0 to 31, either a 5-bit immediate or the low five bits of `Rs`;
 higher bits of `Rs` are ignored.  A shift by zero leaves the register
 unchanged.  Flags are not affected.
 
-### 2.9 ADDS and SUBS: add and subtract setting the flags
-
-<!-- isa:ADDSI -->
-```
- 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-| 1| 0| 1| 1|    rd     | 1| s| 0|     imm      |
-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-```
-
-| Bits | Field | Meaning |
-|---|---|---|
-| 11:8 | rd | Destination register |
-| 6 (s) | sub | 1 subtracts (SUBS), 0 adds (ADDS) |
-| 4:0 | imm | Unsigned immediate |
-
-Syntax:
-
-```
-ADDS|SUBS Rd, #imm
-```
-<!-- /isa -->
-
-<!-- isa:ADDSR -->
-```
- 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-| 1| 0| 1| 1|    rd     | 1| s| 1| 0|    rs     |
-+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-```
-
-| Bits | Field | Meaning |
-|---|---|---|
-| 11:8 | rd | Destination register |
-| 6 (s) | sub | 1 subtracts (SUBS), 0 adds (ADDS) |
-| 3:0 | rs | Source register |
-
-Syntax:
-
-```
-ADDS|SUBS Rd, Rs
-```
-<!-- /isa -->
-
-`ADDS` and `SUBS` are `ADD` and `SUB` that also set the flags, as ARM's
-do: `SUBS` leaves exactly what `CMP` would for the same operands, and
-`ADDS` sets C to the carry out of the addition and V to its signed
-overflow.  The immediate is 0 to 31, so a counted loop can step and test
-its counter in one instruction:
-
-```
-loop    ...
-        SUBS    r4, #1
-        BNE     loop
-```
-
-and a 64-bit addition needs no separate compare to find the carry:
-
-```
-        ADDS    r0, r2
-        BCC     nocarry
-        ADD     r1, #1
-nocarry ADD     r1, r3
-```
-
-There is no three-operand form.  Writing `pc` with either is a relative
-jump that also sets the flags.
-
-### 2.10 Bitwise operations
+### 2.9 Bitwise operations
 
 <!-- isa:BITR -->
 ```
@@ -705,7 +637,7 @@ In assembler the immediate is written as the mask value, as on ARM, and
 must have exactly one bit set: `AND r0, #0x10`.  Masks with several bits
 set are synthesised through `ir` by the assembler.  Flags are not affected.
 
-### 2.11 LDR and STR: memory access
+### 2.10 LDR and STR: memory access
 
 <!-- isa:MEM -->
 ```

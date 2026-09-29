@@ -55,10 +55,6 @@ table   DCD     start, table, 0xdeadbeef, count * 2
         SPACE   6
         ALIGN   2
 far     B       start
-        ADDS    r1, #5
-        SUBS    r2, #31
-        ADDS    r3, r4
-        SUBS    r5, r6
         LDR     r4, [sp, #12]
         STR     r5, [sp, #124]
         END
