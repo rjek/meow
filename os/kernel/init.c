@@ -1,13 +1,16 @@
-/* What the kernel runs once it is up.  Stage 1: not much. */
+/* What the kernel runs once it is up: /bin/init, and if that ends, a
+   message and the idle loop. */
 #include "kernel.h"
-
-static int hello(void *arg)
-{
-    kprintf("hello from thread %s\n", (const char *)arg);
-    return 0;
-}
 
 void init_main(void)
 {
-    thread_create("hello", hello, "one", PRIO_DEFAULT, STACK_DEFAULT);
+    char *argv[] = { "init", NULL };
+    int pid = process_spawn("/bin/init", 1, argv), status;
+
+    if (pid < 0) {
+        kprintf("no /bin/init: %d\n", pid);
+        return;
+    }
+    process_wait(pid, &status);
+    kprintf("init exited with %d\n", status);
 }

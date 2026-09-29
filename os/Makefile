@@ -1,23 +1,45 @@
 # Catflap, an operating system for MEOW.  The kernel is C compiled by
 # nmcc with no C library; boot.s is linked first so that the vectors land
-# at 0 and 32.
+# at 0 and 32.  The ROM is the kernel, then the shared library's data
+# relocation list, then a romfs holding the programs, which are linked
+# against the kernel's symbols after the kernel is.
 NMCC = ../../norcroft-ng/bin/nmcc
 MAS = ../as/mas
 MLD = ../ld/mld
 MSIM = ../simulator/msim
-CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
 HOSTCC = cc
+CFLAGS = -std=c99 -c -I../libc/pdclib/include -I../libc/meow/include -Ikernel
 RT = ../rt/mul.o ../rt/div.o ../rt/ll.o
 RAM = 256
 
 KSRCS := $(wildcard kernel/*.c)
-KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS))) obj/kernel/romfs_image.o
+KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS))) \
+         obj/kernel/libc_start.o obj/kernel/libc_end.o
+LINK = $(KOBJS) obj/kernel/init.o $(RT)
+PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c))
 ROOT := $(shell find root -type f)
 
 all: catflap.rom
 
-catflap.rom: $(KOBJS) obj/kernel/init.o $(RT)
-	$(MLD) -f bin -d 0x08000000 -M catflap.map -o $@ $(KOBJS) obj/kernel/init.o $(RT)
+catflap.rom: obj/kernel.bin obj/librelocs.bin obj/romfs.img
+	cat $^ > $@
+
+obj/kernel.bin obj/librelocs.bin: $(LINK)
+	$(MLD) -f bin -p -B -d 0x08000000 -M catflap.map -o obj/kernel.bin \
+	    -R __libc_data_start,__libc_data_end,obj/librelocs.bin $(LINK)
+
+obj/catflap.elf: $(LINK)
+	$(MLD) -f elf -B -d 0x08000000 -o $@ $(LINK)
+
+# programs: linked at 0 with their addresses listed for the loader, the
+# kernel's symbols absolute
+obj/root/bin/%: obj/bin/%.o obj/lib/crt0.o obj/catflap.elf
+	@mkdir -p obj/root/bin
+	$(MLD) -f cfx -S obj/catflap.elf -o $@ obj/lib/crt0.o $<
+
+obj/romfs.img: obj/mkromfs $(ROOT) $(PROGS)
+	cp -r root/. obj/root/
+	obj/mkromfs $@ obj/root
 
 obj/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -25,12 +47,7 @@ obj/%.o: %.c
 
 obj/%.o: %.s
 	@mkdir -p $(dir $@)
-	$(MAS) -I obj -o $@ $<
-
-obj/kernel/romfs_image.o: kernel/romfs_image.s obj/romfs.img
-
-obj/romfs.img: obj/mkromfs $(ROOT)
-	obj/mkromfs $@ root
+	$(MAS) -o $@ $<
 
 obj/mkromfs: tools/mkromfs.c
 	@mkdir -p obj
@@ -39,7 +56,7 @@ obj/mkromfs: tools/mkromfs.c
 run: catflap.rom
 	$(MSIM) -q -r catflap.rom -m $(RAM)
 
-check: $(KOBJS)
+check: obj/kernel.bin obj/romfs.img
 	../tests/runos.sh
 
 clean:

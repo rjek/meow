@@ -16,6 +16,7 @@ void waitq_wait(struct waitq *q)
     struct thread *t = this_cpu()->current;
 
     t->next = NULL;
+    t->waiting = q;
     if (q->tail == NULL) {
         q->head = t;
     } else {
@@ -23,6 +24,24 @@ void waitq_wait(struct waitq *q)
     }
     q->tail = t;
     thread_block();
+    t->waiting = NULL;
+}
+
+/* Take t out of q, wherever it is in it. */
+void waitq_remove(struct waitq *q, struct thread *t)
+{
+    struct thread **pp;
+
+    for (pp = &q->head; *pp != NULL; pp = &(*pp)->next) {
+        if (*pp == t) {
+            *pp = t->next;
+            break;
+        }
+    }
+    q->tail = NULL;
+    for (t = q->head; t != NULL; t = t->next) {
+        q->tail = t;
+    }
 }
 
 /* Make the longest waiter ready.  Returns it, or NULL.  The caller
@@ -39,6 +58,7 @@ struct thread *waitq_wake_one(struct waitq *q)
     if (q->head == NULL) {
         q->tail = NULL;
     }
+    t->waiting = NULL;
     thread_ready(t);
     return t;
 }

@@ -23,7 +23,6 @@ struct romfs {
     const unsigned char *data;
 };
 
-extern const unsigned char romfs_image[];
 static struct romfs fs;
 
 static const char *entry_path(const struct romfs *r, uint32_t i)
@@ -145,9 +144,9 @@ static const struct vnode_ops romfs_ops = {
 };
 
 /* The root vnode of the image in ROM, or NULL if there is none. */
-struct vnode *romfs_init(void)
+struct vnode *romfs_init(const void *image)
 {
-    const struct romfs_header *h = (const struct romfs_header *)romfs_image;
+    const struct romfs_header *h = image;
 
     if (memcmp(h->magic, "catflap1", 8) != 0) {
         return NULL;

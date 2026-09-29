@@ -31,12 +31,22 @@
 #define PRIO_DEFAULT    4
 #define PRIO_INIT       7
 #define STACK_DEFAULT   1024
+#define STACK_USER      4096            /* a program's main thread */
 
 enum thread_state { T_READY, T_RUNNING, T_SLEEPING, T_BLOCKED, T_ZOMBIE };
+
+struct process;
+
+struct waitq {
+    struct thread *head, *tail;
+};
 
 struct thread {
     uint32_t regs[16];                  /* r0 to pc, saved by boot.s: keep first */
     struct thread *next;                /* the run, sleep or zombie list */
+    struct thread *all;                 /* every thread there is */
+    struct process *proc;
+    struct waitq *waiting;              /* what it is blocked on */
     enum thread_state state;
     int prio;
     int in_kernel;                      /* the CPU's counter while switched out */
@@ -82,6 +92,8 @@ extern struct cpu cpu0;
 #define ENAMETOOLONG    36
 #define ENOSYS          38
 #define ENOTEMPTY       39
+#define ENOEXEC         8
+#define ECHILD          10
 
 /* The file system */
 #define NFD             16
@@ -139,6 +151,37 @@ struct file {
     int refs;
 };
 
+/* process.c */
+struct process {
+    int pid;
+    const char *name;
+    struct process *next;
+    struct process *parent;
+    struct thread *main;
+    int nthreads;
+    int dead;
+    int exit_status;
+    char *image;
+    size_t image_size;
+    uint32_t entry;
+    void *libdata;                      /* this process's copy of the library's data */
+    uint32_t sb;                        /* its displacement from the linked copy */
+    int argc;
+    char **argv;
+    struct file *fds[NFD];
+    struct waitq waiters;
+};
+
+extern struct process kproc;
+extern uint32_t __client_sb;
+struct process *current_process(void);
+struct process *process_find(int pid);
+void process_init(const uint32_t *relocs, uint32_t n);
+int process_spawn(const char *path, int argc, char *const argv[]);
+void process_exit(int status);
+int process_wait(int pid, int *status);
+void process_thread_gone(struct process *p);
+
 /* vfs.c */
 struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
                         uint32_t ino, uint32_t size);
@@ -156,7 +199,7 @@ int vfs_stat(const char *path, struct stat *st);
 int vfs_ioctl(int fd, int req, void *arg);
 
 /* romfs.c, devfs.c */
-struct vnode *romfs_init(void);
+struct vnode *romfs_init(const void *image);
 struct vnode *devfs_init(void);
 int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
 
@@ -180,9 +223,7 @@ void kprintf(const char *fmt, ...);
 void kpanic(const char *fmt, ...);
 
 /* sync.c */
-struct waitq {
-    struct thread *head, *tail;
-};
+void waitq_remove(struct waitq *q, struct thread *t);
 
 struct sem {
     int count;
@@ -238,6 +279,10 @@ void sched_init(void);
 void sched_start(void);
 struct thread *thread_create(const char *name, int (*fn)(void *), void *arg,
                              int prio, size_t stack_size);
+struct thread *thread_create_in(struct process *p, const char *name,
+                                int (*fn)(void *), void *arg, int prio,
+                                size_t stack_size);
+void thread_kill_others(struct process *p);
 void thread_exit(int status);
 void thread_yield(void);
 void thread_sleep(uint32_t ticks);

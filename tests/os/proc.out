@@ -1,0 +1,13 @@
+Catflap: 256 KB RAM
+spawned pid 1
+hello from a process, pid 1, args: hello one two
+wait: 0 status 3
+no such program: -2
+not a program: -8
+two at once: 2 3
+hello from a process, pid 2, args: again
+hello from a process, pid 3, args: hello one
+second done with 2
+first done with 1, wait again: -10
+plenty free
+exit 0

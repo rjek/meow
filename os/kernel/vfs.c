@@ -14,7 +14,7 @@ struct mount {
 
 static struct mount mounts[NMOUNT];
 static unsigned nmounts;
-static struct file *fds[NFD];           /* the kernel's; a process's later */
+#define fds (current_process()->fds)
 
 struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
                         uint32_t ino, uint32_t size)

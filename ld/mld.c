@@ -49,6 +49,21 @@ struct archive {
 	unsigned nmembers;
 };
 
+/* A place a 32-bit address was written, for the relocation lists of
+ * loadable images and displaced data. */
+struct place {
+	uint32_t addr;		/* where the word is */
+	uint32_t value;		/* what was written */
+	bool relocatable;	/* the target is in a placed section */
+};
+
+static struct place *places;
+static unsigned nplaces;
+static const char **symfiles;	/* -S: executables whose symbols resolve ours */
+static unsigned nsymfiles;
+static bool bss_backwards;	/* -B */
+static bool pad_flat;		/* -p: a flat image padded to a word, for what follows it */
+
 static struct input *inputs;
 static unsigned ninputs;
 static struct osec **osecs;
@@ -61,8 +76,9 @@ static int error_count;
 
 static void usage(void)
 {
-	fputs("usage: mld [-o output] [-f elf|bin] [-b base] [-d data base]\n"
-	      "           [-M map] [-e entry] input.o...\n", stderr);
+	fprintf(stderr, "usage: mld [-o output] [-f elf|bin|cfx] [-b base] [-d data base]\n"
+		"           [-M map] [-e entry] [-S executable] [-B] [-p]\n"
+		"           [-R start,end,file] input.o...\n");
 	exit(2);
 }
 
@@ -493,8 +509,140 @@ static void apply_relocs(struct input *in)
 			for (k = 0; k < w; k++) {
 				o->data[in->off[i] + r->offset + k] = (uint8_t)(v >> (8 * k));
 			}
+			if (r->type == R_MEOW_ABS32) {
+				places = xrealloc(places, (nplaces + 1) * sizeof *places);
+				places[nplaces].addr = place;
+				places[nplaces].value = v;
+				places[nplaces].relocatable = s->bind == MELF_STB_GLOBAL ?
+					gsym_lookup(s->name)->sec != NULL : vsec != NULL;
+				nplaces++;
+			}
 		}
 	}
+}
+
+/* -S: an executable's global symbols stand in for whatever is still
+ * undefined, as absolute addresses.  A program links against the kernel
+ * and the shared library in ROM this way. */
+static void resolve_from_symfiles(void)
+{
+	unsigned n;
+
+	for (n = 0; n < nsymfiles; n++) {
+		char err[128];
+		struct melf *e = melf_read(symfiles[n], err, sizeof err);
+		unsigned i;
+
+		if (e == NULL) {
+			error(symfiles[n], "%s", err);
+			continue;
+		}
+		if (e->e_type != MELF_ET_EXEC) {
+			error(symfiles[n], "not an executable");
+			continue;
+		}
+		for (i = 1; i < e->nsymbols; i++) {
+			struct melf_symbol *sym = &e->symbols[i];
+			unsigned k;
+
+			if (sym->bind != MELF_STB_GLOBAL || sym->shndx == MELF_SHN_UNDEF) {
+				continue;
+			}
+			for (k = 0; k < ngsyms; k++) {
+				if (gsyms[k].def == NULL && strcmp(gsyms[k].name, sym->name) == 0) {
+					define_absolute(sym->name, sym->value);
+					break;
+				}
+			}
+		}
+	}
+}
+
+/* -B: lay the bss sections out in reverse input order, so that the last
+ * inputs' bss follows their data with nothing between.  The shared
+ * library's data and bss become one range to copy per process. */
+static void reverse_bss(void)
+{
+	unsigned i;
+
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+		uint32_t size = 0;
+		unsigned k;
+
+		if (o->type != MELF_SHT_NOBITS) {
+			continue;
+		}
+		for (k = ninputs; k-- > 0;) {
+			struct input *in = &inputs[k];
+			unsigned j;
+
+			for (j = 1; j < in->e->nsections; j++) {
+				struct melf_section *sec = &in->e->sections[j];
+
+				if (in->map[j] != o) {
+					continue;
+				}
+				size = align_up(size, sec->align > 0 ? sec->align : 1);
+				in->off[j] = size;
+				size += sec->size;
+			}
+		}
+		o->size = size;
+	}
+}
+
+static uint32_t symbol_value(const char *name)
+{
+	struct gsym *g = gsym_lookup(name);
+
+	if (g->def == NULL) {
+		error(NULL, "-R: '%s' is not defined", name);
+		return 0;
+	}
+	return g->value;
+}
+
+/* -R: the words within [start, end) that point within [start, end), as
+ * a table for whoever copies that range elsewhere and must move them. */
+static void write_reloc_list(const char *spec)
+{
+	char *copy = xstrdup(spec);
+	char *a = strtok(copy, ",");
+	char *b = a != NULL ? strtok(NULL, ",") : NULL;
+	char *path = b != NULL ? strtok(NULL, ",") : NULL;
+	uint32_t start, end, count = 0;
+	unsigned i;
+	FILE *f;
+
+	if (path == NULL) {
+		usage();
+	}
+	start = symbol_value(a);
+	end = symbol_value(b);
+	f = fopen(path, "wb");
+	if (f == NULL) {
+		error(NULL, "cannot write '%s'", path);
+		return;
+	}
+	for (i = 0; i < nplaces; i++) {
+		if (places[i].addr >= start && places[i].addr < end &&
+		    places[i].value >= start && places[i].value < end) {
+			count++;
+		}
+	}
+	fwrite("CFRL", 1, 4, f);
+	fwrite(&count, 4, 1, f);
+	for (i = 0; i < nplaces; i++) {
+		if (places[i].addr >= start && places[i].addr < end &&
+		    places[i].value >= start && places[i].value < end) {
+			fwrite(&places[i].addr, 4, 1, f);
+		}
+	}
+	if (fclose(f) != 0) {
+		error(NULL, "write error on '%s'", path);
+	}
+	free(copy);
 }
 
 /* ---- output ----------------------------------------------------------- */
@@ -525,6 +673,73 @@ static void write_flat(const char *path, uint32_t base)
 		}
 		fwrite(o->data, 1, o->size, f);
 		pos += o->size;
+	}
+	while (pad_flat == true && pos % 4 != 0) {
+		fputc(0, f);
+		pos++;
+	}
+	if (fclose(f) != 0) {
+		error(NULL, "write error on '%s'", path);
+	}
+}
+
+/* A loadable image: linked at 0 with data following code, a header, the
+ * bytes, then the offsets of every word that holds an address and must
+ * have the load address added.  Words that name absolute symbols (the
+ * kernel, the library) are left alone. */
+static void write_cfx(const char *path, uint32_t entry)
+{
+	FILE *f = fopen(path, "wb");
+	uint32_t image_size = 0, mem_size = 0, pos = 0, n = 0, hdr[6];
+	unsigned i;
+
+	if (f == NULL) {
+		error(NULL, "cannot write '%s'", path);
+		return;
+	}
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+
+		if (o->addr + o->size > mem_size) {
+			mem_size = o->addr + o->size;
+		}
+		if (o->type != MELF_SHT_NOBITS && o->load + o->size > image_size) {
+			image_size = o->load + o->size;
+		}
+	}
+	image_size = align_up(image_size, 4);
+	mem_size = align_up(mem_size, 4);
+	for (i = 0; i < nplaces; i++) {
+		n += places[i].relocatable;
+	}
+	memcpy(hdr, "CFX1", 4);
+	hdr[1] = image_size;
+	hdr[2] = mem_size;
+	hdr[3] = entry;
+	hdr[4] = n;
+	hdr[5] = 0;
+	fwrite(hdr, 4, 6, f);
+	for (i = 0; i < nosecs; i++) {
+		struct osec *o = osecs[i];
+
+		if (o->type == MELF_SHT_NOBITS || o->size == 0) {
+			continue;
+		}
+		while (pos < o->load) {
+			fputc(0, f);
+			pos++;
+		}
+		fwrite(o->data, 1, o->size, f);
+		pos += o->size;
+	}
+	while (pos < image_size) {
+		fputc(0, f);
+		pos++;
+	}
+	for (i = 0; i < nplaces; i++) {
+		if (places[i].relocatable) {
+			fwrite(&places[i].addr, 4, 1, f);
+		}
 	}
 	if (fclose(f) != 0) {
 		error(NULL, "write error on '%s'", path);
@@ -889,7 +1104,8 @@ int main(int argc, char *argv[])
 	uint32_t data_base = 0;
 	bool have_data_base = false;
 	uint32_t entry;
-	bool elf;
+	bool elf, cfx = false;
+	const char *reloc_list = NULL;
 	int i;
 	unsigned k;
 
@@ -902,7 +1118,15 @@ int main(int argc, char *argv[])
 			inputs[ninputs++].path = a;
 			continue;
 		}
-		if (strlen(a) == 2 && strchr("ofbdMe", a[1]) != NULL) {
+		if (strcmp(a, "-B") == 0) {
+			bss_backwards = true;
+			continue;
+		}
+		if (strcmp(a, "-p") == 0) {
+			pad_flat = true;
+			continue;
+		}
+		if (strlen(a) == 2 && strchr("ofbdMeSR", a[1]) != NULL) {
 			const char *v;
 
 			if (i + 1 == argc) {
@@ -919,6 +1143,11 @@ int main(int argc, char *argv[])
 				break;
 			case 'M': map = v; break;
 			case 'e': entry_name = v; break;
+			case 'S':
+				symfiles = xrealloc(symfiles, (nsymfiles + 1) * sizeof *symfiles);
+				symfiles[nsymfiles++] = v;
+				break;
+			case 'R': reloc_list = v; break;
 			}
 			continue;
 		}
@@ -937,6 +1166,11 @@ int main(int argc, char *argv[])
 		elf = true;
 	} else if (strcmp(format, "bin") == 0) {
 		elf = false;
+	} else if (strcmp(format, "cfx") == 0) {
+		elf = false;
+		cfx = true;
+		base = 0;
+		have_data_base = false;
 	} else {
 		usage();
 	}
@@ -967,9 +1201,13 @@ int main(int argc, char *argv[])
 	if (error_count > 0) {
 		return 1;
 	}
+	if (bss_backwards == true) {
+		reverse_bss();
+	}
 	layout(base, have_data_base, data_base);
 	collect_globals();
 	define_layout_symbols(elf == false);
+	resolve_from_symfiles();
 	check_undefined();
 	for (k = 0; k < ninputs; k++) {
 		apply_relocs(&inputs[k]);
@@ -980,8 +1218,13 @@ int main(int argc, char *argv[])
 	}
 	if (elf == true) {
 		write_elf(output, entry);
+	} else if (cfx == true) {
+		write_cfx(output, entry);
 	} else {
 		write_flat(output, base);
+	}
+	if (error_count == 0 && reloc_list != NULL) {
+		write_reloc_list(reloc_list);
 	}
 	if (error_count == 0 && map != NULL) {
 		FILE *f = strcmp(map, "-") == 0 ? stdout : fopen(map, "w");

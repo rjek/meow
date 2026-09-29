@@ -1,5 +1,5 @@
 Catflap: 256 KB RAM
-console is fd 0
+console is fd 3
 /: bin/ etc/
 /etc: config motd
 /dev: console null

@@ -10,6 +10,7 @@ struct cpu cpu0;
 struct thread *switch_from, *switch_to;
 
 static struct thread idle_thread;
+static struct thread *all_threads;
 static struct thread *ready_head[NPRIO], *ready_tail[NPRIO];
 static struct thread *sleepers;         /* by wake time */
 static struct thread *zombies;
@@ -65,6 +66,9 @@ void sched_init(void)
     idle_thread.name = "idle";
     idle_thread.prio = PRIO_IDLE;
     idle_thread.state = T_RUNNING;
+    idle_thread.proc = &kproc;
+    all_threads = &idle_thread;
+    kproc.nthreads = 1;
     c->current = &idle_thread;
     c->slice = SLICE;
 }
@@ -158,6 +162,13 @@ void thread_sleep(uint32_t n)
 struct thread *thread_create(const char *name, int (*fn)(void *), void *arg,
                              int prio, size_t stack_size)
 {
+    return thread_create_in(current_process(), name, fn, arg, prio, stack_size);
+}
+
+struct thread *thread_create_in(struct process *p, const char *name,
+                                int (*fn)(void *), void *arg, int prio,
+                                size_t stack_size)
+{
     struct thread *t;
 
     kenter();
@@ -180,6 +191,9 @@ struct thread *thread_create(const char *name, int (*fn)(void *), void *arg,
     t->regs[R_SP] = ((uint32_t)t->stack + stack_size) & ~7u;
     t->regs[R_LR] = (uint32_t)thread_exit;   /* fn's return value is its status */
     t->regs[R_PC] = (uint32_t)fn;
+    t->proc = p;
+    t->all = all_threads;
+    all_threads = t;
     enqueue(t);
     if (prio > this_cpu()->current->prio) {
         schedule();
@@ -200,8 +214,65 @@ void thread_exit(int status)
     t->state = T_ZOMBIE;
     t->next = zombies;
     zombies = t;
+    process_thread_gone(t->proc);
     schedule();
     kpanic("zombie ran");
+}
+
+static void unlink_from(struct thread **list, struct thread *t)
+{
+    for (; *list != NULL; list = &(*list)->next) {
+        if (*list == t) {
+            *list = t->next;
+            return;
+        }
+    }
+}
+
+/* Take a thread out of wherever it is queued and make it a zombie.
+   Never the running one. */
+static void thread_kill(struct thread *t)
+{
+    int p;
+
+    switch (t->state) {
+    case T_READY:
+        unlink_from(&ready_head[t->prio], t);
+        for (p = 0; p < NPRIO; p++) {   /* the tail may have been it */
+            ready_tail[p] = NULL;
+            for (t = ready_head[p]; t != NULL; t = t->next) {
+                ready_tail[p] = t;
+            }
+        }
+        break;
+    case T_SLEEPING:
+        unlink_from(&sleepers, t);
+        break;
+    case T_BLOCKED:
+        waitq_remove(t->waiting, t);
+        break;
+    default:
+        return;
+    }
+}
+
+/* Every thread of p but the caller dies now. */
+void thread_kill_others(struct process *p)
+{
+    struct thread *t, **pp;
+
+    for (pp = &all_threads; (t = *pp) != NULL;) {
+        if (t->proc != p || t == this_cpu()->current || t->state == T_ZOMBIE) {
+            pp = &t->all;
+            continue;
+        }
+        thread_kill(t);
+        t->state = T_ZOMBIE;
+        t->next = zombies;
+        zombies = t;
+        process_thread_gone(p);
+        pp = &t->all;
+    }
 }
 
 /* The idle thread's chores: free what has finished. */
@@ -209,9 +280,12 @@ void idle_work(void)
 {
     kenter();
     while (zombies != NULL) {
-        struct thread *t = zombies;
+        struct thread *t = zombies, **pp;
 
         zombies = t->next;
+        for (pp = &all_threads; *pp != t; pp = &(*pp)->all) {
+        }
+        *pp = t->all;
         kfree(t->stack);
         kfree(t);
     }
@@ -235,6 +309,7 @@ static void do_switch(void)
     c->current->in_kernel = c->in_kernel;
     c->in_kernel = next->in_kernel;
     c->current = next;
+    __client_sb = next->proc->sb;
     next->state = T_RUNNING;
 }
 
