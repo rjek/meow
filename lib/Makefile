@@ -2,7 +2,7 @@ CFLAGS ?= -std=c99 -pedantic -Wall -Wextra -O2
 ISAGEN = ../isa/isagen
 ISA = ../isa/meow.isa
 
-OBJS = meow_isa.o meow.o disasm.o
+OBJS = meow_isa.o meow.o disasm.o melf.o
 
 all: libmeow.a
 
@@ -21,6 +21,7 @@ $(ISAGEN):
 meow_isa.o: meow_isa.c meow_isa.h
 meow.o: meow.c meow.h meow_isa.h
 disasm.o: disasm.c meow.h meow_isa.h
+melf.o: melf.c melf.h
 
 test_disasm: test_disasm.c libmeow.a
 	$(CC) $(CFLAGS) -o $@ test_disasm.c libmeow.a

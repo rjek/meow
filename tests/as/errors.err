@@ -1,0 +1,18 @@
+errors.s:1: error: use MOV to copy a register
+errors.s:2: error: immediate 16 out of range 1 to 15
+errors.s:3:17: error: CMP with an immediate cannot use the alternative bank
+errors.s:4: error: TST needs a value with one bit set
+errors.s:5: error: immediate 2048 out of range -2048 to 2047
+errors.s:6:17: error: writeback must be by the access size (4)
+errors.s:7:17: error: writeback onto the value register is unpredictable
+errors.s:8:17: error: MOV with an immediate cannot use the alternative bank
+errors.s:9: error: shift amount 32 out of range 0 to 31
+errors.s:10: error: immediate does not fit and ir is the destination
+errors.s:11: error: BNV operand must be even
+errors.s:12:17: error: target is not in this section
+errors.s:14: error: 'dup' already defined at as/errors.s:13
+errors.s:18:21: error: target is not in this section
+errors.s:19:18: error: expected a register
+errors.s:20:9: error: unknown mnemonic or directive 'FOO'
+errors.s:21: error: unterminated string
+errors.s:22: error: IF without ENDIF
