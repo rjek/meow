@@ -33,6 +33,8 @@ __mul   CMP     r1, r0
         RET
 
         EXPORT  __umull
+        EXPORT  __umulhi
+        EXPORT  __smulhi
 ; a1:a2 = a1 * a2, the full 64-bit product of two 32-bit values.  Shift
 ; and add over the bits of the smaller operand, four a step, into a
 ; 64-bit accumulator, stopping when no bits are left.
@@ -84,3 +86,30 @@ __umull CMP     r1, r0
         CMP     at, #0
         BNE     .uloop
 .udone  RET
+
+; a1 = the high word of a1 * a2, unsigned: __umull, which leaves ir and
+; lr alone, so lr can wait in ir.
+__umulhi
+        MOV     ir, lr
+        ADD     lr, pc, #4
+        B       __umull
+        MOV     r0, r1
+        MOV     pc, ir
+
+; a1 = the high word of a1 * a2, signed: the unsigned high word less each
+; operand that was negative, as the other is then short by 2^32 times it.
+__smulhi
+        STR     lr, [sp, #-4]!
+        STR     r0, [sp, #-4]!
+        STR     r1, [sp, #-4]!
+        BL      __umull
+        LDR     r2, [sp], #4            ; b
+        LDR     r3, [sp], #4            ; a
+        MOV     r0, r1
+        CMP     r3, #0
+        BGE     .s1
+        SUB     r0, r2
+.s1     CMP     r2, #0
+        BGE     .s2
+        SUB     r0, r3
+.s2     LDR     pc, [sp], #4

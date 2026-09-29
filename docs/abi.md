@@ -14,7 +14,7 @@ handler runs in the other bank and follows the same rules there.
 | a3 | r2 | Argument 3 | Caller |
 | a4 | r3 | Argument 4 | Caller |
 | v1 to v6 | r4 to r9 | Register variables | Callee |
-| at | r10 | Assembler and compiler temporary | Caller |
+| at | r10 | Assembler temporary; the compiler allocates it like a4 | Caller |
 | sp | r11 | Stack pointer | Callee |
 | lr | r12 | Link register | Caller |
 | ir | r13 | Immediate register, scratch | Caller |
@@ -127,6 +127,8 @@ live in the runtime library:
 | `__divmod`, `__udivmod` | Aliases of `__div` and `__udiv` |
 | `__mod`, `__umod` | a1 = a2 % a1, signed and unsigned |
 | `__div10`, `__udiv10` | a1 = a1 / 10 and a2 = a1 % 10, signed and unsigned |
+| `__umull` | a1:a2 = a1 * a2, the full 64-bit unsigned product |
+| `__umulhi`, `__smulhi` | a1 = the high word of a1 * a2, unsigned and signed; division by a constant is a multiply by its reciprocal |
 | `__divtest` | Traps if a1 is zero; called before a division by a variable |
 
 The division routines take the divisor first, as Arm's `__rt_sdiv` does,
