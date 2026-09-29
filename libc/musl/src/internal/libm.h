@@ -189,10 +189,8 @@ static inline void fp_force_evall(long double x)
 
 #define asuint(f) ((union{float _f; uint32_t _i;}){f})._i
 #define asfloat(i) ((union{uint32_t _i; float _f;}){i})._f
-/* MEOW: functions, not compound literals, which Norcroft cannot yet
-   initialise from a 64-bit expression. */
-static inline uint64_t asuint64(double f) { union{double _f; uint64_t _i;} u; u._f = f; return u._i; }
-static inline double asdouble(uint64_t i) { union{uint64_t _i; double _f;} u; u._i = i; return u._f; }
+#define asuint64(f) ((union{double _f; uint64_t _i;}){f})._i
+#define asdouble(i) ((union{uint64_t _i; double _f;}){i})._f
 
 #define EXTRACT_WORDS(hi,lo,d)                    \
 do {                                              \

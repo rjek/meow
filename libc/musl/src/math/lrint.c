@@ -26,7 +26,7 @@ otherwise LONG_MAX and LONG_MIN can be represented exactly
 as a double.
 */
 
-#if LONG_MAX == 0x7fffffffL && defined(FE_INEXACT) /* MEOW: 1U<<53 is beyond Norcroft's #if */
+#if LONG_MAX < 1U<<53 && defined(FE_INEXACT)
 #include <float.h>
 #include <stdint.h>
 #if FLT_EVAL_METHOD==0 || FLT_EVAL_METHOD==1

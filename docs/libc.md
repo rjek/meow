@@ -20,18 +20,18 @@ The few changes made to them are listed at the end.
 
 ```
 make -C libc                            # needs nmcc at ../norcroft-ng/bin
-nmcc -std=c99 -Jlibc/pdclib/include -Ilibc/meow/include -c hello.c
+nmcc -std=c99 -Ilibc/pdclib/include -Ilibc/meow/include -c hello.c
 mld -f bin -d 0x08000000 -o hello.bin rt/crt0.o rt/mul.o rt/div.o rt/ll.o rt/softfp.o hello.o libc/libc.a
 simulator/msim -q -r hello.bin
 ```
 
-Three things about that command line:
+Two things about that command line:
 
 - `-std=c99` or later.  PDCLib is C99 and the compiler's default is C90.
-- `-J`, not `-I`, for PDCLib's headers.  `nmcc` has the RISC OS C headers
-  compiled into it and consults them before any `-I` directory; `-J`
-  replaces them.  `-I` is right for the MEOW headers, which add
-  `<float.h>`, `<signal.h>`, `<fenv.h>` and the internal configuration.
+- Both `-I` directories.  `nmcc` has the RISC OS C headers compiled into
+  it, but searches `-I` directories first, so PDCLib's win.  The MEOW
+  directory adds `<float.h>`, `<signal.h>`, `<fenv.h>` and the internal
+  configuration.
 - Neither `rt/msim.o` nor `rt/exit.o`: the library has its own `putchar`,
   `puts` and `exit`.  `exit` runs the `atexit` handlers and flushes the
   streams before halting; the runtime's does not.
@@ -94,13 +94,7 @@ PDCLib:
 
 musl:
 
-- `src/internal/libm.h`: `asuint64` and `asdouble` are `static inline`
-  functions instead of compound literals.  Norcroft cannot yet initialise
-  a compound literal from a 64-bit expression.
-- `src/math/lrint.c`: the test `LONG_MAX < 1U<<53` is written as
-  `LONG_MAX == 0x7fffffffL`.  Norcroft's preprocessor evaluates `#if` in
-  32 bits.
-- Everything else musl assumes from its own headers, `hidden`,
+- Nothing.  Everything musl assumes from its own headers, `hidden`,
   `weak_alias`, the `M_PI` family, `<endian.h>`, `<fenv.h>`, `fp_arch.h`
   and `a_clz_64`, comes from `libc/meow/musl/` and the compiler options
   in `libc/Makefile`.  The two `weak_alias` uses that matter, `lgamma_r`
@@ -117,5 +111,4 @@ musl:
 - `scanf` has no floating conversions: `%f` and friends are accepted and
   read nothing.  That is PDCLib as it stands; `strtod` on a line read
   with `fgets` does the job.
-- The `-J` and `-std=c99` requirements above.  When `nmcc` gains a way to
-  name a header directory as its default, they can go.
+- The `-std=c99` requirement above.

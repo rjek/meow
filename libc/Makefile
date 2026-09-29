@@ -6,8 +6,7 @@ MAS = ../as/mas
 AR = ar
 # TZ_MAX_TIMES sizes the time zone tables: 2000 transitions is 15 KB each
 CFLAGS = -std=c99 -c -DTZ_MAX_TIMES=200
-# -J replaces the headers compiled into nmcc (the ROOL ones) with PDCLib's
-INC = -Jpdclib/include -Imeow/include
+INC = -Ipdclib/include -Imeow/include
 # musl's linkage attributes mean nothing here; its two weak aliases are
 # done by hand in meow/functions/lgamma_r.c
 MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
