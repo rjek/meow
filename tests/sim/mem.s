@@ -28,6 +28,22 @@ start   LDR     r4, =0x08000000
         STRHH   r0, [r4]
         LDR     r1, [r4]
         PUTX    r1
+        MOV     r6, sp                  ; words at an offset from sp
+        MOV     sp, r4
+        STR     r0, [sp, #8]
+        LDR     r1, [sp, #8]
+        PUTX    r1
+        ADD     r4, #8
+        LDR     r1, [r4]
+        PUTX    r1
+        LDR     r1, =0x11223344
+        STR     r1, [sp, #124]
+        SUB     r4, #8
+        ADD     r4, #124
+        LDR     r1, [r4]
+        PUTX    r1
+        SUB     r4, #124
+        MOV     sp, r6
         LDR     sp, =0x08000100
         MOV     r0, #1
         MOV     r1, #2

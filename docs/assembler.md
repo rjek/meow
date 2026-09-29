@@ -199,6 +199,7 @@ must be within 2 KB of every `LDR =` that uses it, so long code needs an
 | `[Ra], #n` | Post-increment by the access size |
 | `[Ra], #-n` | Post-decrement by the access size |
 | `[Ra, #-n]!` | Pre-decrement by the access size |
+| `LDR`, `STR Rv, [sp, #n]` | Word at an offset from `sp`, `n` a multiple of 4 up to 124 |
 | `PUSH {list}` | `STR r, [sp, #-4]!` for each register, highest first, so the lowest register ends at the lowest address |
 | `POP {list}` | `LDR r, [sp], #4` for each register, lowest first.  `POP {pc}` returns |
 

@@ -123,6 +123,11 @@ size_t meow_disasm(uint16_t w, uint32_t pc, char *buf, size_t len)
 			     meow_reg_name(MEOW_ADDSR_RD(w)),
 			     meow_reg_name(MEOW_ADDSR_RS(w)));
 		break;
+	case MEOW_ENC_SPMEM:
+		n = snprintf(buf, len, "%s %s, [sp, #%u]",
+			     MEOW_SPMEM_STORE(w) != 0 ? "STR" : "LDR",
+			     meow_reg_name(MEOW_SPMEM_RV(w)), 4 * MEOW_SPMEM_IMM(w));
+		break;
 	case MEOW_ENC_BITR:
 		m = bit_mnemonic(MEOW_BITR_OP(w), MEOW_BITR_INV(w));
 		if (m == NULL) {

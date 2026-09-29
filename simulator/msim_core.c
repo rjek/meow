@@ -523,6 +523,20 @@ void msim_execute(struct msim_ctx *ctx, u_int16_t w)
 		add_flags(ctx, MEOW_ADDSR_RD(w), MEOW_ADDSR_SUB(w),
 			  ctx->r[MEOW_ADDSR_RS(w)]);
 		break;
+	case MEOW_ENC_SPMEM: {
+		u_int32_t addr = ctx->r[MSIM_SP] + 4 * MEOW_SPMEM_IMM(w);
+		unsigned rv = MEOW_SPMEM_RV(w);
+
+		if (MEOW_SPMEM_STORE(w) != 0) {
+			msim_memset(ctx, addr, MSIM_ACCESS_WORD, ctx->r[rv]);
+		} else {
+			ctx->r[rv] = msim_memget(ctx, addr, MSIM_ACCESS_WORD);
+			if (rv == MSIM_PC) {
+				ctx->nopcincrement = true;
+			}
+		}
+		break;
+	}
 	case MEOW_ENC_BITR:
 		bitop(ctx, w, MEOW_BITR_RD(w), MEOW_BITR_OP(w),
 		      MEOW_BITR_INV(w), ctx->r[MEOW_BITR_RS(w)]);

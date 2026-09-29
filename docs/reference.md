@@ -144,7 +144,7 @@ Summary:
 | 010 | SUB | Subtraction |
 | 011 | CMP, TST | Compare and test, setting flags |
 | 100 | MOV, LDI | Register move with swaps; load immediate |
-| 101 | LSL, LSR, ASR, ROL, ROR, ADDS, SUBS | Shifts and rotates; add and subtract setting the flags |
+| 101 | LSL, LSR, ASR, ROL, ROR, ADDS, SUBS, LDR, STR | Shifts and rotates; add and subtract setting the flags; stack words |
 | 110 | MVN, AND, ORR, EOR, BIC, ORN, EON | Bitwise operations |
 | 111 | LDR, STR | Memory access |
 
@@ -565,7 +565,7 @@ The two option bits of the logical form select the operation:
 
 `ASR`, the arithmetic shift right, has its own encodings with bit 12 set;
 the rest of that space holds `ADDS` and `SUBS` (section 2.9) and the
-encodings `1011 rrrr 01xx xxxx` are reserved.
+stack-relative `LDR` and `STR` (section 2.11).
 
 `ASL` is accepted by the assembler as another name for `LSL`.  The shift
 amount is 0 to 31, either a 5-bit immediate or the low five bits of `Rs`;
@@ -760,6 +760,34 @@ word from two halfwords.
 
 Using the same register as `Rv` and `Ra` with writeback enabled is
 UNPREDICTABLE.  Loading `pc` continues execution at the loaded address.
+
+A word on the stack has its own form with an offset, the one case where
+the address is not a register:
+
+<!-- isa:SPMEM -->
+```
+ 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1| 0| 1| 1|    rv     | 0| 1| L|     imm      |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+| Bits | Field | Meaning |
+|---|---|---|
+| 11:8 | rv | Value register |
+| 5 (L) | store | 1 stores, 0 loads |
+| 4:0 | imm | Word offset from sp |
+
+Syntax:
+
+```
+LDR|STR Rv, [sp, #imm]
+```
+<!-- /isa -->
+
+The offset is a word count, so `LDR Rv, [sp, #n]` reaches the 32 words
+from `sp` to `sp + 124`; `n` must be a multiple of 4.  Only words: a
+byte or halfword on the stack is addressed through a register as usual.
 
 ## 3. BNV extension space
 

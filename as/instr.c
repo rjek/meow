@@ -89,12 +89,19 @@ static bool parse_mem(struct lexer *lx, struct operand *op)
 	op->kind = OP_MEM;
 	op->wb = 0;
 	if (lex_accept_punct(lx, ',') == true) {
-		/* [ra, #-n]! */
+		/* [ra, #-n]! or [sp, #n] */
 		if (lex_expect_punct(lx, '#') == false ||
 		    expr_eval_abs(expr_parse(lx), NULL, true, &op->disp) == false ||
-		    lex_expect_punct(lx, ']') == false ||
-		    lex_expect_punct(lx, '!') == false) {
+		    lex_expect_punct(lx, ']') == false) {
 			return false;
+		}
+		if (lex_accept_punct(lx, '!') == false) {
+			if (op->reg != MEOW_SP || op->alt == true) {
+				error_at(&l, "an offset without writeback is only from sp");
+				return false;
+			}
+			op->wb = 4;
+			return true;
 		}
 		if (op->disp >= 0) {
 			error_at(&l, "pre-indexed form must decrement");
@@ -411,6 +418,18 @@ static int p_mem(const struct mnemonic *mn, struct lexer *lx,
 		int64_t d = in->ops[1].disp < 0 ? -in->ops[1].disp
 						: in->ops[1].disp;
 
+		if (in->ops[1].wb == 4) {
+			if (size != 4) {
+				error_at(&l, "only a word can be accessed at an offset from sp");
+				return 0;
+			}
+			if (in->ops[1].disp < 0 || in->ops[1].disp > 124 ||
+			    (in->ops[1].disp & 3) != 0) {
+				error_at(&l, "offset from sp must be a multiple of 4 up to 124");
+				return 0;
+			}
+			return 1;
+		}
 		if (in->ops[1].wb != 0 && d != size) {
 			error_at(&l, "writeback must be by the access size (%u)",
 				 size);
@@ -1080,6 +1099,11 @@ static bool enc_memop(struct words *ws, struct item *it, struct instr *in,
 {
 	(void)it;
 	(void)report;
+	if (in->ops[1].wb == 4) {
+		put(ws, MEOW_ENCODE_SPMEM(in->ops[0].reg, (in->flags & F_STORE) != 0,
+					  (unsigned)in->ops[1].disp / 4));
+		return true;
+	}
 	enc_mem(ws, in->flags, in->ops[0].reg, in->ops[1].reg, in->ops[1].wb);
 	return true;
 }

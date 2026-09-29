@@ -138,6 +138,14 @@ field r rs   reg   Source register
 syntax ADDS|SUBS Rd, Rs
 end
 
+enc SPMEM
+bits  1011 vvvv 01Lo oooo
+field v rv   reg   Value register
+field L store flag  1 stores, 0 loads
+field o imm  uimm  Word offset from sp
+syntax LDR|STR Rv, [sp, #imm]
+end
+
 enc BITR
 bits  110n dddd oo00 ssss
 field n inv  flag  Invert the operand before the operation
