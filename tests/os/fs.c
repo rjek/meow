@@ -1,5 +1,6 @@
 /* Stage 5: pipes, ramfs, dup2, the working directory. */
 #include "kernel.h"
+#include "memfs.h"
 
 static int fds[2];
 
@@ -41,6 +42,7 @@ void init_main(void)
     char buf[64], cwd[PATH_MAX];
     int fd, n, total = 0, lines = 0, saved;
 
+    start_memfs();
     kprintf("pipe: %d\n", vfs_pipe(fds));
     thread_create("writer", writer, NULL, 3, STACK_DEFAULT);
     while ((n = vfs_read(fds[0], buf, sizeof buf)) > 0) {

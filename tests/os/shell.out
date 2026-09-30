@@ -3,6 +3,7 @@ $ hello world
 $ quoted  words and more
 $ $       28 config
       39 motd
+     145 rc
 $ Catflap, an operating system for MEOW.
 $ 3 8 67
 $ 1 3 14
@@ -21,17 +22,18 @@ $      dev console
 $          bin/
          etc/
          dev/
-         tmp/
          proc/
          ipc/
          host/
+         tmp/
 $ $ $ /dev
 $ $ /tmp
-$ $ [20]
+$ $ [21]
 $   pid parent threads name
-   21      1       1 ps
-   20      1       1 sleep
-    1      0       1 sh
+   22      2       1 ps
+   21      2       1 sleep
+    2      0       1 sh
+    1      0       1 memfs
     0     -1       1 kernel
 $ 1 1 2
 $ $ mkdir: /tmp/a: error 17
@@ -44,31 +46,32 @@ $ Catflap 0.7 MEOW msim
 $ 0.7 MEOW
 $ romfs on /
 devfs on /dev
-ramfs on /tmp
 procfs on /proc
 ipcfs on /ipc
 hostfs on /host
+memfs on /tmp
 $        0 meminfo
        0 uptime
        0 mounts
        0 version
          self/
-         35/
-         20/
+         36/
+         21/
+         2/
          1/
          0/
 $ cat /proc/self/cmdline
-$ name sh
+$ name memfs
 pid 1
 parent 0
 threads 1
 state running
 cwd /
-code 2516 rom
-data 5548
-heap 0
-$ 39 running 4 4096
-$ $ [40]
+code 1576 rom
+data 9256
+heap 32768
+$ 40 running 4 4096
+$ $ [41]
 $ $ kept by a program
 $ /mnt:
       18 note
@@ -76,21 +79,21 @@ $ /mnt:
          bin/
          etc/
          dev/
-         tmp/
          proc/
          ipc/
          host/
+         tmp/
          mnt/
 $ romfs on /
 devfs on /dev
-ramfs on /tmp
 procfs on /proc
 ipcfs on /ipc
 hostfs on /host
-user on /mnt
-$ $ ls: /mnt: error 2
-sh: ls: exit 1
-[40] done, exit 137
+memfs on /tmp
+memfs on /mnt
+$ kill: 40: error 3
+sh: kill: exit 1
+$       18 note
 $ done
 $ sh exited 4
 exit 0

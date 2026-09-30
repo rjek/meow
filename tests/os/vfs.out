@@ -1,7 +1,7 @@
 Catflap: 256 KB RAM
 console is fd 3
-/: bin/ etc/ dev/ tmp/ proc/ ipc/ host/
-/etc: config motd
+/: bin/ etc/ dev/ proc/ ipc/ host/
+/etc: config motd rc
 /dev: console null
 /nowhere: error -2
 Catflap, an operating system for MEOW.

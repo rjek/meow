@@ -1,6 +1,7 @@
 /* Programs run in place from ROM, and copied from elsewhere: from
    /host, and from a copy in /tmp of the prelinked file in ROM. */
 #include "kernel.h"
+#include "memfs.h"
 
 static int run(char *path, char *arg)
 {
@@ -34,6 +35,7 @@ void init_main(void)
 {
     unsigned before;
 
+    start_memfs();
     run("/bin/libctest", "rom");
     run("/host/bin/libctest", "host");
     copy("/bin/libctest", "/tmp/libctest");

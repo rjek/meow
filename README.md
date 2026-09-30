@@ -145,7 +145,7 @@ every number.
 ## Catflap
 
 `os/` is Catflap, an operating system for MEOW: preemptive threads,
-processes, pipes, message queues and semaphores, romfs, ramfs, devfs,
+processes, pipes, message queues and semaphores, romfs, devfs,
 `/proc` and the host's files at `/host`, device drivers and file
 systems that are ordinary programs, a shell and its tools, and Lua, all
 calling one copy of the C library in a 360 KB ROM of which the kernel
@@ -175,7 +175,9 @@ sh: ls: exit 1
 ```
 
 `memfs` there is a file system in a program: it makes a port, mounts
-itself, and answers the kernel's requests until it is killed.
+itself, and answers the kernel's requests until it is killed.  `/tmp`
+is the same program, started by `init` from `/etc/rc` at boot, which
+is where servers a machine wants are listed.
 
 `docs/catflap.md` describes it and `docs/rom-size.md` says where the
 ROM's bytes go.

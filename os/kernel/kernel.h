@@ -271,7 +271,6 @@ void pipe_end_closed(struct vnode *v, int flags);
 /* romfs.c, devfs.c */
 struct vnode *romfs_init(const void *image);
 struct vnode *devfs_init(void);
-struct vnode *ramfs_init(void);
 struct vnode *hostfs_init(void);
 struct vnode *procfs_init(void);
 struct vnode *ipcfs_init(void);

@@ -255,3 +255,6 @@ A shell, sixteen tools, four file systems, pipes, IPC, `/proc`, and a
 complete C library at 104 KB, on a compiler that spends 1.46 bytes for
 every one Thumb spends.  The instruction set changes above would bring
 it to about 75 KB.
+
+`ramfs` has since left the kernel too: `/tmp` is the `memfs` server,
+started by `init` from `/etc/rc`.  103 KB.

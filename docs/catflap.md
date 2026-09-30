@@ -52,7 +52,7 @@ Everything below follows from these.
   |  system calls: the kernel's functions, called by address         |
   +-----------------------------------------------------------------+
   |  VFS: vnodes, mounts, fds, pipes    |  process: image, heap,    |
-  |  romfs  devfs  ramfs  hostfs  ports |  fds, threads, exit, kill  |
+  |  romfs  devfs  hostfs  ports        |  fds, threads, exit, kill  |
   +-------------------------------------+---------------------------+
   |  threads: scheduler, sleep, semaphores, message queues, timers   |
   +-----------------------------------------------------------------+
@@ -339,8 +339,10 @@ priority inheritance: a server runs at its own priority whoever is
 waiting.  Path lookup is a request for each component.  Interrupts are
 not delivered to programs yet, since the only interrupt is the timer's;
 when there is hardware to drive, an interrupt will be one more kind of
-request on a port.  And the file systems in the kernel stay there:
-`ramfs` is 1 KB of ROM, and as a server it would be 10 KB of RAM.
+request on a port.  `ramfs` was kept in the kernel at first, 1 KB of
+ROM against the 10 KB of RAM a server costs, and then made a server
+after all: `/etc/rc` starts `memfs /tmp` at boot, and a machine that
+cannot spare the RAM leaves that line out and has no `/tmp`.
 
 The other way to do this was to let a program register its own
 `vnode_ops` and have the kernel call them on the caller's thread, with
@@ -408,8 +410,10 @@ File systems, in the order they are needed:
   and `/etc`.  The kernel finds it after its own image, so programs can
   be linked against the kernel and packed without relinking it.
 - **devfs.**  `/dev`: the driver table presented as a directory.
-- **ramfs.**  `/tmp`: files in heap-allocated blocks, for a program's
-  scratch.  Directories are lists.
+- **`/tmp`** is `/bin/memfs`, a file system server (section 6b) that
+  `init` starts from `/etc/rc`.  The kernel's own `ramfs` did the job
+  until section 6b existed; it went, 1.5 KB of ROM, so that the ROM
+  holds nothing a program can provide.
 - **pipes.**  A 256-byte ring with a reader's and a writer's semaphore,
   created by `pipe` and used through the ordinary `read` and `write`.
   The shell's `|`.
@@ -476,7 +480,7 @@ breakdown.
 
 | | Target |
 |---|---|
-| Kernel code | 24 KB, 32 KB with hostfs and ramfs |
+| Kernel code | 24 KB, 30 KB with hostfs |
 | Kernel data and bss | 4 KB |
 | Thread control block | 96 bytes |
 | Default thread stack | 1 KB; a program's main thread 4 KB; interrupt stack 4 KB |
@@ -565,6 +569,11 @@ output compared.
    since nothing in the shell or the tools does.  A binary built later
    links the same archive.  The ROM is 104 KB: 94 KB of kernel and C
    library, 10 KB of programs.  (The opposite, a `const` pointer
+10. **Servers at boot.**  `init` runs `/etc/rc` before the shell: one
+    command a line, `&` to leave one running, and `mounted PATH` to
+    wait for a server to have mounted somewhere.  The default `rc`
+    starts `memfs /tmp`, and the kernel's `ramfs` is gone.  The tests
+    that use `/tmp` start the server the same way.
    in ROM to something also in ROM, as Lua's tables of names are, is
    fine, and the compiler knows not to displace its address.)
 

@@ -94,12 +94,15 @@ int vfs_mount_owned(const char *path, struct vnode *root, const char *type, void
             return -EEXIST;
         }
     }
-    copy = kmalloc(strlen(full) + 1);
+    /* the path and the type in one block, since the server's name that
+       the type is will not outlive the server */
+    copy = kmalloc(strlen(full) + 1 + strlen(type) + 1);
     if (copy == NULL) {
         return -ENOMEM;
     }
     strcpy(copy, full);
-    rc = vfs_mount(copy, root, type);
+    strcpy(copy + strlen(full) + 1, type);
+    rc = vfs_mount(copy, root, copy + strlen(full) + 1);
     if (rc < 0) {
         kfree(copy);
         return rc;

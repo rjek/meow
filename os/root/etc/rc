@@ -1,0 +1,4 @@
+# What init runs at boot: one command a line, & to leave it running.
+# /tmp is a file system server, not the kernel's.
+memfs /tmp &
+mounted /tmp

@@ -479,7 +479,7 @@ int srv_mount(int fd, const char *path, uint32_t root)
         kexit();
         return -ENOMEM;
     }
-    rc = vfs_mount_owned(path, v, "user", pt);
+    rc = vfs_mount_owned(path, v, current_process()->name != NULL ? current_process()->name : "server", pt);
     if (rc < 0) {
         pt->refs--;                     /* not through release: nothing to tell the server */
         kfree(v);

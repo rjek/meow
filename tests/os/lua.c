@@ -1,5 +1,6 @@
 /* Stage 6: Lua as a Catflap program, reading a script from the host. */
 #include "kernel.h"
+#include "memfs.h"
 
 void init_main(void)
 {
@@ -7,6 +8,7 @@ void init_main(void)
     char *script[] = { "lua", "/host/script.lua", "a", "b", NULL };
     int pid, status;
 
+    start_memfs();
     pid = process_spawn("/bin/lua", 3, eval);
     process_wait(pid, &status);
     kprintf("lua -e exited %d\n", status);

@@ -43,7 +43,6 @@ void kmain(void)
     process_init(relocs, nrelocs);
     if (vfs_mount("/", romfs_init(rom), "romfs") < 0 ||
         vfs_mount("/dev", devfs_init(), "devfs") < 0 ||
-        vfs_mount("/tmp", ramfs_init(), "ramfs") < 0 ||
         vfs_mount("/proc", procfs_init(), "procfs") < 0 ||
         vfs_mount("/ipc", ipcfs_init(), "ipcfs") < 0) {
         kpanic("cannot mount");
