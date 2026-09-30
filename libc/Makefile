@@ -4,7 +4,8 @@
 NMCC = ../../norcroft-ng/bin/nmcc
 MAS = ../as/mas
 AR = ar
-CFLAGS = -std=c99 -c
+# NDEBUG: the library's own assertions, and their text, stay out of a release build
+CFLAGS = -std=c99 -c -DNDEBUG
 INC = -Ipdclib/include -Imeow/include
 
 include sources.mk

@@ -39,6 +39,10 @@ built.  `libc/sources.mk`, which both builds include, leaves out:
   functions that are not C: the Bessel functions, `exp10`, `scalb`,
   `significand`, `sincos`, `finite`.
 
+Both builds define `NDEBUG`, so PDCLib's own assertions, a dozen in the
+big integer division, `strftime` and `atexit`, and the text they would
+print, are left out; a program's own `assert` is its own business.
+
 Every function of C99's `<math.h>` and `<time.h>` is still there, and
 `atof`, which PDCLib declares and does not define, is there now.
 

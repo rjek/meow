@@ -26,7 +26,7 @@ KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o
 # objects.  The flags are libc/Makefile's.
 LIBC = ../libc
 include $(LIBC)/sources.mk
-LIBC_CFLAGS = -zsb -std=c99 -c -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
+LIBC_CFLAGS = -zsb -std=c99 -c -DNDEBUG -I$(LIBC)/pdclib/include -I$(LIBC)/meow/include -Iinclude
 CATFLAP_SRCS := $(filter-out $(LIBC)/catflap/functions/lgamma_r.c,$(wildcard $(LIBC)/catflap/functions/*.c))
 CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
 LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(BASE_SRCS) $(CATFLAP_SRCS)) \
