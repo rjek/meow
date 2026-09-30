@@ -166,6 +166,25 @@ Recorded so that the measurements are not lost; none is decided.
     that list: the instruction set is not to change for the operating
     system's sake until the system has been run and measured as it is.
 
+17. **`BL`, and `PUSH` and `POP` with a register list.**  Measured on
+    the 103 KB ROM of September 2026, once calls had become the
+    eight-byte inline-word form: 1,525 calls cost 11.3 KB, and 1,890
+    push and 1,634 pop halfwords sit in 921 runs.  A two-halfword `BL`
+    as Thumb does it, prefix `1011 hhhh 1hhh hhhh` setting `lr = pc +
+    (simm11 << 11)` and suffix `0111 llll 11ll llll` doing `pc = lr +
+    (uimm10 << 1)` with `lr` left at the return address, reaches ±2 MB
+    and saves about 6 KB; a one-halfword `BL` with an 11-bit offset
+    reaches a quarter of the calls and saves 2 KB.  `PUSH` as `0111
+    aaal 01vv vvvv` (argument registers `r0` to `r(aaa-1)`, `lr` if
+    `l`, then `r9` to `r4` by mask) and `POP` as `0111 aaap 11vv vvvv`
+    (the mask, then `lr` or `pc`, then `sp += 4*aaa`) match the
+    compiler's prologue and epilogue as they are and save about 5 KB;
+    in hardware they are a sequencer over the mask on the writeback
+    load and store path, as ARM7's `LDM` and `STM` were.  Together 11%
+    of the ROM.  Shelved: recorded so that the encodings and the
+    figures are not lost, and not to be done before the system is
+    measured on hardware, which is the next thing.
+
 ## Toolchain
 
 - **Binary formats.**  Flat binary and ELF32 little-endian with a private
