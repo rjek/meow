@@ -793,7 +793,7 @@ The remaining words of an entry are reserved.
 | 0 | ROM |
 | 1 | RAM |
 | 2 | Chairman, this specification |
-| 3 | IOC (not yet specified) |
+| 3 | IOC, section 6 |
 
 ### 5.2 Interrupts
 
@@ -822,3 +822,131 @@ The flags register has bit 0 set when a fresh byte is waiting.  Reading the
 input register returns the most recent byte and clears the fresh bit.
 Writing a byte to the output register sends it.  There is no interrupt for
 the console; poll the flags.
+
+## 6. IOC input/output controller
+
+The IOC is what a MEOW system has besides memory and the Chairman: the
+serial ports, a bus for storage, some pins and a clock.  It is vendor 0
+device 3 in the chip-select table, at whichever chip select the table
+says; a system need not have one, and one that has one need not have
+every part of it, since the identification register says what is
+there.  As with the Chairman, every register is 32 bits wide and is
+accessed with word loads and stores at word-aligned addresses; bits
+described as reserved read as zero and ignore writes.  Offsets below are
+from the IOC's chip select base.  The parts are 256 bytes apart so that
+a second instance of any of them can follow the first.
+
+| Offset | Part |
+|---|---|
+| 0x0000 | Identification and clock |
+| 0x0100 | UART 0, the console |
+| 0x0200 | UART 1 |
+| 0x0300 | SPI master |
+| 0x0400 | GPIO |
+| 0x0500 | Real-time clock and counter |
+| 0x0f00 | System control |
+
+Its interrupts are Chairman sources 0 to 7, leaving 8 to 30 for other
+devices and 31 for the timer:
+
+| Source | Raised when |
+|---|---|
+| 0 | UART 0 has received data, or has room to send, as its enables say |
+| 1 | UART 1, likewise |
+| 2 | An SPI transfer has completed |
+| 3 | A GPIO line changed as its enables say |
+| 4 | The real-time clock reached its alarm |
+| 5 to 7 | Reserved |
+
+Every source is cleared where it is raised, in the part's own status
+register, as well as in the Chairman's pending register.
+
+### 6.1 Identification and clock
+
+| Offset | Access | Register |
+|---|---|---|
+| 0x0000 | R | Identification: bits 7:0 the IOC revision, bits 15:8 the number of UARTs (0 to 2), bits 23:16 the number of GPIO lines (0 to 32), bit 24 set if the SPI master is present, bit 25 set if the real-time clock is present, bits 31:26 reserved |
+| 0x0004 | R | Clock frequency in Hz: the clock the UART baud rate divisors, the SPI divisor and the counter run from |
+
+### 6.2 UARTs
+
+UART `n` is at `0x0100 + 0x100 * n`.  Each has a receive FIFO and a
+transmit FIFO of at least 16 bytes; the status register says how deep
+they are, so software need not assume.
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | R | Status: bit 0 receive data waiting, bit 1 room to transmit, bit 2 transmitter idle, bit 3 receive overrun since last cleared, bit 4 framing error since last cleared, bits 15:8 bytes waiting in the receive FIFO, bits 23:16 the FIFO depth, bits 31:24 reserved |
+| +0x04 | RW | Data: a read takes the next received byte in bits 7:0 (undefined if none is waiting); a write queues bits 7:0 to send (dropped if there is no room) |
+| +0x08 | RW | Baud rate divisor: the bit rate is the clock frequency divided by 16 and by the divisor plus one |
+| +0x0c | RW | Interrupt enable: bit 0 raise the UART's source while data is waiting, bit 1 raise it while there is room to transmit |
+| +0x10 | W | Clear: writing a word with bit 3 or bit 4 set clears that error bit in the status register |
+
+The format is 8 data bits, no parity, one stop bit; the divisor is 0 at
+reset and the interrupt enables are 0.  The UART's interrupt source is
+raised while either enabled condition holds, so a handler that takes
+all the data or fills the transmitter clears it by that alone, and
+should disable the transmit interrupt when it has nothing more to send.
+
+UART 0 is the console: a system with an IOC delivers the Chairman's
+serial console (section 5.4) through it, and the Chairman's serial
+registers are then not present.
+
+### 6.3 SPI master
+
+One byte at a time, which is enough for an SD card in SPI mode; the
+divisor sets the clock, and the chip select is a bit software drives,
+so a transaction of any length is a matter of holding it.
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | RW | Control: bit 0 enable, bit 1 clock polarity (CPOL), bit 2 clock phase (CPHA), bit 3 assert chip select (active low on the pin), bits 15:8 clock divisor: the SPI clock is the clock frequency divided by 2 and by the divisor plus one, bit 16 raise the interrupt source on completion, others reserved |
+| +0x04 | RW | Data: a write starts sending bits 7:0 while receiving a byte; a read gives the byte received by the last transfer |
+| +0x08 | R | Status: bit 0 busy, bit 1 a transfer has completed since the status was last read, which reading clears |
+
+Writing the data register while busy is ignored.  A second SPI master,
+if a system wants one, is at 0x0380 with the same layout.
+
+### 6.4 GPIO
+
+Up to 32 lines; the identification register says how many, counting
+from line 0.  A line is an input unless its direction bit is set.
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | RW | Direction: 1 for output |
+| +0x04 | RW | Output: the value driven on output lines; a read gives what was written |
+| +0x08 | R | Input: the level on every line, outputs included |
+| +0x0c | W | Set: 1 bits set output bits |
+| +0x10 | W | Clear: 1 bits clear output bits |
+| +0x14 | RW | Interrupt on rise: 1 bits raise the GPIO source when that line goes high |
+| +0x18 | RW | Interrupt on fall: likewise when it goes low |
+| +0x1c | RW | Interrupt pending: which lines have raised it; writing a word clears the bits set in it |
+
+The GPIO source is raised while any pending bit is set.
+
+### 6.5 Real-time clock and counter
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | RW | Seconds: counts up once a second from whatever was last written.  Seconds since 1970 by convention |
+| +0x04 | RW | Alarm: when the seconds register reaches this value the clock's interrupt source is raised |
+| +0x08 | R | Counter: a free-running count at the clock frequency, wrapping at 2^32 |
+| +0x0c | RW | Status: bit 0 the alarm has been reached, cleared by writing a word with bit 0 set; bit 1 the seconds register was not kept while power was off and holds 0 |
+
+The seconds register is what `time()` reads and what the operating
+system's `settime` writes; a system with battery-backed time keeps it
+across power, and says so by leaving status bit 1 clear.  The counter
+gives clocks and delays a resolution the timer's tick does not.
+
+### 6.6 System control
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | W | Halt: writing 1 stops the CPU clock until an interrupt that is enabled in the Chairman arrives; writing 2 stops it for good, which is what a program that has finished does |
+| +0x04 | W | Reset: writing 0x4d454f57 resets the system as power-on does |
+| +0x08 | RW | LEDs: a bit per indicator the board has, for whatever the software means by them |
+
+`BNV #-2`, which halts the simulator, has no effect on hardware; the
+operating system halts through this register when it finds an IOC and
+loops otherwise.
