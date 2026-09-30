@@ -232,3 +232,26 @@ the instruction set changes in the section above are worth a quarter of
 the ROM, as before, and would bring it to about 135 KB, which is the
 size of RISC OS 2's kernel module alone.  Against a 512 KB budget the
 default ROM now leaves 330 KB, enough for Lua and a good deal else.
+
+## Reassessed again: 104 KB
+
+Two more cuts, neither losing a function.  The test programs are built
+for the tests and left out of the ROM.  And `<math.h>` is no longer in
+the ROM at all: it is `os/obj/libm.a`, an archive each program links
+what it calls from, exactly as a program built later would.  The ROM
+keeps only the five maths functions its own `strtod` needs and the
+classification functions behind the macros.  What is left:
+
+| Part | Bytes |
+|---|---|
+| kernel | 27 K |
+| PDCLib: stdio, stdlib, string, time, ctype, and the exact printf, scanf and strtod | 38 K |
+| soft float and 64-bit runtime | 11 K |
+| platform layer, malloc, UTC time, and what strtod needs of the maths | 10 K |
+| data image, relocation list, romfs metadata | 8 K |
+| programs: sh, ls, cat, ps, free, mount, uname, mkdir, rm, wc, sleep, uptime, kill, memfs, init, echo | 10 K |
+
+A shell, sixteen tools, four file systems, pipes, IPC, `/proc`, and a
+complete C library at 104 KB, on a compiler that spends 1.46 bytes for
+every one Thumb spends.  The instruction set changes above would bring
+it to about 75 KB.

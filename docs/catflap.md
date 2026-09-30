@@ -558,7 +558,13 @@ output compared.
    corrupts the kernel.  And a `const` object holding the address of
    writable data, `int *const p = &x;`, sits in ROM with the linked
    address in it and so points at the wrong place; nothing in the
-   library or the programs does this.  (The opposite, a `const` pointer
+   library or the programs does this.
+9. **A smaller ROM.**  Lua is an option, `make WITH_LUA=1`; the test
+   programs are built for the tests but not put in the ROM; and
+   `<math.h>` is `os/obj/libm.a`, linked into the programs that call it,
+   since nothing in the shell or the tools does.  A binary built later
+   links the same archive.  The ROM is 104 KB: 94 KB of kernel and C
+   library, 10 KB of programs.  (The opposite, a `const` pointer
    in ROM to something also in ROM, as Lua's tables of names are, is
    fine, and the compiler knows not to displace its address.)
 

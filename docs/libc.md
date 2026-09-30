@@ -42,6 +42,14 @@ built.  `libc/sources.mk`, which both builds include, leaves out:
 Every function of C99's `<math.h>` and `<time.h>` is still there, and
 `atof`, which PDCLib declares and does not define, is there now.
 
+For Catflap, `<math.h>` is a library of its own: `os/obj/libm.a`,
+compiled like the rest but linked into each program that calls it rather
+than into the ROM, which keeps only what its own code needs of it
+(`fmod`, `scalbn`, `copysign`, `fabs` and the classification functions
+behind the macros).  A program's link names the archive after its
+objects and takes only the functions it calls, which is what a program
+built later does too.  Under `msim`, `libc.a` still holds everything.
+
 ## Building and using it
 
 ```
