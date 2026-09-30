@@ -16,7 +16,8 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/simulator.md](docs/simulator.md) | The `msim` simulator and debugger |
 | [docs/libc.md](docs/libc.md) | The C library: building against it, the platform layer, what was patched |
 | [docs/lua.md](docs/lua.md) | Lua on MEOW: building it, running it, what it took |
-| [docs/catflap.md](docs/catflap.md) | Catflap, a proposed operating system: architecture and plan |
+| [docs/catflap.md](docs/catflap.md) | Catflap, the operating system: architecture, and how it was built |
+| [docs/rom-size.md](docs/rom-size.md) | Where the bytes of the Catflap ROM are, and what would make it smaller |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 
 ## Layout
@@ -118,6 +119,30 @@ Lua 5.4.7  Copyright (C) 1994-2024 Lua.org, PUC-Rio
 
 `docs/lua.md` has the details, and `tests/lua/` runs scripts through it
 and compares with what Lua 5.4 on the host prints.
+
+## Catflap
+
+`os/` is Catflap, an operating system for MEOW: preemptive threads,
+processes, pipes, message queues and semaphores, romfs, ramfs, devfs,
+`/proc` and the host's files at `/host`, a shell and its tools, and
+Lua, all calling one copy of the C library in a 376 KB ROM of which the
+kernel is 23 KB.  `make -C os run` boots it under `msim` with a megabyte
+of RAM and `os/` as `/host`:
+
+```
+$ make -C os run
+Catflap: 1024 KB RAM
+$ ls /bin | wc
+19 38 270
+$ echo "print(2^10)" > /tmp/t.lua
+$ lua /tmp/t.lua
+1024.0
+$ free
+1048576 bytes of RAM, 967520 free
+```
+
+`docs/catflap.md` describes it and `docs/rom-size.md` says where the
+ROM's bytes go.
 
 ## A first program
 

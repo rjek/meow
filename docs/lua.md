@@ -31,22 +31,22 @@ input run with `-i`.
 
 | | |
 |---|---|
-| Code | 284 KB, the C library's included |
-| Read-only data | 22 KB |
-| Data and bss | 18 KB |
-| RAM to start | 64 KB is not enough; a fresh state takes 15 KB of heap |
-| RAM to be useful | 192 KB; `make run` gives 1024 KB |
+| Code | 255 KB, the C library's included |
+| Read-only data | 7 KB |
+| Data and bss | 5 KB |
+| RAM to start | 64 KB; a fresh state takes 15 KB of heap |
+| RAM to be comfortable | 192 KB; `make run` gives 1024 KB |
 | `fib(25)` | 204 million instructions, about 830 per Lua call |
 | The sieve test | 15 million instructions |
 
 Integers are 64 bits and numbers are doubles, both in software, which is
 a good part of the cost.  `LUA_32BITS` in `luaconf.h` makes integers
-The table below was measured before a compiler fix that stopped branch
-islands repeating every pending branch.  That fix took 77 KB out of the
-VM's code and three quarters of its instructions out of dispatch, so
-the absolute figures are stale, but the comparison between the two
-builds is not.
-32-bit and numbers single-precision floats.  Measured with it on:
+32-bit and numbers single-precision floats.  The table below was
+measured with it on, before a compiler fix that stopped branch islands
+repeating every pending branch.  That fix took 77 KB out of the VM's
+code and three quarters of its instructions out of dispatch, so the
+absolute figures are stale, but the comparison between the two builds
+is not.
 
 | | 64-bit | `LUA_32BITS` | |
 |---|---|---|---|
@@ -77,10 +77,27 @@ maths, utf8 and coroutine libraries, `pcall` and error messages with
 tracebacks, `os.time` and `os.clock` (the host's clock and the
 instruction count, through `msim`), `os.date`, `collectgarbage`.
 
-`io.open`, `dofile`, `require` of a file, `os.remove`, `os.rename`,
-`os.getenv` and `os.execute` fail cleanly, because there is no
-filesystem and no shell; `io.read` and `io.write` on the standard
-streams are all the I/O there is.  `os.exit` halts `msim`.
+In `lua.bin`, which runs on the bare machine, `io.open`, `dofile`,
+`require` of a file, `os.remove`, `os.rename`, `os.getenv` and
+`os.execute` fail cleanly, because there is no file system and no shell;
+`io.read` and `io.write` on the standard streams are all the I/O there
+is, and `os.exit` halts `msim`.
+
+## Under Catflap
+
+The same sources are also `/bin/lua` in the Catflap ROM (`os/Makefile`
+builds them again with `-zsb`, and `docs/catflap.md` says why).  There
+Lua takes a script and arguments on its command line, and `io.open`,
+`io.lines`, `dofile` and `require` of a file work on every file system
+the kernel has mounted, the host's at `/host` included.  `os.remove`
+and `os.rename` still fail, since the Catflap platform layer's `remove`
+and `rename` are stubs that answer `EROFS` (the kernel has `vfs_unlink`
+and the `rm` tool calls it; the library does not yet), and so do
+`os.execute` and `os.getenv`: the C library's `system` does not run
+the shell and a process has no environment.  The program is 185 KB of code that runs
+in place from ROM, calling the library already there, and a process
+running it takes 6 KB of data, a 16 KB stack and its heap.
+`tests/os/lua.c` is the test.
 
 ## What it took
 

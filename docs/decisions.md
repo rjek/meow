@@ -135,7 +135,8 @@ Recorded so that the measurements are not lost; none is decided.
     ADD ir, pc ; LDR rd, [ir]`, three instructions where ARM spends one.
     Across the kernel, the C library, Lua and the programs there are
     about 10,000 of these, so a single `LDR rd, [pc, #n]` would save
-    some 40 KB of the 470 KB ROM and the instructions with it.  The
+    some 40 KB of the ROM, 470 KB when this was measured and 376 KB
+    since the C library was slimmed, and the instructions with it.  The
     reserved `1011 rrrr 1xxx xxxx` space has room for a word-scaled
     seven-bit forward offset, reaching 508 bytes, which would make
     literal pools more frequent than today's 2 KB reach allows; the net

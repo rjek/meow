@@ -1,11 +1,11 @@
 # Catflap: an operating system for MEOW
 
-A proposal.  Catflap gives a MEOW microcontroller threads, processes,
-devices and a file system, in C with assembly where the machine demands
-it.  This document says what the hardware allows, what the system looks
-like as a result, and in what order to build it.  `os/` is the
-implementation, stage by stage as section 12 lists, and where this
-document and the code differ the code is what was learnt; `attic/os/`
+Catflap gives a MEOW microcontroller threads, processes, devices and a
+file system, in C with assembly where the machine demands it.  This
+document began as the proposal and says what the hardware allows, what
+the system looks like as a result, and in what order it was built.
+`os/` is the implementation, every stage of section 12 done; where the
+building changed the design the text says what was built.  `attic/os/`
 is the 2007 attempt in assembler and this supersedes it.
 
 ## 1. What the machine dictates
@@ -28,8 +28,8 @@ Five facts about MEOW decide most of the design.
 - **No trap instruction.**  There is nothing a program can execute to
   enter the kernel other than a branch.  Since there is no privilege to
   gain, a system call is a function call; the only question is how a
-  separately linked program finds the kernel, and the answer is a jump
-  table at a fixed address in ROM.
+  separately linked program finds the kernel, and the answer is that
+  it is linked against the kernel's symbols (section 6).
 - **Devices are discovered, not assumed.**  The Chairman's chip-select
   table names every device and its size.  Interrupts are one pending
   word and a mask; the timer is source 31; the console has no interrupt
@@ -44,11 +44,11 @@ Everything below follows from these.
 
 ```
   +-----------------------------------------------------------------+
-  |  programs: init, sh, ls, cat, lua ...   (ELF loaded from romfs)  |
+  |  programs: init, sh, ls, cat, lua ...   (run in place in romfs)  |
   +-----------------------------------------------------------------+
   |  the shared C library: one copy in ROM, static data per process  |
   +-----------------------------------------------------------------+
-  |  system call jump table (ROM, fixed address)                     |
+  |  system calls: the kernel's functions, called by address         |
   +-----------------------------------------------------------------+
   |  VFS: vnodes, mounts, fds, pipes    |  process: image, heap,    |
   |  romfs  devfs  ramfs  hostfs        |  fds, threads, exit        |
@@ -140,14 +140,16 @@ directory, a name, an exit status and one or more threads.  It is
 created by `spawn(path, argv)`, never by `fork`; `exec` is `spawn`
 followed by `exit`.
 
-- **Image format.**  Programs are ELF as `mld` writes it, linked with a
-  new `-r` option that keeps the `ABS32`, `ABS16` and `ABS8` relocations
-  and the section table.  The loader allocates one block for text, data
-  and bss, copies, zeroes, and applies the relocations, which with three
-  types is a hundred lines.  Position-dependent code with load-time
-  relocation beats fixed load addresses, which would make two programs
-  at once impossible, and beats position-independent code, which `nmcc`
-  does not produce.
+- **Image format.**  Programs are `cfx` images, which `mld -f cfx`
+  writes (`docs/linker.md` has the layout): a header, the code, the
+  initialised data, and lists of the words that hold addresses.  The
+  code reaches its data through the process's static base (section 6a),
+  so only the data is per process.  A program in romfs is prelinked for
+  where it sits and runs there; one from any other file system has its
+  code copied to RAM and the listed words moved (section 12, stage 8).
+  Position-dependent code with load-time relocation beats fixed load
+  addresses, which would make two programs at once impossible, and
+  beats position-independent code, which `nmcc` does not produce.
 - **The shared C library.**  A program does not carry its own libc: one
   copy of PDCLib and musl's maths lives in ROM and every process calls
   it, as RISC OS programs call the SharedCLibrary.  The library's
@@ -160,7 +162,7 @@ followed by `exit`.
   closes its files, frees its memory and wakes whoever is waiting in
   `wait`.
 - **The kernel is process 0**, with no image, whose threads are the idle
-  thread and the drivers'.  `init` is process 1, loaded from
+  thread and the drivers'.  `init` is process 1, run from
   `/bin/init` in romfs, and runs a shell on the console.
 
 ## 6. System calls
@@ -224,9 +226,9 @@ same thing relocation offsets.  Programs reach the library as they
 reach the kernel, by absolute address (section 6).
 
 What it costs: three instructions on each static address formation and
-a 19 KB copy of the library's data per process, which is the tables
-that PDCLib keeps (`printf`'s, the locale's, the time zone's) and
-worth shrinking.  What it saves: the 18 KB a trivial program otherwise
+a 5.4 KB copy of the library's data per process.  That was 19 KB at
+first; keeping read-only data in ROM and dropping the time zone code
+took the rest.  What it saves: the 18 KB a trivial program otherwise
 carries, and all of the library that Lua would, per process, in ROM
 and in RAM.  The compiler change is thirty lines in `gen.c`; the
 kernel's is a hundred in `process.c`.
@@ -307,18 +309,18 @@ unless the shell redirected them.  libc's `fopen` maps onto `open`,
   `malloc` on `sbrk`, `setjmp` shared, and the POSIX-flavoured extras
   (`spawn`, `wait`, `mq_*`, `sem_*`, `thread_*`) in a `<catflap.h>`.
   One `libc.a` per platform.
-- **init**: mounts `/dev` and `/tmp`, opens the console, spawns the
-  shell, respawns it if it dies.
-- **sh**: a small shell, commands with arguments, `|`, `<` and `>`,
-  `&`, `cd`, `exit`, and nothing else.
-- **utilities**: `ls`, `cat`, `echo`, `ps`, `free`, `mount`, `uptime`,
-  `kill`.  Each a page of C.
-- **lua**: the interpreter, relinked against the Catflap libc, is the
-  scripting language of the system and a test of it.  Its 270 KB image
-  is copied into RAM to be relocated, which is the largest cost in the
-  system; running programs in place from ROM would need code that does
-  not hold absolute addresses in its literal pools, and is the obvious
-  next saving.
+- **init**: spawns the shell on the console, starts another if it
+  fails, and ends, halting the machine, when it exits cleanly.  The
+  kernel has mounted everything by then.
+- **sh**: a small shell, commands with arguments and quoting, `|`, `<`
+  and `>`, `&`, `cd`, `exit`, and nothing else.
+- **utilities**: `ls`, `cat`, `echo`, `wc`, `mkdir`, `rm`, `ps`, `free`,
+  `mount`, `uname`, `uptime`, `sleep`.  Each a page of C, and 120 to
+  800 bytes in ROM.  There is no `kill`: nothing in the kernel ends
+  another process.
+- **lua**: the stock interpreter, linked against the shared library, is
+  the scripting language of the system and a test of it.  It is 185 KB
+  in romfs and runs there.
 
 ## 10. What is in assembler
 
@@ -329,7 +331,7 @@ As little as possible, and all in one file, `boot.s`:
 - the interrupt vector at 32: save nothing (the bank swap did), call the
   C dispatcher, and the switch path: the sixteen `MOV`s each way and
   `IRQRTN`;
-- the system call table at 64, `DCD` per entry;
+- the space at 64 kept for a system call table, empty (section 6);
 - `IRQRTN`, mask writes and the other things C cannot express, as short
   functions.
 
@@ -340,15 +342,19 @@ behaviour under interrupt is known.
 
 ## 11. Budget
 
+The targets the proposal set.  As built the kernel is 23 KB of code
+with every file system in it, and the ROM 376 KB, of which the C
+library is 145 KB and Lua 185 KB; `docs/rom-size.md` has the breakdown.
+
 | | Target |
 |---|---|
 | Kernel code | 24 KB, 32 KB with hostfs and ramfs |
 | Kernel data and bss | 4 KB |
 | Thread control block | 96 bytes |
-| Default thread stack | 1 KB; interrupt stack 2 KB |
-| Process overhead | 128 bytes plus image plus heap |
+| Default thread stack | 1 KB; a program's main thread 4 KB; interrupt stack 4 KB |
+| Process overhead | 128 bytes plus data plus heap |
 | Context switch | about 60 instructions |
-| System call | 8 instructions on top of the function |
+| System call | a function call |
 | Smallest useful machine | 64 KB RAM: kernel, init, shell, one utility |
 | Comfortable | 256 KB: the above plus Lua |
 
@@ -414,7 +420,8 @@ output compared.
    there, and otherwise, from `/tmp`, `/host`, or romfs built without
    `-b`, it is copied to RAM and its code addresses moved, as before.
    Either way only the data is copied, and a process that runs Lua now
-   costs 17 KB of data and its heap rather than 280 KB, and starts in a
+   costs 17 KB of data (6 KB since the library's shrank) and its heap
+   rather than 280 KB, and starts in a
    quarter of the instructions; `-zsb` made no measurable difference to
    Lua's speed.  `tests/os/xip.c` runs one program from ROM, from
    `/host` and from a copy in `/tmp`.  Two rules follow.  Every object
@@ -429,7 +436,7 @@ output compared.
 
 Taken, for the reasons above: no `fork`; one address space and one
 allocator; one shared C library with data per process; system calls as
-function calls through a ROM table; every context switch from the
+function calls to the kernel's own addresses; every context switch from the
 interrupt bank; a kernel that is never preempted; message queues rather
 than signals; romfs before any writable file system; C everywhere but
 `boot.s`.
