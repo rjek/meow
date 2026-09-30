@@ -8,7 +8,7 @@ CFLAGS = -std=c99 -c
 INC = -Ipdclib/include -Imeow/include
 
 include sources.mk
-MEOW_SRCS := $(wildcard meow/functions/*.c) $(COMMON_SRCS) $(FDLIBM_SRCS)
+MEOW_SRCS := $(wildcard meow/functions/*.c) $(COMMON_SRCS) $(FDLIBM_SRCS) common/mathf.c
 MEOW_ASM := $(wildcard meow/functions/*.s)
 OBJS := $(patsubst %.c,obj/%.o,$(PDCLIB_SRCS) $(MEOW_SRCS) $(MUSL_SRCS)) \
         $(patsubst %.s,obj/%.o,$(MEOW_ASM))

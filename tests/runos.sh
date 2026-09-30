@@ -52,7 +52,7 @@ for src in os/*.c; do
 		p=$(basename "$prog"); p=${p%.[oa]}
 		stack=0
 		[ "$p" = lua ] && stack=16384
-		if ! $MLD -f cfx -d __user_data_base -k $stack -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" 2>"$tmp.err"; then
+		if ! $MLD -f cfx -d __user_data_base -k $stack -S "$tmp.elf" -o "$tmp.root/bin/$p" "$OS/obj/lib/crt0.o" "$prog" "$OS/obj/libm.a" 2>"$tmp.err"; then
 			echo "FAIL $src: cannot link program $p"
 			cat "$tmp.err"
 			break

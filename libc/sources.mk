@@ -34,5 +34,18 @@ MUSL_SRCS := $(filter-out $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MUSL_D
                           $(filter-out %f.c,$(wildcard $(P)musl/src/math/*.c))) \
              $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MUSL_KEEP_F))) \
              $(P)musl/src/internal/floatscan.c
-COMMON_SRCS := $(wildcard $(P)common/*.c)
+COMMON_SRCS := $(filter-out $(P)common/mathf.c,$(wildcard $(P)common/*.c))
 FDLIBM_SRCS := $(wildcard $(P)fdlibm/*.c)
+
+# <math.h> is a library of its own, libm, that a program links what it
+# needs from: Catflap's ROM does not carry it.  What the base itself
+# needs stays with it: fmod, scalbn and copysign for floatscan, fabs and
+# the classification functions behind the macros of <math.h>.
+MATH_BASE := fmod fmodl scalbn scalbnl copysign copysignl
+MATH_SRCS := $(filter-out $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MATH_BASE))) \
+                          $(P)musl/src/internal/floatscan.c,$(MUSL_SRCS)) \
+             $(addprefix $(P)pdclib/functions/math/,fdim.c fmax.c fmin.c) \
+             $(FDLIBM_SRCS) $(P)common/mathf.c
+BASE_SRCS := $(filter-out $(MATH_SRCS) $(addprefix $(P)pdclib/functions/math/,fdim.c fmax.c fmin.c), \
+                          $(PDCLIB_SRCS) $(MUSL_SRCS)) \
+             $(COMMON_SRCS)

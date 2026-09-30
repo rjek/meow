@@ -65,7 +65,7 @@ threads 1
 state running
 cwd /
 code 2516 rom
-data 5688
+data 5548
 heap 0
 $ 39 running 4 4096
 $ $ [40]
