@@ -195,7 +195,10 @@ hardware designer would add first: it is what makes a 16-bit
 instruction set usable for C, and its absence is why a fifth of every
 program is call sequences.  The PC-relative load was worth 25 to 35 KB
 when calls fetched their addresses from pools; now that they do not, it
-is the least of the five.
+is the least of the five.  (Measured again on the 103 KB ROM, after calls became the eight-byte
+inline-word form and Lua and the maths left, `BL` is worth 6 KB and
+`PUSH`/`POP` 5 KB: `decisions.md` item 17 has the encodings and the
+figures, and they are shelved until the system has run on hardware.)
 
 ## What is left, in order
 
