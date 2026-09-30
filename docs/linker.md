@@ -1,7 +1,7 @@
 # mld: the MEOW linker
 
-`mld` combines ELF32 relocatable objects produced by `mas -f elf` into an
-executable or a flat image.
+`mld` combines ELF32 relocatable objects, which `mas -f elf` and
+`nmcc -c` write, into an executable, a flat image or a Catflap program.
 
 ```
 mld [-o output] [-f elf|bin|cfx] [-b base] [-d base] [-M map] [-e symbol]

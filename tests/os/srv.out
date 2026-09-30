@@ -1,0 +1,22 @@
+Catflap: 256 KB RAM
+write 5, read 5 'hello'
+poll empty: in 0, out 104; full: in 101; three ticks: 0; until written: 101
+a read that waited: 5 'later'
+the server reading its own device: -35, releases for an open and close: 1, a receive with nothing to take: 0, a bad reply: -22
+pipe: empty 0, written 101, room 104, writer gone 116, closed 132
+kill: nobody -3, init -1, the kernel -1
+kill a sleeper 0: 137
+kill a reader 0: 137, cancellations 1, still waiting 0
+a program ending under a waiting thread: 5, cancellations 2, still waiting 0
+exit: -5
+reader: -5
+server 7, after it write -5, poll 117, open -2
+hang: -110, server 137, open -2
+mkdir 0 again -17, wrote 14, read 3 'two', end at 14
+appended: size 19, missing -2, remove full -39, f(19), remove 0 0
+hello from a process, pid 9, args: /mnt/hello from memfs
+it exited 3
+kill 0: 137, then read -5, stat -2
+srvtest exited 0
+0 bytes fewer free than before
+exit 0

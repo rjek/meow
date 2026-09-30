@@ -31,9 +31,12 @@ CATFLAP_ASM := $(wildcard $(LIBC)/catflap/functions/*.s)
 LIBOBJS := $(patsubst $(LIBC)/%.c,obj/libc/%.o,$(PDCLIB_SRCS) $(MUSL_SRCS) $(CATFLAP_SRCS)) \
            $(patsubst $(LIBC)/%.s,obj/libc/%.o,$(CATFLAP_ASM))
 LINK = $(KOBJS) obj/kernel/init.o $(RT) obj/kernel/libc_start.o $(LIBOBJS) obj/kernel/libc_end.o
-# Each bin/NAME.c is a program; Lua, from ../lua, is an archive whose
-# lua.o member holds main, and the linker takes what it needs from it.
-PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c)) obj/root/bin/lua
+# Each bin/NAME.c is a program.  Lua, from ../lua, is an optional extra
+# (WITH_LUA=1): an archive whose lua.o member holds main, from which the
+# linker takes what it needs.
+WITH_LUA ?= 0
+PROGS := $(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c)) \
+         $(if $(filter 1,$(WITH_LUA)),obj/root/bin/lua)
 LUA_SRCS := $(wildcard ../lua/*.c)
 LUA_OBJS := $(patsubst ../lua/%.c,obj/lua/%.o,$(LUA_SRCS))
 LUA_STACK = 16384
@@ -117,7 +120,8 @@ obj/mkromfs: tools/mkromfs.c
 run: catflap.rom
 	$(MSIM) -q -r catflap.rom -m $(RAM) -H .
 
-check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) obj/bin/lua.a
+check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) \
+       $(if $(filter 1,$(WITH_LUA)),obj/bin/lua.a)
 	../tests/runos.sh
 
 clean:

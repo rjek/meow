@@ -1,5 +1,6 @@
-/* mount: the mounted file systems.  Nothing can be mounted from here:
-   the kernel mounts what it finds at boot. */
+/* mount: the mounted file systems.  Nothing is mounted from here: the
+   kernel mounts what it finds at boot, and a file system that is a
+   program, memfs for one, mounts itself when it is run. */
 #include <stdio.h>
 
 int main(int argc, char **argv)
@@ -8,7 +9,7 @@ int main(int argc, char **argv)
     FILE *f = fopen("/proc/mounts", "r");
 
     if (argc > 1) {
-        fprintf(stderr, "mount: the kernel mounts at boot; this only lists\n");
+        fprintf(stderr, "mount: this only lists; a file system server mounts itself\n");
         return 2;
     }
     (void)argv;

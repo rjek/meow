@@ -64,10 +64,33 @@ parent 0
 threads 1
 state running
 cwd /
-code 2692 rom
+code 2516 rom
 data 5688
 heap 0
 $ 39 running 4 4096
-$ $ done
+$ $ [40]
+$ $ kept by a program
+$ /mnt:
+      18 note
+/:
+         bin/
+         etc/
+         dev/
+         tmp/
+         proc/
+         ipc/
+         host/
+         mnt/
+$ romfs on /
+devfs on /dev
+ramfs on /tmp
+procfs on /proc
+ipcfs on /ipc
+hostfs on /host
+user on /mnt
+$ $ ls: /mnt: error 2
+sh: ls: exit 1
+[40] done, exit 137
+$ done
 $ sh exited 4
 exit 0

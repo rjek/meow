@@ -97,30 +97,49 @@ same build with only that change switched off.
     about seven per bit of a full 32-bit constant.  Without a multiplier
     the library divide stays; the compiler keeps the code switched off.
 
+## The compiler
+
+The C compiler's choices are in `compiler.md` with the measurements that
+made them; 11 to 13 above are the ones that touched the instruction set.
+
 ## The C library
 
 14. **PDCLib and musl's maths.**  With the compiler at C90, PDPCLIB was the
     only whole library that would compile; once the C99 to C23 front end
     was merged, PDCLib (CC0, portable, a dozen platform functions) became
-    the right one, with musl's `src/math` (MIT) for the maths PDCLib lacks
-    and nothing else from musl, whose lowest layer is Linux system calls.
-    The platform layer is a console and a heap; there is no filesystem or
-    clock to pretend to.  The imports are verbatim bar the small patches
-    listed in `libc.md`, all for upstream bugs; the two that worked round
-    compiler limitations went once the C99 front end fixed them.  `mld` grew `ar` archive support rather than the
-    project growing an archiver: the host's `ar` writes the format, and a
-    library is no use if every program links all of it.
+    the right one, with musl's `src/math` (MIT) for the maths PDCLib
+    lacks and as little else from musl as possible, its lowest layer
+    being Linux system calls.  The platform layer is a console and a
+    heap; there is no filesystem or clock to pretend to.  The imports
+    are verbatim bar the small patches listed in `libc.md`, all for
+    upstream bugs; the two that worked round compiler limitations went
+    once the C99 front end fixed them.  `mld` grew `ar` archive support
+    rather than the project growing an archiver: the host's `ar` writes
+    the format, and a library is no use if every program links all of
+    it.
+
+15. **`strtod` from musl.**  PDCLib's `strtod` turned out to be a
+    placeholder: inexact in decimal and an endless loop in hexadecimal.
+    The choices were to repair it, to write one on PDCLib's big
+    integers, which its exact `printf` already has in the ROM, or to
+    take musl's scanner.  musl's won: reading a decimal numeral to the
+    nearest double is easy to get subtly wrong, musl's has been right
+    for a decade, and it came unchanged but for one digit of guard that
+    a 53-bit `long double` needs (`libc.md`).  It costs 3.7 KB of ROM
+    over the placeholder.  Its `FILE` plumbing stayed behind; a
+    fourteen-line header makes it read a string.
 
 ## Lua
 
-15. **Lua as the acceptance test.**  A 370 KB interpreter that leans on
+16. **Lua as the acceptance test.**  A 370 KB interpreter that leans on
     setjmp, 64-bit integers, doubles, varargs, unions and the whole of
     stdio is a better test of a toolchain than anything written for the
     purpose.  It compiled unchanged.  Getting it to run found a register
     allocation bug (a block copy's operand could be allocated `at`, the
     register the copy counts through), a typing bug in the middle end
     (unsigned 64-bit results treated as signed), and in PDCLib a
-    misspelt `remquo`, empty comparison macros and five faults in `%g`.
+    misspelt `remquo`, empty comparison macros, five faults in `%g`,
+    four in `%a` and the `strtod` of 15.
     The runtime grew a real `argv`, `setjmp`, a clock from the host, and
     a stack placed from the RAM size the Chairman reports, so `msim -m`
     can give a program as much memory as it needs.  None of that is Lua
@@ -130,20 +149,22 @@ same build with only that change switched off.
 
 Recorded so that the measurements are not lost; none is decided.
 
-16. **A PC-relative load.**  Every constant or address the compiler
+17. **A PC-relative load.**  Every constant or address the compiler
     cannot make with `LDI` comes from a literal pool as `LDI #off ;
     ADD ir, pc ; LDR rd, [ir]`, three instructions where ARM spends one.
-    Across the kernel, the C library, Lua and the programs there are
-    about 10,000 of these, so a single `LDR rd, [pc, #n]` would save
-    some 40 KB of the ROM, 470 KB when this was measured and 376 KB
-    since the C library was slimmed, and the instructions with it.  The
-    reserved `1011 rrrr 1xxx xxxx` space has room for a word-scaled
-    seven-bit forward offset, reaching 508 bytes, which would make
-    literal pools more frequent than today's 2 KB reach allows; the net
-    gain needs measuring with the compiler changed, and is expected to
-    be 25 to 35 KB.  Deferred: the instruction set is not to change for
-    the operating system's sake until the system has been run and
-    measured as it is.
+    When this was first measured there were about 10,000 of these
+    across the kernel, the C library, Lua and the programs, worth some
+    40 KB of a 470 KB ROM, and a single `LDR rd, [pc, #n]` looked like
+    the one instruction to add.  Most of them, 8,600, were calls
+    fetching the callee's address.  The compiler now keeps that address
+    in the word after the call and loads `pc` through `lr` (`abi.md`),
+    which needed no new instruction, and 1,100 pool loads are left:
+    about 4 KB.  The reserved `1011 rrrr 1xxx xxxx` space still has
+    room for a word-scaled seven-bit forward offset, reaching 508
+    bytes, but it is no longer the first thing to spend it on;
+    `rom-size.md` has the list in order.  Deferred, like the rest of
+    that list: the instruction set is not to change for the operating
+    system's sake until the system has been run and measured as it is.
 
 ## Toolchain
 

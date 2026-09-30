@@ -42,5 +42,12 @@ cat /proc/self/cmdline
 cat /proc/1/status
 cat /proc/self/threads
 ls /ipc
+memfs /mnt &
+echo kept by a program > /mnt/note
+cat /mnt/note
+ls /mnt /
+mount
+kill 40
+ls /mnt
 echo done
 exit 4

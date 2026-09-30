@@ -46,7 +46,12 @@ struct thread *console_poll(void)
         at_eof = 1;
         got = 1;
     }
-    return got != 0 ? waitq_wake_one(&readers) : NULL;
+    if (got != 0) {
+        struct thread *reader = waitq_wake_one(&readers), *poller = poll_wake();
+
+        return reader != NULL ? reader : poller;
+    }
+    return NULL;
 }
 
 /* The next byte, or -1 once the input has ended. */
@@ -76,6 +81,12 @@ int console_getc(void)
 int console_pending(void)
 {
     return (int)count;
+}
+
+/* Whether a read would return at once: with a byte, or with the end */
+int console_readable(void)
+{
+    return count != 0 || at_eof != 0;
 }
 
 /* A line, without its newline, terminated.  Returns its length, or -1

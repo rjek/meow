@@ -38,6 +38,7 @@
 enum thread_state { T_READY, T_RUNNING, T_SLEEPING, T_BLOCKED, T_ZOMBIE };
 
 struct process;
+struct request;
 
 struct waitq {
     struct thread *head, *tail;
@@ -58,6 +59,11 @@ struct thread {
     const char *name;
     int exit_status;
     int tid;
+    struct thread *tnext;               /* those waiting with a time limit */
+    int timed;                          /* it is one of them */
+    int timedout;                       /* and the limit is what woke it */
+    struct request *req;                /* what it is asking a server, if anything */
+    int doomed;                         /* to end once the server has answered */
 };
 
 #define R_SP 11
@@ -81,7 +87,10 @@ extern struct cpu cpu0;
 #define this_cpu() (&cpu0)
 
 /* Errors: negative errno values, as the system calls return them */
+#define EPERM           1
 #define ENOENT          2
+#define ESRCH           3
+#define EINTR           4
 #define EIO             5
 #define EBADF           9
 #define ENOMEM          12
@@ -100,6 +109,8 @@ extern struct cpu cpu0;
 #define ENOEXEC         8
 #define ECHILD          10
 #define EPIPE           32
+#define EDEADLK         35
+#define ETIMEDOUT       110
 
 /* The file system */
 #define NFD             16
@@ -116,7 +127,19 @@ extern struct cpu cpu0;
 #define SEEK_CUR        1
 #define SEEK_END        2
 
-enum vnode_type { V_FILE, V_DIR, V_DEV, V_PIPE, V_MQ, V_SEM };
+enum vnode_type { V_FILE, V_DIR, V_DEV, V_PIPE, V_MQ, V_SEM, V_PORT };
+
+/* what poll reports, with POSIX's values */
+#define POLLIN          1
+#define POLLOUT         4
+#define POLLERR         8
+#define POLLHUP         16
+#define POLLNVAL        32
+
+struct pollfd {
+    int fd;
+    short events, revents;
+};
 
 struct vnode;
 struct dirent {
@@ -141,6 +164,7 @@ struct vnode_ops {
     int (*ioctl)(struct vnode *v, int req, void *arg);
     void (*release)(struct vnode *v);
     int (*truncate)(struct vnode *v);
+    int (*poll)(struct vnode *v);       /* POLLIN and so on as they stand; NULL: always ready */
 };
 
 struct vnode {
@@ -176,6 +200,7 @@ struct process {
     struct thread *main;
     int nthreads;
     int dead;
+    int killed;                         /* the status to end with, once told to */
     int exit_status;
     char *image;                        /* the code's copy in RAM, or NULL when run in place */
     const char *code;                   /* where the code runs */
@@ -209,6 +234,8 @@ int process_pid(void);
 struct process *process_list(void);
 #define HEAP_CHUNK      (32 * 1024)     /* the least sbrk takes from the kernel at a time */
 int process_waitany(int *status, int block);
+int process_kill(int pid);
+#define KILLED          137             /* the exit status of a process that was */
 void reap_orphans(void);
 /* vfs.c */
 struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
@@ -216,6 +243,11 @@ struct vnode *vnode_new(const struct vnode_ops *ops, int type, void *fs,
 void vnode_get(struct vnode *v);
 void vnode_put(struct vnode *v);
 int vfs_mount(const char *path, struct vnode *root, const char *type);
+int vfs_mount_owned(const char *path, struct vnode *root, const char *type, void *owner);
+void vfs_umount_owner(void *owner);
+struct vnode *vfs_fd_vnode(int fd);
+int vfs_poll(struct pollfd *p, unsigned n, int ticks);
+struct thread *poll_wake(void);
 int vfs_mount_info(int index, const char **path, const char **type);
 int vfs_lookup(const char *path, struct vnode **out);
 int vfs_open(const char *path, int flags);
@@ -253,6 +285,40 @@ struct vnode *ipcfs_init(void);
 #define IPC_VALUE       0x4904          /* ioctl on either: messages waiting, or the count */
 int ipc_create(const char *name, int kind, int a, int b);
 int dev_register(const char *name, const struct vnode_ops *ops, void *ctx);
+int dev_register_served(const char *name, void *port, uint32_t node);
+void dev_unregister_owner(void *port);
+
+/* srv.c: ports, through which a program serves device nodes and file
+   systems.  A request is what the server is handed: the operation, the
+   server's own number for the file, and the client's buffer, which the
+   server reads or writes where it lies.  catflap.h has the same layout
+   as struct cf_req. */
+enum { SRV_LOOKUP = 1, SRV_READ, SRV_WRITE, SRV_READDIR, SRV_CREATE,
+       SRV_UNLINK, SRV_IOCTL, SRV_TRUNCATE, SRV_RELEASE };
+#define SRV_WANT_RELEASE 1              /* srv_create flag: send SRV_RELEASE */
+
+struct srv_req {
+    int op;
+    uint32_t node;                      /* the file, or the directory to look in */
+    void *buf;                          /* data, a name, a struct dirent, ioctl's argument */
+    uint32_t len;
+    uint32_t off;                       /* the offset; readdir's index; ioctl's request; create's type */
+    int pid;                            /* who is asking */
+    int cancelled;                      /* delivered again: the client is going, answer now */
+    uint32_t new_node;                  /* answers to lookup and create */
+    int type;
+    uint32_t size;                      /* the file's size: as the kernel has it, and as it is now */
+};
+
+int srv_create(int timeout, int flags);
+int srv_dev(int port, const char *name, uint32_t node);
+int srv_mount(int port, const char *path, uint32_t root);
+int srv_recv(int port, struct srv_req **req, int ticks);
+int srv_reply(int port, struct srv_req *req, int result);
+int srv_ready(int port, uint32_t node, int mask);
+struct vnode *srv_vnode(void *port, uint32_t node, int type, uint32_t size);
+int srv_abandon(struct thread *t);
+int srv_holds(struct thread *t);
 
 /* boot.s */
 void kernel_halt(int status);
@@ -314,6 +380,9 @@ struct mq {
 
 void waitq_init(struct waitq *q);
 void waitq_wait(struct waitq *q);
+int waitq_wait_for(struct waitq *q, uint32_t ticks);
+void wait_forget(struct thread *t);
+int wait_expire(uint32_t now);
 struct thread *waitq_wake_one(struct waitq *q);
 void preempt_if(struct thread *t);
 void sem_init(struct sem *s, int count);
@@ -335,6 +404,7 @@ void console_puts(const char *s);
 struct thread *console_poll(void);
 int console_getc(void);
 int console_pending(void);
+int console_readable(void);
 int console_gets(char *buf, size_t size);
 
 /* alloc.c */
@@ -352,6 +422,7 @@ struct thread *thread_create_in(struct process *p, const char *name,
                                 int (*fn)(void *), void *arg, int prio,
                                 size_t stack_size);
 void thread_kill_others(struct process *p);
+void thread_kill_process(struct process *p);
 int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);
 int thread_id(void);
 struct thread *thread_list(void);

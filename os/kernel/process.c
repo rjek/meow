@@ -367,6 +367,31 @@ void process_exit(int status)
     thread_exit(status);
 }
 
+/* End another process, which exits with the status KILLED.  Not the
+   kernel, and not init, whose end is the machine's. */
+int process_kill(int pid)
+{
+    struct process *p;
+
+    kenter();
+    p = process_find(pid);
+    if (p == NULL || p->dead != 0 || p->killed != 0) {
+        kexit();
+        return -ESRCH;
+    }
+    if (p == &kproc || pid == 1) {
+        kexit();
+        return -EPERM;
+    }
+    if (p == current_process()) {
+        process_exit(KILLED);
+    }
+    p->killed = KILLED;
+    thread_kill_process(p);
+    kexit();
+    return 0;
+}
+
 /* Wait for a child to end, and free it.  Returns 0 and its status. */
 int process_wait(int pid, int *status)
 {

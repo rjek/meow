@@ -196,12 +196,22 @@ static void ipc_release(struct vnode *v)
     node_put(v->fs);
 }
 
+static int ipc_poll(struct vnode *v)
+{
+    struct ipcnode *n = v->fs;
+
+    if (n->kind == IPC_SEM) {
+        return POLLOUT | (n->s.count > 0 ? POLLIN : 0);
+    }
+    return (n->q.count > 0 ? POLLIN : 0) | (n->q.count < n->q.depth ? POLLOUT : 0);
+}
+
 static const struct vnode_ops ipcdir_ops = {
     ipcdir_lookup, NULL, NULL, ipcdir_readdir, NULL, ipcdir_unlink, NULL, NULL, NULL
 };
 
 static const struct vnode_ops ipc_ops = {
-    NULL, ipc_read, ipc_write, NULL, NULL, NULL, ipc_ioctl, ipc_release, NULL
+    NULL, ipc_read, ipc_write, NULL, NULL, NULL, ipc_ioctl, ipc_release, NULL, ipc_poll
 };
 
 struct vnode *ipcfs_init(void)

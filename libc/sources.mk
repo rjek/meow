@@ -8,6 +8,9 @@ MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
 #  - PDCLib's remove (wants unlink), dlmalloc, and its zoneinfo-parsing
 #    time zone code: common/ has malloc and a UTC gmtime, localtime and
 #    mktime instead.
+#  - PDCLib's strtod, strtof and strtold, which are approximate in
+#    decimal and hang in hexadecimal: common/strtod.c has them as musl
+#    does, through its floatscan, which is exact.
 #  - musl's float functions, which common/mathf.c has as wrappers of the
 #    double ones, all but fmaf, nextafterf and nexttowardf; its
 #    long double internals, since long double is double; the
@@ -17,7 +20,8 @@ MUSL_INC = -Dhidden= -D'weak_alias(o,n)=extern int __musl_no_weak_alias' \
 #  - musl's table-driven exp, log, log2, log10 and pow: fdlibm/ has the
 #    versions musl used before 2018, which have no tables.
 PDCLIB_DROP := stdio/remove _dlmalloc/malloc time/gmtime time/gmtime_s time/localtime \
-               time/localtime_s time/mktime
+               time/localtime_s time/mktime stdlib/strtod stdlib/strtof stdlib/strtold \
+               _PDCLIB/_PDCLIB_strtod_prelim _PDCLIB/_PDCLIB_naive_etod _PDCLIB/_PDCLIB_naive_ptod
 PDCLIB_SRCS := $(filter-out $(addprefix $(P)pdclib/functions/,$(addsuffix .c,$(PDCLIB_DROP))) \
                             $(wildcard $(P)pdclib/functions/_tzcode/*.c), \
                             $(wildcard $(P)pdclib/functions/*/*.c))
@@ -28,6 +32,7 @@ MUSL_DROP := lgammaf_r fabs fabsl fdim fdiml fmax fmaxl fmin fminl exp10 exp10l 
              exp2f_data logf_data log2f_data powf_data exp log log2 log10 pow log_data log2_data pow_data
 MUSL_SRCS := $(filter-out $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MUSL_DROP))),\
                           $(filter-out %f.c,$(wildcard $(P)musl/src/math/*.c))) \
-             $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MUSL_KEEP_F)))
+             $(addprefix $(P)musl/src/math/,$(addsuffix .c,$(MUSL_KEEP_F))) \
+             $(P)musl/src/internal/floatscan.c
 COMMON_SRCS := $(wildcard $(P)common/*.c)
 FDLIBM_SRCS := $(wildcard $(P)fdlibm/*.c)

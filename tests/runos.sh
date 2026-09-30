@@ -28,6 +28,9 @@ fi
 LINK=$(sed "s|obj/|$OS/obj/|g; s|\.\./rt/|../rt/|g" "$OS/obj/link.list")
 for src in os/*.c; do
 	name=${src%.c}
+	if [ "$name" = os/lua ] && [ ! -f "$OS/obj/bin/lua.a" ]; then
+		continue                    # Lua is an option, and it is off
+	fi
 	rm -rf "$tmp.root"
 	if ! $NMCC -std=c99 -c $INC -o "$tmp.o" "$src" > "$tmp.err" 2>&1; then
 		echo "FAIL $src: does not compile"

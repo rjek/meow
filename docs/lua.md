@@ -8,7 +8,7 @@ that compiles it with `nmcc` against `libc/` and links `lua.bin` for
 ## Building and running
 
 ```
-make                    # from the top: the toolchain, the library, then lua/lua.bin
+make WITH_LUA=1         # from the top: the toolchain, the library, lua/lua.bin, and /bin/lua in the Catflap ROM
 make -C lua run         # msim -q -r lua/lua.bin -m 1024
 ```
 
@@ -25,28 +25,33 @@ the rest as one chunk:
 
 which is what `tests/runlua.sh` does with each `tests/lua/*.lua`, and
 then compares against the output Lua 5.4 on the host gives for the same
-input run with `-i`.
+input run with `-i`.  `basics.lua` goes through the language and the
+libraries, `sieve.lua` is a loop to time, and `numbers.lua` reads and
+prints numbers that are hard to get right.
 
 ## Memory and speed
 
 | | |
 |---|---|
-| Code | 255 KB, the C library's included |
-| Read-only data | 7 KB |
+| Code | 242 KB, of which Lua is 166 KB and the C library and runtime the rest |
+| Read-only data | 8 KB |
 | Data and bss | 5 KB |
 | RAM to start | 64 KB; a fresh state takes 15 KB of heap |
 | RAM to be comfortable | 192 KB; `make run` gives 1024 KB |
-| `fib(25)` | 204 million instructions, about 830 per Lua call |
-| The sieve test | 15 million instructions |
+| `fib(25)` | 196 million instructions, about 810 per Lua call |
+| The sieve test | 14 million instructions |
+
+Compiled with `-Otime`, `fib(25)` takes 178 million instructions and the
+code is 251 KB; `docs/compiler.md` says what that option changes.
 
 Integers are 64 bits and numbers are doubles, both in software, which is
 a good part of the cost.  `LUA_32BITS` in `luaconf.h` makes integers
-32-bit and numbers single-precision floats.  The table below was
-measured with it on, before a compiler fix that stopped branch islands
-repeating every pending branch.  That fix took 77 KB out of the VM's
-code and three quarters of its instructions out of dispatch, so the
-absolute figures are stale, but the comparison between the two builds
-is not.
+32-bit and numbers single-precision floats.  The table below compares
+the two, and was measured with an early compiler: before branch islands
+stopped repeating every pending branch, which took 77 KB out of the
+VM's code and three quarters of its instructions out of dispatch, and
+before everything in `docs/rom-size.md`.  The absolute figures are
+stale; the comparison between the two builds is not.
 
 | | 64-bit | `LUA_32BITS` | |
 |---|---|---|---|
@@ -76,6 +81,9 @@ Everything a program can do with a console works: the string, table,
 maths, utf8 and coroutine libraries, `pcall` and error messages with
 tracebacks, `os.time` and `os.clock` (the host's clock and the
 instruction count, through `msim`), `os.date`, `collectgarbage`.
+Numerals and `tonumber` give the nearest double in decimal and in
+hexadecimal, `0x1.8p1` included, and `%.17g`, `%a` and `%q` print a
+number so that it reads back as itself.
 
 In `lua.bin`, which runs on the bare machine, `io.open`, `dofile`,
 `require` of a file, `os.remove`, `os.rename`, `os.getenv` and
@@ -94,9 +102,9 @@ and `os.rename` still fail, since the Catflap platform layer's `remove`
 and `rename` are stubs that answer `EROFS` (the kernel has `vfs_unlink`
 and the `rm` tool calls it; the library does not yet), and so do
 `os.execute` and `os.getenv`: the C library's `system` does not run
-the shell and a process has no environment.  The program is 185 KB of code that runs
-in place from ROM, calling the library already there, and a process
-running it takes 6 KB of data, a 16 KB stack and its heap.
+the shell and a process has no environment.  The program is 178 KB
+that runs in place from ROM, calling the library already there, and a
+process running it takes 6 KB of data, a 16 KB stack and its heap.
 `tests/os/lua.c` is the test.
 
 ## What it took
@@ -112,6 +120,12 @@ The Lua sources compiled first time.  Running them found:
   bits; musl's `fmod`, `log` and `pow` all depend on that.
 - PDCLib misspells `remquo` in `<math.h>`, leaves the comparison macros
   empty, and prints zero with `%g` as ` .00000e-325`.
+- PDCLib's `strtod` is a placeholder.  A hexadecimal numeral with a
+  point or an exponent, `0x.8` or `0x1p4`, or a bare `0x`, never came
+  back from it, in a script or in `tonumber`; long decimal numerals were
+  a place out, `5e-324` was zero, and `1e` was a number.  Its `%a`
+  printed 1.5 as `0x1.0p+0`.  musl's scanner replaced the one and a
+  rewrite the other.
 - The runtime had no `setjmp`, no `argv`, no clock, and 64 KB of RAM with
   the stack placed by a constant.
 

@@ -1,8 +1,8 @@
 # The C library
 
 `libc/` holds a C library for programs compiled with `nmcc`: PDCLib for
-everything but the maths, musl for the maths, and a platform layer for
-MEOW under `msim`.  `make` builds `libc/libc.a`, an `ar` archive that
+everything but the maths and the reading of numbers, musl for those, and
+a platform layer for MEOW under `msim`.  `make` builds `libc/libc.a`, an `ar` archive that
 `mld` reads, taking only the members a program needs.
 
 ## What is imported
@@ -10,11 +10,11 @@ MEOW under `msim`.  `make` builds `libc/libc.a`, an `ar` archive that
 | Directory | From | Licence |
 |---|---|---|
 | `libc/pdclib/` | PDCLib, `master` as of 29 September 2026 (`functions/`, `include/` and the example platform, kept for reference) | CC0 1.0, `libc/pdclib/COPYING.CC0` |
-| `libc/musl/` | musl 1.2.6: `src/math/`, `src/internal/libm.h` and `COPYRIGHT` | MIT, `libc/musl/COPYRIGHT` |
+| `libc/musl/` | musl 1.2.6: `src/math/`, `libm.h`, `floatscan.c` and `floatscan.h` from `src/internal/`, and `COPYRIGHT` | MIT, `libc/musl/COPYRIGHT` |
 | `libc/fdlibm/` | musl 1.1.19: `exp`, `log`, `log2`, `log10` and `pow`, the FreeBSD msun versions of fdlibm's | Sun's notice in each file |
 | `libc/meow/` | The platform layer for `msim`, written for this repository | Public domain, as PDCLib's platform layers are |
 | `libc/catflap/` | The platform layer for Catflap, likewise | Public domain |
-| `libc/common/` | What both platforms share: `malloc`, the float maths functions, and `gmtime`, `localtime` and `mktime` | Public domain |
+| `libc/common/` | What both platforms share: `malloc`, the float maths functions, `strtod` and its relations, and `gmtime`, `localtime` and `mktime` | Public domain |
 
 The imports are as they come, so that a newer release can be dropped in;
 the few changes made to them are listed at the end.  Not all of them are
@@ -24,6 +24,8 @@ built.  `libc/sources.mk`, which both builds include, leaves out:
   against the 1 KB of the K&R allocator in `common/`; and the time zone
   code, 12 KB of zoneinfo parsing for a machine with no zoneinfo, in
   favour of the UTC `gmtime`, `localtime` and `mktime` in `common/`.
+- PDCLib's `strtod`, `strtof` and `strtold`, which are placeholders; see
+  "Numbers in and out" below.
 - musl's float functions.  `common/mathf.c` has every one of them as the
   double function rounded, which on a machine where both are software is
   no slower, correctly rounded wherever the double function is, and 40 KB
@@ -37,7 +39,8 @@ built.  `libc/sources.mk`, which both builds include, leaves out:
   functions that are not C: the Bessel functions, `exp10`, `scalb`,
   `significand`, `sincos`, `finite`.
 
-Every function of C99's `<math.h>` and `<time.h>` is still there.
+Every function of C99's `<math.h>` and `<time.h>` is still there, and
+`atof`, which PDCLib declares and does not define, is there now.
 
 ## Building and using it
 
@@ -48,7 +51,7 @@ mld -f bin -d 0x08000000 -o hello.bin rt/crt0.o rt/mul.o rt/div.o rt/ll.o rt/sof
 simulator/msim -q -r hello.bin
 ```
 
-Two things about that command line:
+Three things about that command line:
 
 - `-std=c99` or later.  PDCLib is C99 and the compiler's default is C90.
 - Both `-I` directories.  `nmcc` has the RISC OS C headers compiled into
@@ -60,7 +63,9 @@ Two things about that command line:
   streams before halting; the runtime's does not.
 
 `tests/runlibc.sh` compiles each `tests/libc/*.c` this way and checks its
-output against what the host's C library printed for the same program.
+output against what the host's C library printed for the same program:
+stdio, input, `scanf`, the maths functions to six digits, the calendar,
+and number conversion to the last bit.
 
 ## The platform layer
 
@@ -100,14 +105,45 @@ with every value written out: `char` is unsigned, `wchar_t` is `int`,
 `long double` is `double`, every argument takes whole words on the stack
 so the `va_arg` macros step by words, and there are no threads.
 
+## Numbers in and out
+
+A `double` printed and read back must be the same `double`, and a
+numeral must become the nearest `double` to what it says; Lua depends on
+both.  What does each job:
+
+| | Done by | How |
+|---|---|---|
+| `printf` of `%e`, `%f`, `%g` | PDCLib | Exactly, in big integer arithmetic, so every digit asked for is right |
+| `printf` of `%a` | PDCLib, rewritten here | The bits of the value, rounded to the precision if one is given |
+| `strtod`, `strtof`, `strtold`, `atof` | musl's `__floatscan`, from `common/strtod.c` | Exactly: decimal in base 10^9 arithmetic as long as the numeral needs, hexadecimal directly, `inf`, `nan` and `nan(...)`, `ERANGE` on overflow and underflow |
+
+PDCLib's own `strtod` is, in its author's words, "nowhere good enough,
+just a quick approximation".  It accumulates the digits in floating
+point and scales by repeated multiplication, so `1e100`, `8.41e21` and
+`DBL_MAX` came out a place or more wrong and `5e-324` as zero; it accepted
+`1e` as a number; and given any hexadecimal digit it never returned,
+since the loop that reads them does not advance.  musl's scanner wants
+to read from a `FILE`, real or made up from a string.  Here only
+strings are ever read, so `libc/meow/musl/shgetc.h` stands in for
+musl's header of that name and makes `FILE`, in those two source files
+alone, a pointer into a string.  The scanner is 5.7 KB, which is 3.7 KB
+more than what it replaces.
+
+`tests/libc/strtod.c` holds numerals chosen to be hard, halfway cases
+and their neighbours, subnormals, the largest and smallest values, and
+malformed ones, and prints the bits of each result, where it stopped,
+and values through `%a` in every form of the conversion.
+
 ## Sizes
 
 A program that uses `printf` with floating conversions, `malloc`,
-`qsort`, `strtod` and a few maths functions links to about 83 KB of code
-and 16 KB of read-only data, most of it PDCLib's exact decimal conversion
-and musl's tables.  Its zero-initialised data is under 4 KB.  A program
-that only uses `puts` and `strlen` is far smaller, since the archive is
-pulled in a member at a time.
+`qsort`, `strtod` and a few maths functions, `tests/libc/hello.c`, links
+to 67 KB of code and 4 KB of read-only data, most of the code being the
+exact number conversions, the soft-float runtime and musl's maths.  Its
+initialised and zero-initialised data together are 5 KB.  A program
+that only uses `puts` and `strlen` is 17 KB, stdio and the arithmetic
+runtime, which is linked whole; the archive is pulled in a member at a
+time.
 
 ## Changes to the imported sources
 
@@ -134,22 +170,39 @@ PDCLib:
   after a line had been read found nothing.
 - `functions/stdio/remove.c` is left out of the build: it calls `unlink`
   rather than the `_PDCLIB_remove` hook the rest of the glue uses.
-- `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c`: a null end
-  pointer is allowed, as the standard requires.  Upstream reads through
-  it.
+- `functions/_PDCLIB/_PDCLIB_print_fp_hexa.c`: `%a` is rewritten from
+  the digits on.  Upstream dropped the first digit after the point and
+  repeated the second, so that 1.5 printed as `0x1.0p+0`; rounded at 5
+  rather than 8, as if the digits were decimal; read past the digits it
+  had when the precision asked for more; and printed zero with a
+  precision as `0x0p+0`.  The output now matches glibc's.
+- `functions/stdlib/strtod.c`, `strtof.c`, `strtold.c` and the three
+  `_PDCLIB_naive_*` and `_PDCLIB_strtod_prelim` files behind them are
+  left out of the build, in favour of `libc/common/strtod.c`.  The
+  first three still carry a patch from when they were used: a null end
+  pointer is allowed, as the standard requires.
 - `functions/_dlmalloc/malloc.c` is left out of the build, in favour of
   `libc/common/malloc.c`.  It still carries a patch from when it was
   used: `USE_LOCKS` is 0 when `__STDC_NO_THREADS__` is defined.
 
 musl:
 
-- Nothing.  Everything musl assumes from its own headers, `hidden`,
-  `weak_alias`, the `M_PI` family, `<endian.h>`, `<fenv.h>`, `fp_arch.h`
-  and `a_clz_64`, comes from `libc/meow/musl/` and the compiler options
-  in `libc/Makefile`.  The two `weak_alias` uses that matter, `lgamma_r`
-  and `lgammaf_r`, are ordinary functions in `libc/meow/functions/`.
-  `fabs`, `fdim`, `fmax` and `fmin` come from PDCLib, which has them in
-  every precision, so musl's are left out of the build.
+- `src/internal/floatscan.c`: a hexadecimal numeral keeps one more
+  digit exactly, `LDBL_MANT_DIG/4+2` rather than `+1`.  Digits beyond
+  those kept are remembered as half a unit of the last, which is sound
+  only if the kept digits run past the precision of the result.  With
+  a 64-bit `long double` they do, by a bit.  With a 53-bit one and a
+  leading digit of 1, the fourteen digits kept are exactly the 53 bits,
+  so any tail at all looked like a tie: `0x1.00000000000011p0` rounded
+  up, to even, and `0x1.000000000000081p0` down.  The test has both.
+- Nothing else.  Everything musl assumes from its own headers, `hidden`,
+  `weak_alias`, the `M_PI` family, `<endian.h>`, `<fenv.h>`, `fp_arch.h`,
+  `a_clz_64` and `shgetc.h`, comes from `libc/meow/musl/` and the
+  compiler options in `libc/sources.mk`.  The two `weak_alias` uses
+  that matter, `lgamma_r` and `lgammaf_r`, are ordinary functions in
+  `libc/meow/functions/`.  `fabs`, `fdim`, `fmax` and `fmin` come from
+  PDCLib, which has them in every precision, so musl's are left out of
+  the build.
 
 ## Known limitations
 

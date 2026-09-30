@@ -102,6 +102,17 @@ void kexit(void)
 {
     struct cpu *c = this_cpu();
 
+    if (c->in_kernel == 1 && c->current->doomed != 0) {
+        /* told to end while a server held a request of its: now the
+           server has let go, and so has the call that was waiting */
+        struct process *p = c->current->proc;
+
+        c->current->doomed = 0;
+        if (p->dead == 0) {
+            process_exit(p->killed);
+        }
+        thread_exit(0);
+    }
     if (--c->in_kernel == 0 && c->tick_pending != 0) {
         c->in_kernel++;
         tick_work();
@@ -239,31 +250,51 @@ static void unlink_from(struct thread **list, struct thread *t)
     }
 }
 
-/* Take a thread out of wherever it is queued and make it a zombie.
-   Never the running one. */
+/* Take a thread out of wherever it is queued, for its end or to be
+   sent elsewhere.  Never the running one. */
 static void thread_kill(struct thread *t)
 {
-    int p;
+    struct thread *q;
 
     switch (t->state) {
     case T_READY:
         unlink_from(&ready_head[t->prio], t);
-        for (p = 0; p < NPRIO; p++) {   /* the tail may have been it */
-            ready_tail[p] = NULL;
-            for (t = ready_head[p]; t != NULL; t = t->next) {
-                ready_tail[p] = t;
-            }
+        ready_tail[t->prio] = NULL;     /* the tail may have been it */
+        for (q = ready_head[t->prio]; q != NULL; q = q->next) {
+            ready_tail[t->prio] = q;
         }
         break;
     case T_SLEEPING:
         unlink_from(&sleepers, t);
         break;
     case T_BLOCKED:
-        waitq_remove(t->waiting, t);
+        if (t->waiting != NULL) {
+            waitq_remove(t->waiting, t);
+            t->waiting = NULL;
+        }
+        wait_forget(t);
         break;
     default:
         return;
     }
+}
+
+/* The end of a thread that is not the running one.  If a server holds a
+   request of its, the server's pointers into its memory must go first:
+   the server is told, and the thread ends when the answer wakes it.
+   Returns whether it has gone. */
+static int thread_end(struct thread *t)
+{
+    if (t->req != NULL && srv_abandon(t) != 0) {
+        t->doomed = 1;
+        return 0;
+    }
+    thread_kill(t);
+    t->state = T_ZOMBIE;
+    t->next = zombies;
+    zombies = t;
+    process_thread_gone(t->proc);
+    return 1;
 }
 
 struct thread *thread_list(void)
@@ -302,22 +333,56 @@ int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio)
     return t->tid;
 }
 
-/* Every thread of p but the caller dies now. */
+/* Every thread of p but the caller dies now, or as soon as the server
+   it is waiting on lets it. */
 void thread_kill_others(struct process *p)
 {
-    struct thread *t, **pp;
+    struct thread *t;
 
-    for (pp = &all_threads; (t = *pp) != NULL;) {
-        if (t->proc != p || t == this_cpu()->current || t->state == T_ZOMBIE) {
-            pp = &t->all;
-            continue;
+    for (t = all_threads; t != NULL; t = t->all) {
+        if (t->proc == p && t != this_cpu()->current && t->state != T_ZOMBIE &&
+            t->doomed == 0) {
+            thread_end(t);
         }
-        thread_kill(t);
-        t->state = T_ZOMBIE;
-        t->next = zombies;
-        zombies = t;
-        process_thread_gone(p);
-        pp = &t->all;
+    }
+}
+
+/* Another process is to end: p->killed says with what status.  One of
+   its threads is sent to process_exit() in place of whatever it was
+   doing, and the rest die here, so that none of its code runs again.  A
+   thread that was inside the kernel is simply abandoned there, as one
+   blocked there always has been at its process's exit.  If a server
+   holds every one of them, the first to be answered does the exiting. */
+void thread_kill_process(struct process *p)
+{
+    struct thread *t, *carrier = NULL;
+
+    for (t = all_threads; t != NULL; t = t->all) {
+        if (t->proc == p && t->state != T_ZOMBIE && srv_holds(t) == 0) {
+            carrier = t;
+            break;
+        }
+    }
+    for (t = all_threads; t != NULL; t = t->all) {
+        if (t->proc == p && t != carrier && t->state != T_ZOMBIE && t->doomed == 0) {
+            thread_end(t);
+        }
+    }
+    if (carrier == NULL) {
+        return;
+    }
+    if (carrier->req != NULL) {
+        srv_abandon(carrier);
+    }
+    thread_kill(carrier);
+    carrier->regs[0] = (uint32_t)p->killed;
+    carrier->regs[R_SP] = ((uint32_t)carrier->stack + carrier->stack_size) & ~7u;
+    carrier->regs[R_LR] = (uint32_t)thread_exit;
+    carrier->regs[R_PC] = (uint32_t)process_exit;
+    carrier->in_kernel = 0;
+    enqueue(carrier);
+    if (carrier->prio > this_cpu()->current->prio) {
+        schedule();
     }
 }
 
@@ -388,6 +453,9 @@ static void tick_work(void)
 
         sleepers = s->next;
         enqueue(s);
+        woke = 1;
+    }
+    if (wait_expire(ticks) != 0) {
         woke = 1;
     }
     if (console_poll() != NULL) {

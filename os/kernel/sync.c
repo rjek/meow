@@ -27,6 +27,72 @@ void waitq_wait(struct waitq *q)
     t->waiting = NULL;
 }
 
+/* ---- waiting with a time limit.  The thread is on its queue as usual
+   and on this list as well; the tick takes off the queue whoever has
+   waited long enough. ---- */
+
+static struct thread *timed;
+
+static void timed_remove(struct thread *t)
+{
+    struct thread **pp;
+
+    for (pp = &timed; *pp != NULL; pp = &(*pp)->tnext) {
+        if (*pp == t) {
+            *pp = t->tnext;
+            break;
+        }
+    }
+    t->timed = 0;
+}
+
+/* Block on q for at most n ticks.  Returns 0 if the time ran out. */
+int waitq_wait_for(struct waitq *q, uint32_t n)
+{
+    struct thread *t = this_cpu()->current;
+
+    t->wake = ticks_now() + n;
+    t->timedout = 0;
+    t->timed = 1;
+    t->tnext = timed;
+    timed = t;
+    waitq_wait(q);
+    if (t->timed != 0) {
+        timed_remove(t);
+    }
+    return t->timedout == 0;
+}
+
+/* t is being taken off its queue by force */
+void wait_forget(struct thread *t)
+{
+    if (t->timed != 0) {
+        timed_remove(t);
+    }
+}
+
+/* From the tick: wake those whose time is up.  Returns whether any was. */
+int wait_expire(uint32_t now)
+{
+    struct thread **pp = &timed, *t;
+    int woke = 0;
+
+    while ((t = *pp) != NULL) {
+        if (t->waiting != NULL && (int32_t)(now - t->wake) >= 0) {
+            *pp = t->tnext;
+            t->timed = 0;
+            t->timedout = 1;
+            waitq_remove(t->waiting, t);
+            t->waiting = NULL;
+            thread_ready(t);
+            woke = 1;
+        } else {
+            pp = &t->tnext;             /* one already woken takes itself off */
+        }
+    }
+    return woke;
+}
+
 /* Take t out of q, wherever it is in it. */
 void waitq_remove(struct waitq *q, struct thread *t)
 {
@@ -107,6 +173,7 @@ void sem_post(struct sem *s)
     kenter();
     s->count++;
     preempt_if(waitq_wake_one(&s->q));
+    preempt_if(poll_wake());
     kexit();
 }
 
@@ -191,6 +258,7 @@ int mq_send(struct mq *q, const void *msg, int block)
     memcpy(q->buf + ((q->head + q->count) % q->depth) * q->msgsize, msg, q->msgsize);
     q->count++;
     preempt_if(waitq_wake_one(&q->readers));
+    preempt_if(poll_wake());
     kexit();
     return 1;
 }
@@ -210,6 +278,7 @@ int mq_receive(struct mq *q, void *msg, int block)
     q->head = (q->head + 1) % q->depth;
     q->count--;
     preempt_if(waitq_wake_one(&q->writers));
+    preempt_if(poll_wake());
     kexit();
     return 1;
 }

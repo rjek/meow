@@ -58,8 +58,8 @@ programs to talk to the outside world.
 
 The Chairman's serial console reads from standard input and writes to
 standard output.  Bit 1 of its flags register, which the architecture
-leaves reserved, is set by `msim` once standard input has ended.  Its timer counts one tick per instruction and reports a
-1 MHz clock.
+leaves reserved, is set by `msim` once standard input has ended.  Its
+timer counts one tick per instruction and reports a 1 MHz clock.
 
 ## Debugger
 

@@ -31,6 +31,7 @@ static int pipe_read(struct vnode *v, void *buf, size_t len, uint32_t off)
     }
     if (n > 0) {
         preempt_if(waitq_wake_one(&p->wq));
+        preempt_if(poll_wake());
     }
     kexit();
     return (int)n;
@@ -58,8 +59,19 @@ static int pipe_write(struct vnode *v, const void *buf, size_t len, uint32_t off
         p->count++;
     }
     preempt_if(waitq_wake_one(&p->rq));
+    preempt_if(poll_wake());
     kexit();
     return (int)n;
+}
+
+/* Readable with bytes waiting or no writer left to send any; writable
+   with room or no reader left, which the write will report. */
+static int pipe_poll(struct vnode *v)
+{
+    struct pipe *p = v->fs;
+
+    return (p->count > 0 ? POLLIN : 0) | (p->count < PIPE_SIZE ? POLLOUT : 0) |
+           (p->writers == 0 ? POLLHUP : 0) | (p->readers == 0 ? POLLERR : 0);
 }
 
 static void pipe_release(struct vnode *v)
@@ -68,7 +80,7 @@ static void pipe_release(struct vnode *v)
 }
 
 static const struct vnode_ops pipe_ops = {
-    NULL, pipe_read, pipe_write, NULL, NULL, NULL, NULL, pipe_release, NULL
+    NULL, pipe_read, pipe_write, NULL, NULL, NULL, NULL, pipe_release, NULL, pipe_poll
 };
 
 /* An end has closed: whoever waits on the other end must know. */
@@ -85,6 +97,7 @@ void pipe_end_closed(struct vnode *v, int flags)
         while (waitq_wake_one(&p->wq) != NULL) {
         }
     }
+    poll_wake();
 }
 
 /* fds[0] to read from, fds[1] to write to */

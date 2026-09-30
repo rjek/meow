@@ -45,13 +45,14 @@ Everything below follows from these.
 ```
   +-----------------------------------------------------------------+
   |  programs: init, sh, ls, cat, lua ...   (run in place in romfs)  |
+  |  servers: programs that are devices and file systems  (6b)       |
   +-----------------------------------------------------------------+
   |  the shared C library: one copy in ROM, static data per process  |
   +-----------------------------------------------------------------+
   |  system calls: the kernel's functions, called by address         |
   +-----------------------------------------------------------------+
   |  VFS: vnodes, mounts, fds, pipes    |  process: image, heap,    |
-  |  romfs  devfs  ramfs  hostfs        |  fds, threads, exit        |
+  |  romfs  devfs  ramfs  hostfs  ports |  fds, threads, exit, kill  |
   +-------------------------------------+---------------------------+
   |  threads: scheduler, sleep, semaphores, message queues, timers   |
   +-----------------------------------------------------------------+
@@ -85,9 +86,9 @@ the dozen platform functions calling the kernel instead of `msim`.
 The kernel learns the RAM size from the Chairman as `crt0` does now.
 One allocator serves everything, a first-fit list with a 16-byte header
 carrying the owning process, so that a process's exit frees whatever it
-leaked.  The C library's `malloc` is 1 KB of code and wants `sbrk`; the kernel's own
-allocator should be under 1 KB.  Programs get `malloc` from libc, which
-takes its arena from the kernel in large pieces.
+leaked.  The C library's `malloc` is 1 KB of code and wants `sbrk`; the
+kernel's own allocator should be under 1 KB.  Programs get `malloc`
+from libc, which takes its arena from the kernel in large pieces.
 
 There is no protection, so stacks carry a guard word at the bottom that
 the scheduler checks at every switch, and a thread that has overrun is
@@ -121,7 +122,9 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
 - **Blocking.**  A thread blocks on a semaphore, a message queue, a
   sleep, or a vnode (a read from the console with nothing there).  Each
   has a wait queue; a wakeup moves the thread to the run queue and
-  requests a switch if it outranks the running thread.
+  requests a switch if it outranks the running thread.  A wait may have
+  a time limit: the thread is then on a second list as well, which the
+  tick walks.
 - **Synchronisation.**  Counting semaphores and mutexes with priority
   inheritance in their simplest form (the holder runs at the waiter's
   priority until release).  Message queues in the POSIX mould, fixed
@@ -161,6 +164,12 @@ followed by `exit`.
   the last exits, or any calls `exit`, the process ends and the kernel
   closes its files, frees its memory and wakes whoever is waiting in
   `wait`.
+- **Kill.**  `process_kill(pid)` ends another process, which exits with
+  status 137.  One of its threads is sent to `process_exit` in place of
+  whatever it was doing and the rest end at once, so none of its code
+  runs again.  There are no signals and nothing to catch: a machine
+  with no protection cannot make a process's death its own business.
+  Neither the kernel nor init can be killed.
 - **The kernel is process 0**, with no image, whose threads are the idle
   thread and the drivers'.  `init` is process 1, run from
   `/bin/init` in romfs, and runs a shell on the console.
@@ -177,18 +186,22 @@ they share with `os/kernel/kernel.h`.  Being function calls, they run on
 the caller's stack in the caller's thread and can block.  The table of
 branch targets at a fixed address that this document first proposed is
 what to add if a program must ever outlive the kernel it was linked
-against; nothing needs it yet.  The kernel is not preemptible: a thread inside a
-system call is not switched away from until it blocks or returns, and a
-tick that arrives meanwhile only notes that a switch is wanted.  One
-counter says whether the kernel is entered; no lock, no mask fiddling,
-and console latency bounded by the longest system call, which is fine
-for a machine like this.
+against; nothing needs it yet.
+
+The kernel is not preemptible: a thread inside a system call is not
+switched away from until it blocks or returns, and a tick that arrives
+meanwhile only notes that a switch is wanted.  One counter says whether
+the kernel is entered; no lock, no mask fiddling, and console latency
+bounded by the longest system call, which is fine for a machine like
+this.
 
 The initial set: `process_spawn`, `process_exit`, `process_wait`,
 `process_pid`, `process_sbrk`, `thread_sleep`, `thread_yield`,
 `ticks_now`, `kernel_time`, and `vfs_open`, `vfs_close`, `vfs_read`,
-`vfs_write`, `vfs_seek`, `vfs_readdir`, `vfs_stat`, `vfs_ioctl`.  Errors
-return negative `errno` values; libc turns them into `-1` and `errno`.
+`vfs_write`, `vfs_seek`, `vfs_readdir`, `vfs_stat`, `vfs_ioctl`.  Since
+then: pipes, `dup`, directories, threads and named IPC, `vfs_poll`,
+`process_kill`, and the `srv_` calls of section 6b.  Errors return
+negative `errno` values; libc turns them into `-1` and `errno`.
 
 ## 6a. The shared C library
 
@@ -233,13 +246,121 @@ carries, and all of the library that Lua would, per process, in ROM
 and in RAM.  The compiler change is thirty lines in `gen.c`; the
 kernel's is a hundred in `process.c`.
 
+## 6b. Services: devices and file systems as programs
+
+A program can be a device, or a file system, for every other program.
+The kernel stays as it is, a driver or a file system is written, run,
+killed and replaced like anything else in `/bin`, and what it costs is
+RAM rather than ROM.  `/bin/memfs` is a file system of 200 lines:
+
+```
+$ memfs /mnt &
+$ echo kept by a program > /mnt/note
+$ cat /mnt/note
+kept by a program
+$ mount
+...
+user on /mnt
+$ kill 3
+$ ls /mnt
+ls: /mnt: error 2
+```
+
+**Ports.**  A server makes a port with `srv_create`, which is a
+descriptor, names what the port serves with `srv_dev(port, name, node)`
+for `/dev/name` or `srv_mount(port, path, node)` for a file system, and
+then loops: `srv_recv` for the next request, the work, `srv_reply` with
+the result.  `node` is the server's own number for a file, anything it
+likes; the kernel hands it back in every request about that file and
+otherwise never looks at it.  Inside the kernel one set of `vnode_ops`
+(`srv.c`) stands for every served file: each operation fills in a
+request, queues it on the port, blocks the caller, and returns what the
+server replied.  A request is the vnode operation and its arguments,
+one for one (`os/include/catflap.h` has the table): lookup, read,
+write, readdir, create, unlink, ioctl, truncate, and release if the
+server asks to be told.
+
+**Nothing is copied.**  There is one address space, so the request
+record sits on the caller's stack and the server is given a pointer to
+it, and the buffer in it is the caller's own, which the server reads or
+writes where it lies.  What a request costs is its round trip: two
+context switches, 340 instructions each as the kernel stands, and the
+queueing and the two system calls at the server's end, 1,500
+instructions in all against 170 for the same read from the kernel's
+own `ramfs`.  That is two Lua function calls.  A server costs a
+process: 5.5 KB of library data, a stack, and its heap if it uses one.
+
+Those pointers are good for exactly as long as the caller is blocked,
+and the rest of the design is about keeping it blocked until the server
+has let go:
+
+- **A server may keep a request**, taking others meanwhile, which is
+  how a read waits for data to arrive: there is no other mechanism for
+  blocking I/O, and no limit on how long.
+- **Cancellation.**  If a caller is to die while a server holds its
+  request, by `process_kill` or by another thread of its program
+  exiting, the request is delivered to the server again with
+  `cancelled` set.  The server must answer it at once, with anything.
+  Until it does the caller stays, marked to end as it leaves the
+  kernel; its call returns `EINTR` inside the kernel, so whatever the
+  call held is released in the ordinary way.  A request the server had
+  not yet taken is simply withdrawn.
+- **The time limit.**  `srv_create` takes a number of ticks, or 0 for
+  none.  A request fails with `ETIMEDOUT` if it waits that long while
+  the server neither takes it nor, having taken it, comes back to
+  `srv_recv` or to polling the port: a server that returns to its loop
+  is alive, however long it keeps a request, and one that does not is
+  hung.  A hung server still has the pointers, so it is not merely
+  given up on: its port is closed and it is killed.  The limit is the
+  server's promise about its own loop, which is why the server sets it.
+- **The port closing**, because the server closed it, exited or was
+  killed, fails every waiting request with `EIO` and removes its
+  devices and mounts.  Files already open on it answer `EIO` from then
+  on; the port's memory goes with the last of them.
+- A server that uses a file it serves would wait for itself, and gets
+  `EDEADLK` instead.
+
+**Readiness.**  `vfs_poll(fds, n, ticks)` says which of some
+descriptors can be read or written without waiting, and waits up to
+`ticks` for the first.  Every kind of file answers through one more
+vnode operation: pipes, the console, message queues, semaphores, ports
+(readable when a request waits, so a server can watch its port along
+with anything else) and served files, for which the server states the
+answer with `srv_ready(port, node, mask)` and the kernel remembers it,
+so that polling a served file costs no round trip.  There is one wait
+queue for everyone who is polling, and anything that changes any
+file's answer wakes them all to look again.  With a dozen threads that
+is cheaper than a list of waiters on every file, and it is what an IP
+stack would need: the kernel, not the application, decides who wakes.
+
+**What is not there.**  No protection: a server can still scribble on
+anything, and the structure is a microkernel's without the walls.  No
+priority inheritance: a server runs at its own priority whoever is
+waiting.  Path lookup is a request for each component.  Interrupts are
+not delivered to programs yet, since the only interrupt is the timer's;
+when there is hardware to drive, an interrupt will be one more kind of
+request on a port.  And the file systems in the kernel stay there:
+`ramfs` is 1 KB of ROM, and as a server it would be 10 KB of RAM.
+
+The other way to do this was to let a program register its own
+`vnode_ops` and have the kernel call them on the caller's thread, with
+`__client_sb` switched for the duration.  That is forty lines instead
+of six hundred, and ten instructions a call instead of fifteen hundred.
+It was not chosen because the server's code would run on a client's
+stack, of a size the client chose; at any moment relative to the
+server's own threads, in a library with no locks; and with nothing to
+be done when the server exits but leave the kernel holding pointers
+into freed memory.  A server that is a loop in an ordinary program is
+easier to write and to get right.
+
 ## 7. Devices and drivers
 
 At boot the kernel walks the chip-select table and binds a driver to
 each device ID it knows: ROM and RAM become memory regions, the Chairman
 gives the timer and console, an IOC when one is specified gives whatever
 it gives.  A driver is a vnode with `read`, `write`, `ioctl` and an
-optional thread, registered under `/dev`.
+optional thread, registered under `/dev`.  That is a driver in the
+kernel; one that is a program registers through a port (section 6b).
 
 - **Console.**  No interrupt, so the tick polls the flags register and
   posts each byte to a 64-byte queue; `read` on `/dev/console` takes
@@ -297,6 +418,10 @@ File systems, in the order they are needed:
   so that a program under test can read a script or write results
   without building a ROM.  Not part of the machine; a real MEOW would
   have an IOC with storage and a file system on it later.
+- **ipcfs and procfs.**  `/ipc` holds the named message queues and
+  semaphores, `/proc` the kernel's state as text (section 12, stage 7).
+- **Served file systems.**  Any path a program has mounted itself on
+  through a port (section 6b); `/proc/mounts` calls them `user`.
 
 `stdin`, `stdout` and `stderr` are fds 0, 1 and 2 on `/dev/console`
 unless the shell redirected them.  libc's `fopen` maps onto `open`,
@@ -315,11 +440,12 @@ unless the shell redirected them.  libc's `fopen` maps onto `open`,
 - **sh**: a small shell, commands with arguments and quoting, `|`, `<`
   and `>`, `&`, `cd`, `exit`, and nothing else.
 - **utilities**: `ls`, `cat`, `echo`, `wc`, `mkdir`, `rm`, `ps`, `free`,
-  `mount`, `uname`, `uptime`, `sleep`.  Each a page of C, and 120 to
-  800 bytes in ROM.  There is no `kill`: nothing in the kernel ends
-  another process.
+  `mount`, `uname`, `uptime`, `sleep`, `kill`.  Each a page of C, and
+  120 to 800 bytes in ROM.
+- **memfs**: a file system in a program's memory, mounted where its
+  argument says, and the model for writing another: 1.6 KB.
 - **lua**: the stock interpreter, linked against the shared library, is
-  the scripting language of the system and a test of it.  It is 185 KB
+  the scripting language of the system and a test of it.  It is 178 KB
   in romfs and runs there.
 
 ## 10. What is in assembler
@@ -342,9 +468,11 @@ behaviour under interrupt is known.
 
 ## 11. Budget
 
-The targets the proposal set.  As built the kernel is 23 KB of code
-with every file system in it, and the ROM 376 KB, of which the C
-library is 145 KB and Lua 185 KB; `docs/rom-size.md` has the breakdown.
+The targets the proposal set.  As built the kernel is 27 KB of code
+with every file system in it, 5.5 KB of that being ports, poll and
+kill, and the ROM 360 KB, of which the C library and the arithmetic
+runtime are 133 KB and Lua 178 KB; `docs/rom-size.md` has the
+breakdown.
 
 | | Target |
 |---|---|
@@ -353,7 +481,7 @@ library is 145 KB and Lua 185 KB; `docs/rom-size.md` has the breakdown.
 | Thread control block | 96 bytes |
 | Default thread stack | 1 KB; a program's main thread 4 KB; interrupt stack 4 KB |
 | Process overhead | 128 bytes plus data plus heap |
-| Context switch | about 60 instructions |
+| Context switch | about 60 instructions; as built, 340 |
 | System call | a function call |
 | Smallest useful machine | 64 KB RAM: kernel, init, shell, one utility |
 | Comfortable | 256 KB: the above plus Lua |
@@ -388,9 +516,10 @@ output compared.
    is a Catflap program, `/bin/lua`, calling the shared C library, so
    `io.open` works on every file system.  To get there: a process heap
    of chained blocks (`sbrk` is not contiguous, which the C library's
-   allocator copes with), a stack size in the `cfx` header (`mld -k`; Lua asks for
-   16 KB), a guard word at the foot of every thread stack checked at
-   each switch, orphans handed to the kernel and freed when they end,
+   allocator copes with), a stack size in the `cfx` header (`mld -k`;
+   Lua asks for 16 KB), a guard word at the foot of every thread stack
+   checked at each switch, orphans handed to the kernel and freed when
+   they end,
    `process_waitany` so the shell reaps background jobs, quoting in the
    shell, and init halting the machine when the shell ends cleanly.
    `tests/os/lua.c`, with `tests/os/lua.host` as `/host`.  `make -C os
@@ -421,25 +550,43 @@ output compared.
    `-b`, it is copied to RAM and its code addresses moved, as before.
    Either way only the data is copied, and a process that runs Lua now
    costs 17 KB of data (6 KB since the library's shrank) and its heap
-   rather than 280 KB, and starts in a
-   quarter of the instructions; `-zsb` made no measurable difference to
-   Lua's speed.  `tests/os/xip.c` runs one program from ROM, from
+   rather than 280 KB, and starts in a quarter of the instructions;
+   `-zsb` made no measurable difference to Lua's speed.  `tests/os/xip.c` runs one program from ROM, from
    `/host` and from a copy in `/tmp`.  Two rules follow.  Every object
    in a program must be compiled with `-zsb`, since a word in code
    holding a data address is never moved; mixing in one that is not
    corrupts the kernel.  And a `const` object holding the address of
    writable data, `int *const p = &x;`, sits in ROM with the linked
    address in it and so points at the wrong place; nothing in the
-   library or the programs does this.
+   library or the programs does this.  (The opposite, a `const` pointer
+   in ROM to something also in ROM, as Lua's tables of names are, is
+   fine, and the compiler knows not to displace its address.)
+
+9. **Services, poll and kill.**  Done: section 6b.  `srv.c` is the
+   ports; `vfs_poll` and a `poll` operation on every kind of file;
+   waits with a time limit; `process_kill` and `/bin/kill`; `/bin/memfs`.
+   `tests/os/srv.c` runs `/bin/srvtest`, which is a device server and
+   its clients in one: reads the server keeps until there is data,
+   polls with and without a limit, a client killed while the server
+   holds its request, a program exiting under a thread that waits on
+   the server, a server that exits with requests unanswered, one that
+   stops answering and is killed for it, and `memfs` with a program
+   copied into it and run from it.  The kernel ends with no memory
+   lost.  One lesson: a thread told to die while a server holds its
+   request cannot just end when the answer comes, because the call it
+   was making holds references that only returning through the call
+   lets go of; so the call fails and the thread ends on its way out of
+   the kernel.
 
 ## 13. Decisions taken, and open ones
 
 Taken, for the reasons above: no `fork`; one address space and one
 allocator; one shared C library with data per process; system calls as
-function calls to the kernel's own addresses; every context switch from the
-interrupt bank; a kernel that is never preempted; message queues rather
-than signals; romfs before any writable file system; C everywhere but
-`boot.s`.
+function calls to the kernel's own addresses; every context switch
+from the interrupt bank; a kernel that is never preempted; message
+queues rather than signals; romfs before any writable file system; C
+everywhere but `boot.s`; drivers and file systems as programs behind
+ports, answering requests, rather than as code the kernel calls.
 
 Also taken: the instruction set does not change for the operating
 system.  A trap operand that swapped banks would give a real system

@@ -14,7 +14,7 @@ handler runs in the other bank and follows the same rules there.
 | a3 | r2 | Argument 3 | Caller |
 | a4 | r3 | Argument 4 | Caller |
 | v1 to v6 | r4 to r9 | Register variables | Callee |
-| at | r10 | Assembler temporary; the compiler allocates it like a4 | Caller |
+| at | r10 | The assembler's temporary; the compiler allocates it like a4 | Caller |
 | sp | r11 | Stack pointer | Callee |
 | lr | r12 | Link register | Caller |
 | ir | r13 | Immediate register, scratch | Caller |
@@ -65,9 +65,10 @@ address, and travels in a register pair the same way up.
 
 ## Calls and returns
 
-A call sets `lr` to the return address and jumps.  The assembler's `BL`
-does this within about 2 KB; beyond that, and for calls through pointers,
-the sequence is:
+A call sets `lr` to the return address and jumps; there is no
+instruction that does both.  The assembler's `BL` does it within about
+2 KB.  Beyond that, and for calls through pointers, hand-written code
+uses
 
 ```
         LDR     at, =function          ; or any register holding the address
@@ -75,8 +76,22 @@ the sequence is:
         MOV     pc, at
 ```
 
+and the compiler keeps the address in the word after the call, where
+`lr` finds it and steps over it:
+
+```
+        ADD     lr, pc, #4
+        LDR     pc, [lr], #4
+        DCD     function
+```
+
+How the jump is made is the caller's business: the callee sees only
+`lr`.  `compiler.md` lists the forms `nmcc` chooses between.
+
 A return is `MOV pc, lr` (the assembler's `RET`), or `POP {pc}` if `lr`
-was pushed.
+was pushed.  A function may instead end by jumping to another with its
+own frame gone and `lr` as it was on entry, a tail call; the function
+jumped to returns to the original caller.
 
 On entry to a function:
 
@@ -92,9 +107,9 @@ Arguments are converted to argument words: `char`, `short` and `float`
 are passed as declared when the callee has a prototype (the caller
 narrows) and promoted to `int` or `double` only for unprototyped and
 variadic parameters, and every scalar occupies one word except `long
-long` and `double`, which occupy two with the low word first.  Structures and unions
-are passed by value as a sequence of words, padded to a whole number of
-words.
+long` and `double`, which occupy two with the low word first.
+Structures and unions are passed by value as a sequence of words, padded
+to a whole number of words.
 
 The words are assigned in order to a1, a2, a3, a4 and then to the stack,
 where the fifth word is at `[sp]`, the sixth at `[sp, 4]`, and so on.  A
@@ -130,11 +145,6 @@ live in the runtime library:
 | `__umull` | a1:a2 = a1 * a2, the full 64-bit unsigned product |
 | `__umulhi`, `__smulhi` | a1 = the high word of a1 * a2, unsigned and signed; division by a constant is a multiply by its reciprocal |
 | `__divtest` | Traps if a1 is zero; called before a division by a variable |
-
-The division routines take the divisor first, as Arm's `__rt_sdiv` does,
-because that is the order compilers find convenient to evaluate the
-operands in.  Both quotient and remainder come back, so `x / y` and
-`x % y` share one call.
 | `_ll_add`, `_ll_sub`, `_ll_rsb`, `_ll_mul`, `_ll_and`, `_ll_or`, `_ll_eor` | 64-bit a OP b, a in a1:a2 and b in a3:a4, low word first; `rsb` is b - a |
 | `_ll_udiv`, `_ll_urem`, `_ll_sdiv`, `_ll_srem` | 64-bit a / b and a % b; `_ll_urdv`, `_ll_urrem`, `_ll_srdv`, `_ll_srrem` compute b / a and b % a |
 | `_ll_not`, `_ll_neg` | 64-bit complement and negation of a1:a2 |
@@ -143,7 +153,15 @@ operands in.  Both quotient and remainder come back, so `x / y` and
 | `_ll_from_l`, `_ll_from_u`, `_ll_to_l` | Widen a1 to a1:a2 with or without sign, and narrow back |
 | `__memcpy`, `__memset` | Block copy and fill with the C semantics |
 
-Division by zero is undefined; the library may trap or return anything.
+The division routines take the divisor first, as Arm's `__rt_sdiv` does,
+because that is the order compilers find convenient to evaluate the
+operands in.  Both quotient and remainder come back, so `x / y` and
+`x % y` share one call.  Division by zero is undefined; the library may
+trap or return anything.
+
+The compiler does the cheapest of the 64-bit operations in line rather
+than call them: addition, subtraction, negation, the bitwise ones,
+shifts by a constant, equality, and the conversions to and from `int`.
 
 Floating point is done by `rt/softfp.c`, plain C compiled with `nmcc`.
 A `float` argument or result is its 32-bit pattern in one register and a

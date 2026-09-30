@@ -12,20 +12,27 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-static inline void round_up( char * buffer, size_t index )
+/* MEOW: the rest of this file is rewritten.  Upstream lost the first
+   digit after the point and repeated the second, rounded at 5 as if the
+   digits were decimal, read digits it had not written when the precision
+   asked for more than there were, and gave zero no digits at all.
+*/
+
+static void round_up( char * buffer, size_t index )
 {
-    if ( buffer[ index ] < '\017' )
+    /* The leading digit is 0 or 1, so the carry stops there at the latest */
+    while ( buffer[ index ] == '\017' )
     {
-        ++buffer[ index ];
+        buffer[ index-- ] = '\0';
     }
-    else
-    {
-        buffer[ index ] = '\0';
-        round_up( buffer, index - 1 );
-    }
+
+    ++buffer[ index ];
 }
 
-static inline void round( char * buffer, size_t last_non_zero, size_t prec, char sign )
+/* Round the digits to buffer[ 0 ] .. buffer[ prec ], given that one of
+   those after them is not zero.
+*/
+static void round( char * buffer, size_t last_non_zero, size_t prec, char sign )
 {
     switch ( FLT_ROUNDS )
     {
@@ -33,11 +40,11 @@ static inline void round( char * buffer, size_t last_non_zero, size_t prec, char
             break;
         default: /*FE_TONEAREST*/
         case 1:
-            if ( buffer[ prec + 1 ] > '\005' )
+            if ( buffer[ prec + 1 ] > '\010' )
             {
                 round_up( buffer, prec );
             }
-            else if ( buffer[ prec + 1 ] == '\005' )
+            else if ( buffer[ prec + 1 ] == '\010' )
             {
                 if ( last_non_zero > ( prec + 1 ) || ( buffer[ prec ] % 2 ) )
                 {
@@ -73,10 +80,15 @@ static char * print_exp( char * buffer, int exp )
     return ++buffer;
 }
 
+/* The digits of the mantissa, as values 0 to 15, the one before the point
+   first.  Returns how many are to be printed: those the precision asks
+   for, or without one, all up to the last that is not zero.
+*/
 static size_t print_mant( _PDCLIB_fp_t * fp, struct _PDCLIB_status_t * status, char * buffer )
 {
     size_t i;
-    int last_non_zero;
+    size_t count;
+    size_t last_non_zero = 0;
     size_t mant_dig = ( ( status->flags & E_ldouble ) ? _PDCLIB_LDBL_MANT_DIG : _PDCLIB_DBL_MANT_DIG ) - 1;
     size_t log2 = _PDCLIB_bigint_log2( &fp->mantissa );
     char * bufend = buffer;
@@ -110,21 +122,25 @@ static size_t print_mant( _PDCLIB_fp_t * fp, struct _PDCLIB_status_t * status, c
         }
     }
 
-    if ( status->prec >= 0 )
-    {
-        /* check rounding */
-        if ( last_non_zero > ( status->prec + 1 ) )
-        {
-            round( buffer, last_non_zero, status->prec, fp->sign );
-        }
+    count = bufend - buffer;
 
-        return status->prec + 1;
-    }
-    else
+    if ( status->prec < 0 )
     {
         /* no precision given */
         return last_non_zero + 1;
     }
+
+    if ( (size_t)status->prec + 1 < count )
+    {
+        count = status->prec + 1;
+
+        if ( last_non_zero >= count )
+        {
+            round( buffer, last_non_zero, status->prec, fp->sign );
+        }
+    }
+
+    return count;
 }
 
 void _PDCLIB_print_fp_hexa( _PDCLIB_fp_t * fp,
@@ -135,67 +151,56 @@ void _PDCLIB_print_fp_hexa( _PDCLIB_fp_t * fp,
 
     char const * digits = ( status->flags & E_lower ) ? _PDCLIB_digits : _PDCLIB_Xdigits;
     int exp = (_PDCLIB_bigint_sdigit_t)fp->exponent;
-    /* sign + "0x" + dec + "." + ( LDBL_MANT_DIG / 4 )
-            + 'p' + sign + exp[5] + '\0' <= 41
-       ...but how could I do THAT? :-)
-    */
-    char * current = buffer;
-    size_t count;
+    char exp_buffer[ 8 ];
+    char * exp_end = exp_buffer;
+    size_t count;  /* digits of the mantissa in the buffer, never none */
+    size_t zeroes; /* those the precision asks for beyond them */
+    size_t length;
+    size_t padding;
     size_t i;
 
     /* significant */
     if ( fp->mantissa.size == 0 )
     {
-        *current++ = '0';
+        buffer[ 0 ] = '\0';
+        count = 1;
         exp = 0;
     }
     else
     {
-        count = print_mant( fp, status, current );
-
-        *current = digits[ (size_t)*current ];
-        ++current;
-
-        if ( ( count > 1 && status->prec != 0 ) || status->flags & E_alt )
-        {
-            for ( i = count; i > 1; --i )
-            {
-                current[ i ] = current[ i - 1 ];
-            }
-
-            *current++ = '.'; /* TODO: decimal point */
-        }
-
-        for ( i = 1; i < count; ++i )
-        {
-            *current = digits[ (size_t)*current ];
-            ++current;
-        }
+        count = print_mant( fp, status, buffer );
     }
 
+    zeroes = ( status->prec >= 0 && (size_t)status->prec + 1 > count ) ? ( status->prec + 1 - count ) : 0;
+
     /* exponent */
-    *current++ = ( status->flags & E_lower ) ? 'p' : 'P';
+    *exp_end++ = ( status->flags & E_lower ) ? 'p' : 'P';
 
     if ( exp < 0 )
     {
-        *current++ = '-';
+        *exp_end++ = '-';
         exp *= -1;
     }
     else
     {
-        *current++ = '+';
+        *exp_end++ = '+';
     }
 
-    current = print_exp( current, exp );
-    *current = '\0';
+    exp_end = print_exp( exp_end, exp );
 
     /* output */
-    count = ( current - buffer ) + ( ( fp->sign == '\0' ) ? 2 : 3 );
-    count = ( status->width > count ) ? ( status->width - count ) : 0;
+    length = ( ( fp->sign == '\0' ) ? 2 : 3 ) + count + zeroes + ( exp_end - exp_buffer );
 
-    if ( ( count > 0 ) && ! ( status->flags & E_minus ) && ! ( status->flags & E_zero ) )
+    if ( count + zeroes > 1 || status->flags & E_alt )
     {
-        for ( i = 0; i < count; ++i )
+        ++length; /* TODO: decimal point */
+    }
+
+    padding = ( status->width > length ) ? ( status->width - length ) : 0;
+
+    if ( ! ( status->flags & E_minus ) && ! ( status->flags & E_zero ) )
+    {
+        for ( i = 0; i < padding; ++i )
         {
             PUT( ' ' );
             status->current++;
@@ -212,26 +217,45 @@ void _PDCLIB_print_fp_hexa( _PDCLIB_fp_t * fp,
     PUT( ( status->flags & E_lower ) ? 'x' : 'X' );
     status->current += 2;
 
-    if ( ( count > 0 ) && ! ( status->flags & E_minus ) && ( status->flags & E_zero ) )
+    if ( ! ( status->flags & E_minus ) && ( status->flags & E_zero ) )
     {
-        for ( i = 0; i < count; ++i )
+        for ( i = 0; i < padding; ++i )
         {
             PUT( '0' );
             status->current++;
         }
     }
 
-    current = buffer;
+    PUT( digits[ (size_t)buffer[ 0 ] ] );
+    status->current++;
 
-    while ( *current != '\0' )
+    if ( count + zeroes > 1 || status->flags & E_alt )
     {
-        PUT( *current++ );
+        PUT( '.' );
         status->current++;
     }
 
-    if ( ( count > 0 ) && ( status->flags & E_minus ) )
+    for ( i = 1; i < count; ++i )
     {
-        for ( i = 0; i < count; ++i )
+        PUT( digits[ (size_t)buffer[ i ] ] );
+        status->current++;
+    }
+
+    for ( i = 0; i < zeroes; ++i )
+    {
+        PUT( '0' );
+        status->current++;
+    }
+
+    for ( i = 0; exp_buffer + i < exp_end; ++i )
+    {
+        PUT( exp_buffer[ i ] );
+        status->current++;
+    }
+
+    if ( status->flags & E_minus )
+    {
+        for ( i = 0; i < padding; ++i )
         {
             PUT( ' ' );
             status->current++;

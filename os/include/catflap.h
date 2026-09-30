@@ -20,6 +20,7 @@
 #define CF_V_PIPE       3
 #define CF_V_MQ         4
 #define CF_V_SEM        5
+#define CF_V_PORT       6
 
 struct cf_stat {
     int type;
@@ -50,11 +51,29 @@ int vfs_chdir(const char *path);
 int vfs_getcwd(char *buf, unsigned size);
 int vfs_pipe(int fds[2]);
 
+/* Which of n descriptors can be read or written without waiting: sets
+   revents in each and returns how many have any.  Waits up to ticks for
+   the first; 0 does not wait and a negative number waits for ever. */
+#define CF_POLLIN       1
+#define CF_POLLOUT      4
+#define CF_POLLERR      8               /* reported whether asked for or not */
+#define CF_POLLHUP      16
+#define CF_POLLNVAL     32
+
+struct cf_pollfd {
+    int fd;
+    short events, revents;
+};
+
+int vfs_poll(struct cf_pollfd *fds, unsigned n, int ticks);
+
 /* processes */
 int process_spawn(const char *path, int argc, char *const argv[]);
 void process_exit(int status);
 int process_wait(int pid, int *status);
 int process_waitany(int *status, int block);   /* a pid, 0, or -ECHILD */
+int process_kill(int pid);              /* it exits with CF_KILLED */
+#define CF_KILLED       137
 void *process_sbrk(int increment);
 int process_pid(void);
 
@@ -75,6 +94,57 @@ int thread_id(void);
 #define CF_IPC_TRYWAIT  0x4903          /* vfs_ioctl(fd, ., 0): 1 taken, 0 not */
 #define CF_IPC_VALUE    0x4904          /* vfs_ioctl(fd, ., 0): messages waiting, or the count */
 int ipc_create(const char *name, int kind, int a, int b);
+
+/* Serving files.  A port is a descriptor.  srv_dev() makes /dev/NAME and
+   srv_mount() a file system at a path; after that every operation on
+   them by any other program arrives at srv_recv() as a request, and the
+   caller waits until srv_reply() gives it its result: a count or 0, or
+   a negative errno.  The port's nodes and mounts go when it is closed.
+
+   A request's buf is the caller's own buffer: read from it or write to
+   it directly.  It and the request stay valid until the reply, and not
+   a moment longer.  A request need not be answered before the next is
+   taken: a read with nothing to give can be kept until there is.  One
+   that comes round again with `cancelled` set must be answered at
+   once, with anything; its caller is being killed and cannot go until
+   it is.
+
+   node is the server's own number for a file, whatever it likes:
+      op            node        buf, len        off       also
+      CF_OP_LOOKUP  directory   name            -         answer in new_node, type, size
+      CF_OP_READ    file        where to put    offset    result: bytes read
+      CF_OP_WRITE   file        what to write   offset    result: bytes taken; size if it changed
+      CF_OP_READDIR directory   a cf_dirent     index     result: 1, or 0 at the end
+      CF_OP_CREATE  directory   name            type      answer in new_node
+      CF_OP_UNLINK  directory   name            -
+      CF_OP_IOCTL   file        the argument    request
+      CF_OP_TRUNCATE file       -               -         size is now 0
+      CF_OP_RELEASE file        -               -         only with CF_SRV_RELEASE: a use of it ended */
+enum { CF_OP_LOOKUP = 1, CF_OP_READ, CF_OP_WRITE, CF_OP_READDIR, CF_OP_CREATE,
+       CF_OP_UNLINK, CF_OP_IOCTL, CF_OP_TRUNCATE, CF_OP_RELEASE };
+#define CF_SRV_RELEASE  1
+
+struct cf_req {
+    int op;
+    unsigned node;
+    void *buf;
+    unsigned len;
+    unsigned off;
+    int pid;                            /* who is asking */
+    int cancelled;
+    unsigned new_node;
+    int type;                           /* CF_V_FILE or CF_V_DIR */
+    unsigned size;
+};
+
+/* timeout: the ticks the server may stay away from srv_recv() while
+   requests wait before it is killed and they fail, or 0 for no limit */
+int srv_create(int timeout, int flags);
+int srv_dev(int port, const char *name, unsigned node);
+int srv_mount(int port, const char *path, unsigned root);
+int srv_recv(int port, struct cf_req **req, int ticks);        /* 1, or 0 when ticks ran out */
+int srv_reply(int port, struct cf_req *req, int result);
+int srv_ready(int port, unsigned node, int mask);              /* what poll says of a node */
 
 /* time */
 unsigned ticks_now(void);               /* 100 a second since boot */

@@ -4,13 +4,14 @@
    a time. */
 #include "kernel.h"
 
-#define NMOUNT 8
+#define NMOUNT 12
 
 struct mount {
     const char *path;                   /* "/" or "/dev": no trailing slash */
     size_t len;
     struct vnode *root;
     const char *type;                   /* the file system's name, for /proc/mounts */
+    void *owner;                        /* the port that serves it, or NULL for the kernel's */
 };
 
 static struct mount mounts[NMOUNT];
@@ -71,7 +72,58 @@ int vfs_mount(const char *path, struct vnode *root, const char *type)
     m->len = strlen(path);
     m->root = root;
     m->type = type;
+    m->owner = NULL;
     return 0;
+}
+
+static int normalise(const char *path, char *out);
+
+/* A mount that a port serves, and that goes when the port does: the
+   path may be relative, and is copied. */
+int vfs_mount_owned(const char *path, struct vnode *root, const char *type, void *owner)
+{
+    char full[PATH_MAX], *copy;
+    unsigned i;
+    int rc = normalise(path, full);
+
+    if (rc < 0) {
+        return rc;
+    }
+    for (i = 0; i < nmounts; i++) {
+        if (strcmp(mounts[i].path, full) == 0) {
+            return -EEXIST;
+        }
+    }
+    copy = kmalloc(strlen(full) + 1);
+    if (copy == NULL) {
+        return -ENOMEM;
+    }
+    strcpy(copy, full);
+    rc = vfs_mount(copy, root, type);
+    if (rc < 0) {
+        kfree(copy);
+        return rc;
+    }
+    mounts[nmounts - 1].owner = owner;
+    return 0;
+}
+
+void vfs_umount_owner(void *owner)
+{
+    unsigned i, kept = 0;
+
+    for (i = 0; i < nmounts; i++) {
+        if (mounts[i].owner == owner) {
+            struct vnode *root = mounts[i].root;
+
+            kfree((char *)mounts[i].path);
+            mounts[i].owner = NULL;
+            vnode_put(root);
+        } else {
+            mounts[kept++] = mounts[i];
+        }
+    }
+    nmounts = kept;
 }
 
 static struct mount *mount_for(const char *path, const char **rest)
@@ -255,6 +307,13 @@ static struct file *fd_get(int fd)
         return NULL;
     }
     return fds[fd];
+}
+
+struct vnode *vfs_fd_vnode(int fd)
+{
+    struct file *f = fd_get(fd);
+
+    return f == NULL ? NULL : f->v;
 }
 
 /* A descriptor on a vnode the caller holds a reference to; the file
@@ -652,4 +711,67 @@ int vfs_ioctl(int fd, int req, void *arg)
         return -ENOTTY;
     }
     return f->v->ops->ioctl(f->v, req, arg);
+}
+
+/* ---- poll: which of these descriptors can be read or written without
+   waiting.  There is one queue for everyone who is waiting to know, and
+   whatever changes the answer for any file wakes them all to look
+   again; at this scale that is cheaper than a list on every file. ---- */
+
+static struct waitq pollq;
+
+/* Something became readable or writable.  Returns the most urgent
+   thread woken, for a caller that may want to make way for it. */
+struct thread *poll_wake(void)
+{
+    struct thread *t, *best = NULL;
+
+    while ((t = waitq_wake_one(&pollq)) != NULL) {
+        if (best == NULL || t->prio > best->prio) {
+            best = t;
+        }
+    }
+    return best;
+}
+
+/* Fill in revents for each of n descriptors and return how many have
+   any, waiting up to ticks for the first: 0 does not wait, a negative
+   number waits for ever. */
+int vfs_poll(struct pollfd *p, unsigned n, int ticks)
+{
+    uint32_t end = ticks_now() + (uint32_t)ticks;
+    unsigned i;
+    int count;
+
+    kenter();
+    for (;;) {
+        count = 0;
+        for (i = 0; i < n; i++) {
+            struct file *f = fd_get(p[i].fd);
+            int m = POLLNVAL;
+
+            if (f != NULL) {
+                m = f->v->ops->poll == NULL ? POLLIN | POLLOUT : f->v->ops->poll(f->v);
+                m &= p[i].events | POLLERR | POLLHUP;
+            }
+            p[i].revents = (short)m;
+            if (m != 0) {
+                count++;
+            }
+        }
+        if (count != 0 || ticks == 0) {
+            break;
+        }
+        if (ticks < 0) {
+            waitq_wait(&pollq);
+        } else {
+            int32_t left = (int32_t)(end - ticks_now());
+
+            if (left <= 0 || waitq_wait_for(&pollq, (uint32_t)left) == 0) {
+                ticks = 0;              /* one last look */
+            }
+        }
+    }
+    kexit();
+    return count;
 }
