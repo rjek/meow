@@ -6,10 +6,10 @@ LUA=lua5.1
 all: msim
 
 clean:
-	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o msim_watchpoints.c
+	rm -rf msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim_ioc.o msim.o
 
-msim: msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o $(LIBMEOW)
-	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim.o $(LIBMEOW) -ledit -llua5.1
+msim: msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim_ioc.o msim.o $(LIBMEOW)
+	$(CC) -o msim msim_core.o msim_chairman.o msim_debug.o msim_hostfs.o msim_ioc.o msim.o $(LIBMEOW) -ledit -llua5.1
 
 $(LIBMEOW):
 	$(MAKE) -C ../lib
@@ -24,6 +24,9 @@ msim_core.o: msim_core.c msim_core.h config.h
 
 msim_chairman.o: msim_chairman.c msim_chairman.h
 	$(CC) $(CFLAGS) -c msim_chairman.c -o msim_chairman.o
+
+msim_ioc.o: msim_ioc.c msim_ioc.h msim_chairman.h msim_core.h
+	$(CC) $(CFLAGS) -c msim_ioc.c -o msim_ioc.o
 
 msim_debug.o: msim_debug.c msim_debug.h msim_core.h config.h msim_watchpoints.c
 	$(CC) $(CFLAGS) -c msim_debug.c -o msim_debug.o

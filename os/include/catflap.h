@@ -96,6 +96,26 @@ int cpu_id(void);
 int thread_spawn_on(int (*fn)(void *), void *arg, unsigned stack, int prio, int cpu);
 int process_spawn_on(const char *path, int argc, char *const argv[], int cpu);
 
+/* An exclusive thread with its stack in its CPU's local memory (the
+   reference's chip select 30) and, if code_size is not 0, that many
+   bytes of code from fn copied there too, so that it runs touching
+   nothing on the shared bus but what it chooses: a peripheral written
+   in C.  The code must stand being moved: branches and literal loads
+   are relative, so a function and the literal pool the compiler puts
+   after it move as one, and the size to give is the distance to the
+   next function in the file, (char *)next - (char *)fn.  Calls and
+   static data are reached by absolute address and stay where they are.
+   The stack is what is left of the local memory. */
+int thread_spawn_local(int (*fn)(void *), unsigned code_size, void *arg, int prio, int cpu);
+
+/* The Chairman's chip-select table, for finding the IOC and the rest:
+   entry n's first word is the device, vendor in the top half, number in
+   the bottom, and 0xffffffff for nothing there. */
+#define CF_CHAIRMAN     0xF8000000u
+#define CF_CS_DEVICE(n) (*(volatile unsigned *)(CF_CHAIRMAN + 256u * (n)))
+#define CF_CS_BASE(n)   ((n) << 27)
+#define CF_DEV_IOC      0x00000003u
+
 /* named IPC in /ipc: open the name after creating it.  A queue's write
    sends exactly one message of its size and its read takes one; a
    semaphore's read waits and its write posts.  Both block. */

@@ -41,7 +41,7 @@ LINK = $(KOBJS) obj/kernel/init.o $(RT) obj/kernel/libc_start.o $(LIBOBJS) obj/k
 # linker takes what it needs.
 WITH_LUA ?= 0
 # The test programs are built, for tests/runos.sh, but stay out of the ROM.
-TEST_PROGS := hello libctest ipctest srvtest spin cputest
+TEST_PROGS := hello libctest ipctest srvtest spin cputest bitbang
 PROGS := $(filter-out $(addprefix obj/root/bin/,$(TEST_PROGS)),$(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c))) \
          $(if $(filter 1,$(WITH_LUA)),obj/root/bin/lua)
 LUA_SRCS := $(wildcard ../lua/*.c)

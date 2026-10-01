@@ -1,0 +1,10 @@
+Catflap: 256 KB RAM, 2 CPUs
+local memory 4096 bytes a CPU
+code copied to local memory, stack in local memory, 3816 bytes of it
+copy matches the original
+its local variable was in local memory
+cpu1 is free again
+hello from cpu1, locally
+sent 25 bytes in 26000 cycles at 9615 baud
+bitbang exited 0
+exit 0

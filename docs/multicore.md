@@ -246,9 +246,9 @@ Done: `-n N` simulates N CPUs, one instruction each a cycle in bus-ID
 order, and `-j seed` stalls them at random so that an interleaving
 cannot be relied on; `-l KB` is the local memory.  `tests/sim/cpus.s`
 exercises the Chairman's registers and `tests/os/cpus.c` the kernel.
-Still to do: a worker driving a software UART on a GPIO line that msim
-decodes, and the same worker in local memory with a cycle count that
-must not vary.
+Also done: the IOC's GPIO, clock and counter, and `-G line,baud`,
+which decodes a software UART sent on a GPIO line; `/bin/bitbang` is
+the worker, in local memory, and its cycle count does not vary.
 
 ## Questions
 
@@ -257,7 +257,9 @@ must not vary.
 3. A thread on any CPU may make threads on any other; nothing stops
    `spawn` from an exclusive CPU, and nothing recommends it.
 4. Chip selects 29 and 30 are local memory: settled, in the reference.
-5. An exclusive thread's stack and the code it runs are in shared RAM;
-   local memory holds only the CPU's state.  Giving such a thread a
-   stack in local memory, and copying its code there, is what would
-   make its timing a matter of counting instructions.
+5. An exclusive thread's stack and code can be in its CPU's local
+   memory: `thread_spawn_local` puts them there, the code being copied
+   as a block, function and literal pool together, which MEOW's
+   relative branches and literal loads allow.  What such a thread
+   calls, and any static data, stay on the shared bus; a worker that
+   wants its timing exact uses neither.

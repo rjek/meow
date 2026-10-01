@@ -36,6 +36,7 @@
 #include "msim_core.h"
 #include "msim_chairman.h"
 #include "msim_hostfs.h"
+#include "msim_ioc.h"
 
 static inline void chomp(char *c)
 {
@@ -87,6 +88,16 @@ static bool parse_chip_sys(struct msim_ctx *ctx, int lino, int chip)
 	return true;
 }
 
+static int ioc_area = -1;
+
+static bool parse_chip_ioc(struct msim_ctx *ctx, int lino, int chip)
+{
+	msim_add_ioc(ctx, chip);
+	ioc_area = chip;
+	
+	return true;
+}
+
 static bool parse_chip(struct msim_ctx *ctx, char *line, int lino)
 {
 	char *b;
@@ -117,6 +128,9 @@ static bool parse_chip(struct msim_ctx *ctx, char *line, int lino)
 		
 	if (!strcmp(b, "sys"))
 		return parse_chip_sys(ctx, lino, chip);
+		
+	if (!strcmp(b, "ioc"))
+		return parse_chip_ioc(ctx, lino, chip);
 		
 	printf("%d: unknown chip type '%s' specified\n", lino, b);
 	return false;
@@ -154,11 +168,12 @@ static bool parse_spec(struct msim_ctx *ctx, const char *specfile)
 static void display_help(const char *argv0)
 {
 	printf("Usage: %s [-vhiqs] {-f spec file | -r rom} [-c cycles]\n", argv0);
-	printf("  -r rom   ROM image at chip select 0, RAM at 1, Chairman at 31\n");
+	printf("  -r rom   ROM image at chip select 0, RAM at 1, IOC at 2, Chairman at 31\n");
 	printf("  -m KB    size of that RAM, default 64\n");
 	printf("  -n CPUs  how many CPUs, default 1; the others start held in reset\n");
 	printf("  -l KB    local memory per CPU at chip selects 29 and 30, default none\n");
 	printf("  -j seed  stall CPUs at random, from the seed, to vary their interleaving\n");
+	printf("  -G n,baud decode a software UART sent on IOC GPIO line n at baud\n");
 	printf("  -H dir   lend a host directory to the program through BNV #-18\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
@@ -197,7 +212,7 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:";
+	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:G:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
@@ -207,6 +222,8 @@ int main(int argc, char *argv[])
 	size_t ramsize = 65536;
 	size_t localsize = 0;
 	unsigned int ncpus = 1, jitter = 0, n;
+	int decode_line = -1;
+	unsigned decode_baud = 0;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -265,6 +282,13 @@ int main(int argc, char *argv[])
 		case 'j':
 			jitter = (unsigned int)atoi(optarg);
 			break;
+		case 'G':
+			if (sscanf(optarg, "%d,%u", &decode_line, &decode_baud) != 2 ||
+			    decode_line < 0 || decode_line > 31 || decode_baud == 0) {
+				fprintf(stderr, "msim: -G wants line,baud\n");
+				opterr = true;
+			}
+			break;
 		}
 	}
 	
@@ -290,6 +314,8 @@ int main(int argc, char *argv[])
 	if (romfile != NULL) {
 		msim_add_rom_from_file(ctx, 0, romfile);
 		msim_add_ram(ctx, 1, ramsize);
+		msim_add_ioc(ctx, 2);
+		ioc_area = 2;
 		msim_add_sys(ctx, 31);
 	} else if (parse_spec(ctx, specfile) == false) {
 		msim_destroy(ctx);
@@ -297,6 +323,13 @@ int main(int argc, char *argv[])
 	}
 	
 	msim_add_hostfs(ctx, hostdir);
+	if (decode_line >= 0) {
+		if (ioc_area < 0) {
+			fprintf(stderr, "msim: -G needs an IOC\n");
+			exit(1);
+		}
+		msim_ioc_decode(ctx, ioc_area, decode_line, decode_baud);
+	}
 	if (localsize != 0) {
 		msim_add_local(ctx, localsize);
 	}

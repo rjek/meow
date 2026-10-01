@@ -69,6 +69,7 @@ struct thread {
     uint32_t wake;                      /* tick to wake at, when sleeping */
     void *stack;
     size_t stack_size;
+    int local;                          /* the stack is its CPU's local memory, not the heap's */
     const char *name;
     int exit_status;
     int tid;
@@ -80,6 +81,8 @@ struct thread {
 };
 
 #define CPU_EXCLUSIVE   0x100           /* a cpu argument's flag: the thread has the CPU to itself */
+#define LOCAL_CODE      256             /* where a local thread's code goes in local memory, past struct cpu */
+#define LOCAL_MIN_STACK 256
 
 #define R_SP 11
 #define R_LR 12
@@ -451,6 +454,10 @@ struct thread *thread_create_on(const char *name, int (*fn)(void *), void *arg,
 struct thread *thread_create_in(struct process *p, const char *name,
                                 int (*fn)(void *), void *arg, int prio,
                                 size_t stack_size, int cpu);
+struct thread *thread_create_local(struct process *p, const char *name,
+                                   int (*fn)(void *), size_t code_size,
+                                   void *arg, int prio, int cpu);
+int thread_spawn_local(int (*fn)(void *), unsigned code_size, void *arg, int prio, int cpu);
 void thread_kill_others(struct process *p);
 void thread_kill_process(struct process *p);
 int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);

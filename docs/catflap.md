@@ -141,7 +141,12 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
   keeps its own slices with its own timer.  A thread made with
   `CPU_EXCLUSIVE` has its CPU to itself: nothing else is put there, and
   the CPU's timer is stopped, so only its own kernel calls and the
-  doorbell interrupt it.  A thread that must end while it is running on
+  doorbell interrupt it.  `thread_spawn_local` goes further: the
+  thread's stack is the rest of its CPU's local memory, and its code,
+  the function and the literal pool the compiler puts after it, is
+  copied there too, so it runs touching nothing on the shared bus but
+  what it chooses, as a peripheral written in C should.  A thread that
+  must end while it is running on
   another CPU is marked and its CPU rung; it ends at its next kernel
   exit, or, if it was in user code, when its CPU next switches it out
   and its registers can be rewritten to a call that exits.  CPU 0
@@ -636,10 +641,16 @@ output compared.
     One change to the clock came with it: a forced switch rings the
     doorbell instead of restarting the timer, so ticks no longer slip
     under heavy switching, and two tests' expectations moved by a
-    tick.  Workers' stacks are still in shared RAM; putting an
-    exclusive thread's stack in its CPU's local memory, for timing that
-    is a matter of counting instructions, is the next thing to do
-    there.
+    tick.  Then `thread_spawn_local`, and with it the IOC in `msim`
+    (identification, GPIO, clock and counter, system control; no UARTs
+    yet) and `msim -G`, which decodes a software UART sent on a GPIO
+    line.  `tests/os/local.c` makes a local thread of the kernel's and
+    checks where its code, its stack and a local variable of its are,
+    then runs `/bin/bitbang`, a program whose local thread on CPU 1
+    sends a line at 9600 baud, timing every bit from the IOC counter;
+    msim prints the line, and the thread reports 26000 cycles for 25
+    bytes, which is 10 bits of 104 cycles each, under every
+    interleaving tried.
 
 ## 13. Decisions taken, and open ones
 

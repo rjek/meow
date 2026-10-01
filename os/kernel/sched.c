@@ -264,61 +264,129 @@ struct thread *thread_create_on(const char *name, int (*fn)(void *), void *arg,
     return thread_create_in(current_process(), name, fn, arg, prio, stack_size, cpu);
 }
 
-/* A thread on CPU cpu, which may carry CPU_EXCLUSIVE: then it is the
-   only thread the CPU runs, and the CPU's tick stops while it lives, so
-   that nothing interrupts it but what it asks for. */
-struct thread *thread_create_in(struct process *p, const char *name,
-                                int (*fn)(void *), void *arg, int prio,
-                                size_t stack_size, int cpu)
+/* A thread's block, for CPU cpu, which may carry CPU_EXCLUSIVE: then it
+   is the only thread the CPU runs, and the CPU's tick stops while it
+   lives, so that nothing interrupts it but what it asks for.  Inside
+   the kernel; NULL if the CPU will not have it or memory is short. */
+static struct thread *thread_new(struct process *p, const char *name, int prio,
+                                 int cpu)
 {
     struct thread *t;
     struct cpu *c;
     int exclusive = (cpu & CPU_EXCLUSIVE) != 0;
 
     cpu &= NCPU - 1;
-    kenter();
     reap_zombies();
     reap_orphans();
     c = cpu_of(cpu);
     if (cpu >= ncpus_online || c->online == 0 || c->exclusive != NULL ||
         (exclusive != 0 && cpu == 0)) {
-        kexit();
         return NULL;
     }
     t = kmalloc(sizeof *t);
     if (t == NULL) {
-        kexit();
         return NULL;
     }
     memset(t, 0, sizeof *t);
+    t->name = name;
+    t->prio = prio;
+    t->cpu = cpu;
+    t->proc = p;
+    if (exclusive != 0) {
+        c->exclusive = t;
+    }
+    return t;
+}
+
+/* The block is complete: the thread exists from here, and runs now if
+   it outranks the caller on the caller's own CPU. */
+static void thread_begin(struct thread *t, void *arg)
+{
+    struct cpu *c = cpu_of(t->cpu);
+
+    t->regs[0] = (uint32_t)arg;
+    t->regs[R_LR] = (uint32_t)thread_exit;   /* fn's return value is its status */
+    t->tid = next_tid++;
+    t->all = all_threads;
+    all_threads = t;
+    if (c->exclusive == t) {
+        CH_MASK(t->cpu) = 1u << IRQ_DOORBELL;
+        CH_CPU_TIMER_RELOAD(t->cpu) = 0;
+    }
+    enqueue(t);
+    if (t->cpu == this_cpu()->cpu && t->prio > this_cpu()->current->prio) {
+        schedule();
+    }
+}
+
+struct thread *thread_create_in(struct process *p, const char *name,
+                                int (*fn)(void *), void *arg, int prio,
+                                size_t stack_size, int cpu)
+{
+    struct thread *t;
+
+    kenter();
+    t = thread_new(p, name, prio, cpu);
+    if (t == NULL) {
+        kexit();
+        return NULL;
+    }
     t->stack = kmalloc(stack_size);
     if (t->stack == NULL) {
+        cpu_of(t->cpu)->exclusive = NULL;
         kfree(t);
         kexit();
         return NULL;
     }
     t->stack_size = stack_size;
     *(uint32_t *)t->stack = STACK_MAGIC;
-    t->name = name;
-    t->prio = prio;
-    t->cpu = cpu;
-    t->regs[0] = (uint32_t)arg;
     t->regs[R_SP] = ((uint32_t)t->stack + stack_size) & ~7u;
-    t->regs[R_LR] = (uint32_t)thread_exit;   /* fn's return value is its status */
     t->regs[R_PC] = (uint32_t)fn;
-    t->proc = p;
-    t->tid = next_tid++;
-    t->all = all_threads;
-    all_threads = t;
-    if (exclusive != 0) {
-        c->exclusive = t;
-        CH_MASK(cpu) = 1u << IRQ_DOORBELL;
-        CH_CPU_TIMER_RELOAD(cpu) = 0;
+    thread_begin(t, arg);
+    kexit();
+    return t;
+}
+
+/* An exclusive thread whose stack is its CPU's local memory and whose
+   code, code_size bytes from fn, is copied there too, so that it runs
+   touching nothing on the shared bus unless it chooses to.  The code
+   must stand being moved: MEOW's branches and literal loads are
+   relative, so a function and the pool after it move as one, and what
+   it calls or reads elsewhere by absolute address is where it was.
+   With code_size 0 the code stays where it is.  The thread sees its
+   local memory at LOCAL_BASE; the caller writes it through LOCAL_ALL. */
+struct thread *thread_create_local(struct process *p, const char *name,
+                                   int (*fn)(void *), size_t code_size,
+                                   void *arg, int prio, int cpu)
+{
+    struct thread *t;
+    uint32_t size = CH_CS_SIZE(30), code_end;
+    char *all;
+
+    code_size = (code_size + 7) & ~(size_t)7;
+    code_end = LOCAL_CODE + (uint32_t)code_size;
+    if (size < code_end + LOCAL_MIN_STACK) {
+        return NULL;
     }
-    enqueue(t);
-    if (cpu == this_cpu()->cpu && prio > this_cpu()->current->prio) {
-        schedule();
+    kenter();
+    t = thread_new(p, name, prio, cpu | CPU_EXCLUSIVE);
+    if (t == NULL) {
+        kexit();
+        return NULL;
     }
+    all = (char *)cpu_of(t->cpu);
+    if (code_size != 0) {
+        memcpy(all + LOCAL_CODE, (const void *)fn, code_size);
+        t->regs[R_PC] = LOCAL_BASE + LOCAL_CODE;
+    } else {
+        t->regs[R_PC] = (uint32_t)fn;
+    }
+    t->local = 1;
+    t->stack = (void *)(LOCAL_BASE + code_end);
+    t->stack_size = size - code_end;
+    *(uint32_t *)(all + code_end) = STACK_MAGIC;
+    t->regs[R_SP] = (LOCAL_BASE + size) & ~7u;
+    thread_begin(t, arg);
     kexit();
     return t;
 }
@@ -456,6 +524,29 @@ int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio)
     return thread_spawn_on(fn, arg, stack, prio, this_cpu()->cpu);
 }
 
+int thread_spawn_local(int (*fn)(void *), unsigned code_size, void *arg, int prio, int cpu)
+{
+    struct process *p = current_process();
+    struct thread *t;
+
+    if (p == &kproc) {
+        return -EINVAL;
+    }
+    if (prio < 1 || prio > PRIO_USER_MAX) {
+        prio = PRIO_DEFAULT;
+    }
+    kenter();
+    p->nthreads++;
+    t = thread_create_local(p, p->name, fn, code_size, arg, prio, cpu);
+    if (t == NULL) {
+        p->nthreads--;
+        kexit();
+        return -ENOMEM;
+    }
+    kexit();
+    return t->tid;
+}
+
 /* Every thread of p but the caller dies now, or as soon as the server
    it is waiting on lets it, or as soon as its CPU hears. */
 void thread_kill_others(struct process *p)
@@ -526,7 +617,9 @@ void reap_zombies(void)
         for (pp = &all_threads; *pp != t; pp = &(*pp)->all) {
         }
         *pp = t->all;
-        kfree(t->stack);
+        if (t->local == 0) {
+            kfree(t->stack);
+        }
         kfree(t);
     }
     kexit();

@@ -11,11 +11,12 @@ msim [-vhiqs] {-f spec | -r rom [-m KB]} [-n CPUs] [-l KB] [-j seed] [-H dir]
 
 | Option | Meaning |
 |---|---|
-| `-r rom` | Load a flat image as ROM at chip select 0, with RAM at chip select 1 and the Chairman at 31 |
+| `-r rom` | Load a flat image as ROM at chip select 0, with RAM at chip select 1, the IOC at 2 and the Chairman at 31 |
 | `-m KB` | How much RAM `-r` provides, in KB; 64 unless told otherwise.  A program finds the figure in the Chairman's chip-select table, which is how `crt0` places the stack |
 | `-n CPUs` | How many CPUs, 1 to 32; one unless told otherwise.  CPU 0 runs from reset and the others wait to be started through the Chairman's control blocks (reference section 5.5) |
 | `-l KB` | Give every CPU this much local memory, at chip select 30 as its own and at 29 as all of them 4 MB apart; none unless told otherwise |
 | `-j seed` | Stall CPUs at random, one cycle in four from a generator seeded with this, so that a program's independence of their interleaving can be tested; the same seed gives the same run |
+| `-G n,baud` | Watch IOC GPIO line `n` as the output of a software UART, 8 data bits, no parity, one stop bit, at `baud`, and print the bytes it carries; a framing error is reported on standard error |
 | `-H dir` | Lend a host directory to the program through `BNV #-18`.  Catflap mounts it at `/host` |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
@@ -46,11 +47,26 @@ starting with `;` are ignored.
 ```
 chip 0 rom firmware.bin
 chip 1 ram 65536
+chip 2 ioc
 chip 31 sys
 ```
 
 `rom` takes a file name; `ram` takes a size in bytes (default 128 MB);
-`sys` is the Chairman.
+`sys` is the Chairman; `ioc` is the IOC.
+
+## The IOC
+
+The IOC of the reference's section 6, so far as msim models it: the
+identification and clock registers, 32 GPIO lines with their edge
+interrupts (Chairman source 3), the real-time clock, whose seconds
+start from the host's clock, with its alarm (source 4) and the
+counter, which is the cycle count at the timer's 1 MHz, and system
+control, where halt 1 is `WFI` and halt 2 ends the run.  There are no
+UARTs and no SPI master yet, and the identification register says so:
+UART 0 would take over the Chairman's serial console, and the kernel
+drives that.  GPIO inputs read as 0, since nothing drives them, and
+outputs read back.  `-G` is how a CPU bit-banging a serial line out of
+the GPIO is tested.
 
 ## Extension calls
 
