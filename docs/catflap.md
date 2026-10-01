@@ -666,9 +666,27 @@ output compared.
     the test runner fills from `tests/os/sd.sd`: what the host wrote
     is read, 600 bytes are written across a block boundary and read
     back, and the end of the card is found.  `tests/sim/uart.s` and
-    `spi.s` exercise the models directly.  A file system on the card
-    is the next thing: FAT, so that a host can make and read the
-    images.
+    `spi.s` exercise the models directly.
+14. **FAT.**  Done: `/bin/fatfs`, a server that mounts a FAT16 or
+    FAT32 volume on a block device, `fatfs /dev/sd0 /sd &` from
+    `/etc/rc`.  Short names only, shown in lower case and matched
+    without regard to case, long-name entries passed over; files read,
+    written and extended across clusters, made, truncated and removed;
+    directories made and removed; the volume at the start of the device
+    or in its first partition; FAT12 refused.  It keeps no state but a
+    cache of two sectors: a file is known to the kernel by where its
+    directory entry is, sector and slot, and everything about it is
+    read from there when asked, which is what makes it 5.6 KB of code
+    and 1 KB of data, and lets the card be pulled and put back.  Every
+    change is written through before the request is answered.
+    `os/tools/mkfat` makes FAT16 and FAT32 images on the host with
+    files in their root, since the host had no `mkfs.vfat`;
+    `tests/os/fat.c` and `fat32.c` run against a 4 MB and a 33 MB card
+    made from `tests/os/fat.fat/` and `fat32.fat32/`: reading what the
+    host put there, listing, writing across clusters and reading back,
+    truncating, growing a file to 20 KB, directories, and the right
+    errors for a missing file, a name too long, a directory that is not
+    empty and one that exists.
 
 ## 13. Decisions taken, and open ones
 

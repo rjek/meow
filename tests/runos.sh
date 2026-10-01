@@ -10,8 +10,10 @@
 # programs can be run from ROM, in place, and from /host, copied;
 # os/NAME.opts, if there is one, holds more options for msim, such as
 # the number of CPUs; os/NAME.sd, if there is one, is text put at the
-# start of a fresh 1 MB SD card image for the run.  Every run has 4 KB
-# of local memory per CPU, which the kernel needs.
+# start of a fresh 1 MB SD card image for the run, and os/NAME.fat or
+# os/NAME.fat32, if there is one, is a directory of files put on a FAT16
+# (4 MB) or FAT32 (33 MB) card.  Every run has 4 KB of local memory per
+# CPU, which the kernel needs.
 cd "$(dirname "$0")" || exit 2
 NMCC=${NMCC:-../../norcroft-ng/bin/nmcc}
 MLD=${MLD:-../ld/mld}
@@ -74,6 +76,10 @@ for src in ${TESTS:-os/*.c}; do
 		dd if=/dev/zero of="$tmp.sd" bs=1024 count=1024 2>/dev/null
 		dd if="$name.sd" of="$tmp.sd" conv=notrunc 2>/dev/null
 		opts="$opts -D $tmp.sd"
+	elif [ -d "$name.fat" ]; then
+		"$OS/obj/mkfat" "$tmp.sd" 4096 "$name.fat"/* && opts="$opts -D $tmp.sd"
+	elif [ -d "$name.fat32" ]; then
+		"$OS/obj/mkfat" -32 "$tmp.sd" 33792 "$name.fat32"/* && opts="$opts -D $tmp.sd"
 	fi
 	$MSIM -q -r "$tmp.rom" -m $ram -l 4 $opts $host -c 200000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"

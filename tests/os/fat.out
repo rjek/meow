@@ -1,0 +1,18 @@
+Catflap: 256 KB RAM
+sd: 4096 KB card at /dev/sd0
+fatfs: FAT16, 8095 clusters of 512, at /sd
+hello.txt: 34 bytes, type 0
+Hello from the host, through FAT.
+/sd: big.txt(14100) hello.txt(34)
+big.txt: 14100 bytes; line 150 is 'line 150 of a file that spans several clusters'
+missing: -2, bad name: -36
+new.txt: wrote 1500 and 600, size 2100
+read 2048 back, first 1500 right, the rest right
+after truncation: 5 bytes
+mkdir: 0, again: -17
+/sd/dir: inner.txt(7)
+/sd: big.txt(14100) hello.txt(34) new.txt(5) dir/(0)
+rmdir full: -39, inner: 0, rmdir: 0, hello: 0
+/sd: big.txt(14100) new.txt(5)
+new.txt grew to 20485
+exit 0

@@ -85,7 +85,9 @@ answering CMD0, CMD8, CMD55 and ACMD41 (ready at the second asking),
 CMD58, CMD9 and CMD10, CMD16, CMD17 and CMD24, with the usual tokens,
 one byte of delay before a response and two bytes of busy after a
 write; multiple-block commands are illegal.  Without a card the data
-line reads 0xff.  `os/bin/sd.c` is a driver for it.
+line reads 0xff.  `os/bin/sd.c` is a driver for it, and `os/tools/mkfat`
+makes a FAT16 or FAT32 image with files on it for `os/bin/fatfs` to
+mount.
 
 GPIO inputs read as 0, since nothing drives them, and outputs read
 back.  `-G` is how a CPU bit-banging a serial line out of the GPIO is

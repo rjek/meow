@@ -128,10 +128,15 @@ obj/mkromfs: tools/mkromfs.c
 	@mkdir -p obj
 	$(HOSTCC) -O -Wall -o $@ $<
 
+# makes FAT images with files on them, for the tests
+obj/mkfat: tools/mkfat.c
+	@mkdir -p obj
+	$(HOSTCC) -O -Wall -o $@ $<
+
 run: catflap.rom
 	$(MSIM) -q -r catflap.rom -m $(RAM) -l 4 -n $(CPUS) -H .
 
-check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(LIBM) $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) \
+check: obj/kernel.bin obj/link.list obj/lib/crt0.o obj/mkfat $(LIBM) $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) \
        $(if $(filter 1,$(WITH_LUA)),obj/bin/lua.a)
 	../tests/runos.sh
 
