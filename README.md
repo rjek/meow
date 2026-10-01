@@ -19,6 +19,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/lua.md](docs/lua.md) | Lua on MEOW: building it, running it, what it took |
 | [docs/catflap.md](docs/catflap.md) | Catflap, the operating system: architecture, and how it was built |
 | [docs/rom-size.md](docs/rom-size.md) | Where the bytes of the Catflap ROM are, what was done about them, and what is left |
+| [docs/hardware.md](docs/hardware.md) | Towards hardware: the free FPGA toolchain, affordable boards, and the approach |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 
 ## Layout
