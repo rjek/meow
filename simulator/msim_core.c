@@ -110,6 +110,9 @@ static void msim_builtin_exit(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
 	fflush(stdout);
+	if (ctx->trace != NULL) {
+		fclose(ctx->trace);
+	}
 	exit(ctx->r[MSIM_IR]);
 }
 
@@ -615,9 +618,27 @@ static bool msim_stalled(struct msim_ctx *m)
 	return ((m->jitter >> 16) & 3) == 0;
 }
 
+/* The trace the hardware's testbench reads: the instruction's address
+ * and word, then every register of both banks after it, the active
+ * bank first. */
+static void msim_trace_line(struct msim_ctx *ctx, u_int32_t pc, u_int16_t w)
+{
+	int r;
+
+	fprintf(ctx->trace, "%08x %04x", pc, w);
+	for (r = 0; r < 16; r++) {
+		fprintf(ctx->trace, " %08x", ctx->r[r]);
+	}
+	for (r = 0; r < 16; r++) {
+		fprintf(ctx->trace, " %08x", ctx->ar[r]);
+	}
+	fprintf(ctx->trace, "\n");
+}
+
 static void msim_step(struct msim_ctx *ctx, bool trace)
 {
 	u_int16_t i = msim_fetch(ctx);
+	u_int32_t pc = ctx->r[MSIM_PC];
 	char dis[256];
 
 	if (trace == true) {
@@ -642,6 +663,9 @@ static void msim_step(struct msim_ctx *ctx, bool trace)
 	}
 	msim_execute(ctx, i);
 	ctx->cyclecount++;
+	if (ctx->trace != NULL && ctx->cpu == 0) {
+		msim_trace_line(ctx, pc, i);
+	}
 }
 
 /* Run the machine for a number of cycles: every running CPU that is not

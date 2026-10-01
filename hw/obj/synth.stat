@@ -1,0 +1,23 @@
+
+3. Printing statistics.
+
+=== meow_soc ===
+
+   Number of wires:              20228
+   Number of wire bits:         1136107
+   Number of public wires:       20228
+   Number of public wire bits:  1136107
+   Number of ports:                 12
+   Number of port bits:           1120
+   Number of memories:               0
+   Number of memory bits:            0
+   Number of processes:              0
+   Number of cells:              28261
+     $scopeinfo                      4
+     CCU2C                         225
+     DP16KD                         32
+     L6MUX21                      1246
+     LUT4                        20872
+     PFUMX                        4642
+     TRELLIS_FF                   1240
+

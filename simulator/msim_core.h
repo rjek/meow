@@ -27,6 +27,7 @@
 #define __MSIM_CORE_H__
 
 #include <stdbool.h> 
+#include <stdio.h>
 #include <sys/types.h>
 
 struct msim_ctx;
@@ -102,6 +103,7 @@ struct msim_ctx {
 	bool		running;
 	bool		wfi;		/* stopped by BNV #6 until an interrupt */
 	unsigned int	jitter;		/* CPU 0 only: random stalls, 0 for none */
+	FILE		*trace;		/* CPU 0 only: a line per instruction for the hardware's testbench */
 	
 	struct {
 		 msim_read_mem	read;

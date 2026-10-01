@@ -1,0 +1,24 @@
+rtl/chairman.vhdl:115:32:note: found ROM "n6787", width: 32 bits, depth: 32
+                    d := CS_DEV(n);
+                               ^
+rtl/chairman.vhdl:117:33:note: found ROM "n6795", width: 32 bits, depth: 32
+                    d := CS_SIZE(n);
+                                ^
+rtl/rom.vhdl:51:12:warning: signal "mem" is never assigned [-Wnowrite]
+    signal mem   : mem_t := load(FILE_NAME);
+           ^
+rtl/rom.vhdl:51:12:note: found ROM "mem", width: 32 bits, depth: 32768
+    signal mem   : mem_t := load(FILE_NAME);
+           ^
+rtl/ram.vhdl:21:33:note: found RAM "lane3", width: 8 bits, depth: 16384
+    signal lane0, lane1, lane2, lane3 : lane_t := (others => (others => '0'));
+                                ^
+rtl/ram.vhdl:21:26:note: found RAM "lane2", width: 8 bits, depth: 16384
+    signal lane0, lane1, lane2, lane3 : lane_t := (others => (others => '0'));
+                         ^
+rtl/ram.vhdl:21:19:note: found RAM "lane1", width: 8 bits, depth: 16384
+    signal lane0, lane1, lane2, lane3 : lane_t := (others => (others => '0'));
+                  ^
+rtl/ram.vhdl:21:12:note: found RAM "lane0", width: 8 bits, depth: 16384
+    signal lane0, lane1, lane2, lane3 : lane_t := (others => (others => '0'));
+           ^

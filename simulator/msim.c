@@ -175,6 +175,7 @@ static void display_help(const char *argv0)
 	printf("  -j seed  stall CPUs at random, from the seed, to vary their interleaving\n");
 	printf("  -G n,baud decode a software UART sent on IOC GPIO line n at baud\n");
 	printf("  -D image an SD card on the IOC's SPI master, holding the image file\n");
+	printf("  -T file  write a line per instruction CPU 0 executes, for the hardware's testbench\n");
 	printf("  -H dir   lend a host directory to the program through BNV #-18\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
@@ -213,7 +214,7 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:G:D:";
+	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:G:D:T:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
@@ -226,6 +227,7 @@ int main(int argc, char *argv[])
 	int decode_line = -1;
 	unsigned decode_baud = 0;
 	const char *sd_image = NULL;
+	const char *trace_file = NULL;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -287,6 +289,9 @@ int main(int argc, char *argv[])
 		case 'D':
 			sd_image = optarg;
 			break;
+		case 'T':
+			trace_file = optarg;
+			break;
 		case 'G':
 			if (sscanf(optarg, "%d,%u", &decode_line, &decode_baud) != 2 ||
 			    decode_line < 0 || decode_line > 31 || decode_baud == 0) {
@@ -317,6 +322,13 @@ int main(int argc, char *argv[])
 	}
 	
 	if (romfile != NULL) {
+		FILE *f = fopen(romfile, "r");
+
+		if (f == NULL) {
+			fprintf(stderr, "msim: cannot open ROM %s\n", romfile);
+			exit(1);
+		}
+		fclose(f);
 		msim_add_rom_from_file(ctx, 0, romfile);
 		msim_add_ram(ctx, 1, ramsize);
 		msim_add_sys(ctx, 31);
@@ -346,6 +358,13 @@ int main(int argc, char *argv[])
 	}
 	if (localsize != 0) {
 		msim_add_local(ctx, localsize);
+	}
+	if (trace_file != NULL) {
+		ctx->trace = fopen(trace_file, "w");
+		if (ctx->trace == NULL) {
+			fprintf(stderr, "msim: cannot write %s\n", trace_file);
+			exit(1);
+		}
 	}
 	msim_add_cpus(ctx, ncpus);	/* last: the others copy the devices */
 	ctx->jitter = jitter;
