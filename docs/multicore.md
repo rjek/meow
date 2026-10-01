@@ -163,6 +163,74 @@ counter, which it can do without anyone's leave.
 Introspection: `/proc/cores`, one line per core: present, running,
 owner process, entry address.
 
+## Threads on the other cores
+
+Could a core run threads and processes as core 0 does, with a thread
+naming its core when it is made and never moving?  Yes, and it
+complicates exactly one thing, which is worth seeing clearly.
+
+Today the kernel's data is consistent because only one flow of
+control is ever inside the kernel: there is one core, and a tick that
+lands while `in_kernel` is set is counted and its work done when the
+call returns.  Kernel entry from a second core breaks that, and the
+repair is a big kernel lock, Chairman lock 0, with one discipline: *a
+core holds it exactly while its `in_kernel` is above zero*.  `kenter`
+takes it on the step from 0 to 1, `kexit` drops it on the step back,
+and a switch from a thread that was in the kernel to one that was not
+drops it, and the reverse takes it, in `do_switch` where the two
+counters are already exchanged.  The interrupt handler keeps its rule
+of touching kernel data only when its own core's `in_kernel` is 0,
+and then takes the lock first; it may spin, because no kernel code
+waits for another core while holding the lock (the one wait in
+`kexit` is for the core's own interrupt).  With one core the lock is
+never contended and the build is what it is now.  The lock serialises
+kernel work across cores, which for two to four cores on a micro is
+the right trade: the cores are there for user-mode work.
+
+The rest is mechanical:
+
+- `struct cpu` becomes one per core and gains the run queues, the
+  slice and `current`; `enqueue` puts a thread on its own core's queue
+  and rings that core's doorbell if it is not this one, so a wakeup
+  from core 0 reaches a thread on core 2 at once.  Sleepers, zombies
+  and the list of all threads stay global under the lock.
+- Every core wants its own timer, which settles question 1 below:
+  the reload and value registers move into the core control block
+  and source 31 is per-CPU, so each core's tick does its own slices
+  and the scheduler on every core is today's scheduler.  Without
+  that, core 0's tick would ring the others' doorbells on their
+  behalf, which works but is a second mechanism.
+- The doorbell handler on every core is `irq_dispatch`'s switch path;
+  the interrupt bank's stack is per core.
+- `__client_sb` and `this_cpu()` must be per core, and the shared C
+  library reaches `__client_sb` through a fixed address in every
+  static access it makes.  Indexing that by `BNV #2` would cost two
+  instructions in every one of those sequences across the whole
+  library.  Core-local memory at chip select 30 answers it for free:
+  the per-core structure, `__client_sb` and the interrupt stack sit
+  at the same address in every core's local memory, so `this_cpu()`
+  is a constant again.  The local memory section above goes from
+  optional to wanted, even at a few hundred bytes.
+- A process has no core; its threads do.  `thread_create` takes one
+  and `spawn` takes one for the new process's first thread, both
+  defaulting to the caller's.  Everything a thread touches is shared
+  memory already, there being no MMU, so processes need nothing
+  else.  The C library's `malloc` and stdio are already one thread at
+  a time by convention, and a second core changes nothing there.
+
+And it simplifies the workers: a worker is a thread with an affinity
+and one flag, *exclusive*, which masks the timer on that core and
+refuses other threads, so its timing is its own.  `core_start` is
+`thread_create` with the flag; the `wk_` conventions become advice
+rather than a separate world; a worker that does call the kernel
+merely spins on the lock and loses its determinism for the duration,
+which is its choice.  One model instead of two.
+
+The cost is a few hundred lines in the kernel, nothing in the
+compiler, and a single-core build that is not changed.  Where the
+first proposal spent its care keeping the kernel off the other cores,
+this one lets it on and is simpler for it; the lock is what buys that.
+
 ## In msim
 
 `-c N` simulates N cores, interleaving one instruction each in turn,
@@ -174,12 +242,13 @@ that must not vary.
 
 ## Questions
 
-1. Per-core timers.  XMOS gives every core one.  The IOC counter is
-   enough to busy-wait on; a sleeping worker would want a timer that
-   interrupts.  Add one to the core control block, or wait and see.
+1. Per-core timers.  XMOS gives every core one, and the section on
+   threads says why the core control block should too: then every
+   core's scheduler is today's.
 2. How many locks, and does the kernel use one big lock or several.
    With workers never entering the kernel, one is enough to start.
-3. Should a worker be able to start another worker.  No, until
-   there is a reason.
+3. Should a thread on a worker core be able to make threads on
+   another core.  With the lock, nothing stops it; whether `spawn`
+   from an exclusive core is sensible is another matter.
 4. Chip selects 29 and 30 for local memory, or leave them for devices
    and put local memory inside the RAM chip select's map.
