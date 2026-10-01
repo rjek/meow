@@ -73,14 +73,18 @@ architecture rtl of uart is
     signal rx_bit : natural range 0 to 9 := 0;
     signal rx_shift : std_logic_vector(7 downto 0) := (others => '0');
     signal rx_line : std_logic;
+    signal rx_now : natural range 0 to DEPTH;
 begin
     rx_line <= rx_sync(1);
     irq <= '1' when (ien(0) = '1' and rx_count /= 0) or (ien(1) = '1' and tx_pending < DEPTH) else '0';
 
+    -- a status read counts what the testbench is pushing in this cycle,
+    -- as msim's fills the FIFO on the read before answering
+    rx_now <= rx_count + tb_rx_n when rx_count + tb_rx_n <= DEPTH else DEPTH;
     rdata <= (others => '0') when sel = '0' else
-             x"00" & std_logic_vector(to_unsigned(DEPTH, 8)) & std_logic_vector(to_unsigned(rx_count, 8)) &
-             "00" & brk & framing & overrun & bool_to_sl(tx_pending = 0) &
-             bool_to_sl(tx_pending < DEPTH) & bool_to_sl(rx_count /= 0)
+             x"00" & std_logic_vector(to_unsigned(DEPTH, 8)) & std_logic_vector(to_unsigned(rx_now, 8)) &
+             "00" & (brk or tb_break) & framing & overrun & bool_to_sl(tx_pending = 0) &
+             bool_to_sl(tx_pending < DEPTH) & bool_to_sl(rx_now /= 0)
                  when off = "000" else
              x"000000" & rx_fifo(rx_head mod DEPTH) when off = "001" else
              std_logic_vector(divisor) when off = "010" else

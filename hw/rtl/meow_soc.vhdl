@@ -10,9 +10,11 @@ use work.meow_pkg.all;
 entity meow_soc is
     generic (
         NCPU      : natural := 1;
+        MODEL     : natural := 1;           -- what BNV #0 says: 1 is MEOW1, 0 is msim, for its traces
         ROM_FILE  : string  := "rom.hex";
         ROM_WORDS : natural := 32768;       -- 128 KB
         RAM_WORDS : natural := 16384;       -- 64 KB
+        LOCAL_WORDS : natural := 1024;      -- 4 KB a CPU, at chip selects 29 and 30; 0 for none
         CLK_HZ    : natural := 1000000;
         TICK_FROM_CORE : boolean := false;  -- time counts instructions, as msim does, for the trace tests
         UART1_LOOPBACK : boolean := false;  -- as msim's UART 1
@@ -67,6 +69,10 @@ architecture rtl of meow_soc is
         t(0) := DEV_ROM;
         t(1) := DEV_RAM;
         t(2) := DEV_IOC;
+        if LOCAL_WORDS /= 0 then
+            t(29) := DEV_LOCAL;
+            t(30) := DEV_LOCAL;
+        end if;
         t(31) := DEV_CHAIRMAN;
         return t;
     end function;
@@ -77,6 +83,8 @@ architecture rtl of meow_soc is
         t(0) := std_logic_vector(to_unsigned(ROM_WORDS * 4, 32));
         t(1) := std_logic_vector(to_unsigned(RAM_WORDS * 4, 32));
         t(2) := x"00001000";
+        t(29) := std_logic_vector(to_unsigned(LOCAL_WORDS * 4, 32));
+        t(30) := std_logic_vector(to_unsigned(LOCAL_WORDS * 4, 32));
         return t;
     end function;
 
@@ -84,8 +92,8 @@ architecture rtl of meow_soc is
     signal m_o : bus_s2m_array_t(0 to NCPU - 1);
     signal d_o : bus_m2s_t;
     signal d_i : bus_s2m_t;
-    signal rom_i, ram_i, ioc_i : bus_m2s_t;
-    signal rom_o, ram_o, ioc_o : bus_s2m_t;
+    signal rom_i, ram_i, ioc_i, local_i : bus_m2s_t;
+    signal rom_o, ram_o, ioc_o, local_o : bus_s2m_t;
     signal cs : std_logic_vector(4 downto 0);
     signal none_ack : std_logic := '0';
     signal irq : std_logic_vector(NCPU - 1 downto 0);
@@ -104,7 +112,7 @@ begin
     rst_all <= rst_n and not sys_reset;
 
     core0 : entity work.meow_core
-        generic map (CPU_ID => 0, MODEL => 1, DEBUG => DEBUG)
+        generic map (CPU_ID => 0, MODEL => MODEL, DEBUG => DEBUG)
         port map (
             clk => clk, rst_n => rst_all, run => cpu_run(0), start_pc => cpu_start(0),
             bus_o => m_i(0), bus_i => m_o(0), irq => irq(0),
@@ -115,7 +123,7 @@ begin
 
     cores : for k in 1 to NCPU - 1 generate
         core : entity work.meow_core
-            generic map (CPU_ID => k, MODEL => 1)
+            generic map (CPU_ID => k, MODEL => MODEL)
             port map (
                 clk => clk, rst_n => rst_all, run => cpu_run(k), start_pc => cpu_start(k),
                 bus_o => m_i(k), bus_i => m_o(k), irq => irq(k),
@@ -145,9 +153,11 @@ begin
     rom_i <= d_o when cs = "00000" else BUS_M2S_IDLE;
     ram_i <= d_o when cs = "00001" else BUS_M2S_IDLE;
     ioc_i <= d_o when cs = "00010" else BUS_M2S_IDLE;
+    local_i <= d_o when (cs = "11101" or cs = "11110") and LOCAL_WORDS /= 0 else BUS_M2S_IDLE;
     d_i <= rom_o when cs = "00000" else
            ram_o when cs = "00001" else
            ioc_o when cs = "00010" else
+           local_o when (cs = "11101" or cs = "11110") and LOCAL_WORDS /= 0 else
            (none_ack, (others => '0'));
 
     -- nothing there: answered with zero, a cycle later
@@ -165,6 +175,15 @@ begin
     w : entity work.ram
         generic map (WORDS => RAM_WORDS)
         port map (clk => clk, bus_i => ram_i, bus_o => ram_o);
+
+    with_local : if LOCAL_WORDS /= 0 generate
+        lm : entity work.local_mem
+            generic map (NCPU => NCPU, WORDS => LOCAL_WORDS)
+            port map (clk => clk, bus_i => local_i, master => d_master, bus_o => local_o);
+    end generate;
+    without_local : if LOCAL_WORDS = 0 generate
+        local_o <= BUS_S2M_IDLE;
+    end generate;
 
     io : entity work.ioc
         generic map (CLK_HZ => CLK_HZ, UART1_LOOPBACK => UART1_LOOPBACK)

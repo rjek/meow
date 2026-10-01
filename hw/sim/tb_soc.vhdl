@@ -28,7 +28,8 @@ entity tb_soc is
         HAVE_SD   : boolean := false;
         ROM_WORDS : natural := 32768;
         RAM_WORDS : natural := 16384;
-        MAX_CYCLES : natural := 10000000;
+        LOCAL_WORDS : natural := 1024;
+        MAX_CYCLES : natural := 100000000;
         VERBOSE   : boolean := false        -- a line per instruction: the bank and both pcs
     );
 end entity;
@@ -90,8 +91,8 @@ begin
     rst_n <= '1' after 25 ns;
 
     dut : entity work.meow_soc
-        generic map (NCPU => 1, ROM_FILE => ROM, ROM_WORDS => ROM_WORDS, RAM_WORDS => RAM_WORDS,
-                     TICK_FROM_CORE => true, UART1_LOOPBACK => true, DEBUG => true)
+        generic map (NCPU => 1, MODEL => 0, ROM_FILE => ROM, ROM_WORDS => ROM_WORDS, RAM_WORDS => RAM_WORDS,
+                     LOCAL_WORDS => LOCAL_WORDS, TICK_FROM_CORE => true, UART1_LOOPBACK => true, DEBUG => true)
         port map (clk => clk, rst_n => rst_n,
                   uart0_rxd => '1', uart0_txd => uart0_txd, uart1_rxd => '1', uart1_txd => uart1_txd,
                   spi_sclk => spi_sclk, spi_mosi => spi_mosi, spi_miso => spi_miso, spi_cs_n => spi_cs_n,
@@ -117,39 +118,58 @@ begin
                 else '0';                      -- getc, time, cycles, hostfs: a value in ir
     cop_data <= exp_ir;
 
-    -- standard input into UART 0: the FIFO is kept fed while there is
-    -- room and input, with the break at the input's end.  msim fills it
-    -- when the status register is read; what a status read sees is the
-    -- same either way, since both fill to the room there is.
-    process (clk)
+    -- standard input into UART 0, when msim would look at it: on a read
+    -- of the status register with room in the FIFO, in that same cycle,
+    -- and every 4096 ticks once the UART has been touched; everything
+    -- there is, to the room there is, and the break at the end.
+    process
         file f : char_file;
         variable status : file_open_status := name_error;
-        variable opened, eof : boolean := false;
+        variable opened, eof, used : boolean := false;
         variable c : character;
         variable n : natural;
+        variable ticks : natural := 0;
+        variable poll : boolean;
     begin
+        wait on clk, tb_poll;
+        if not opened then
+            opened := true;
+            if IN_FILE'length /= 0 then
+                file_open(status, f, IN_FILE, read_mode);
+            end if;
+        end if;
+        poll := false;
         if rising_edge(clk) then
             tb_rx_n <= 0;
             tb_break <= '0';
-            if not opened then
-                opened := true;
-                if IN_FILE'length /= 0 then
-                    file_open(status, f, IN_FILE, read_mode);
+            if tb_used = '1' then
+                used := true;
+            end if;
+            if tick = '1' then
+                ticks := ticks + 1;
+                if used and ticks mod 4096 = 0 then
+                    poll := true;
                 end if;
             end if;
-            if rst_n = '1' and not eof and tb_room > 0 and tb_rx_n = 0 then
-                n := 0;
-                while n < tb_room loop
-                    if status /= open_ok or endfile(f) then
-                        eof := true;
-                        tb_break <= '1';
-                        exit;
-                    end if;
-                    read(f, c);
-                    tb_rx_bytes(n) <= std_logic_vector(to_unsigned(character'pos(c), 8));
-                    n := n + 1;
-                end loop;
-                tb_rx_n <= n;
+        elsif tb_poll'event and tb_poll = '1' then
+            poll := true;
+        end if;
+        if poll and not eof and rst_n = '1' then
+            n := 0;
+            while n < tb_room loop
+                if status /= open_ok or endfile(f) then
+                    eof := true;
+                    tb_break <= '1';
+                    exit;
+                end if;
+                read(f, c);
+                tb_rx_bytes(n) <= std_logic_vector(to_unsigned(character'pos(c), 8));
+                n := n + 1;
+            end loop;
+            tb_rx_n <= n;
+            if VERBOSE and (n /= 0 or eof) then
+                report "poll: " & integer'image(n) & " bytes at tick " & integer'image(ticks) &
+                       " room " & integer'image(tb_room);
             end if;
         end if;
     end process;

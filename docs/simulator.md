@@ -18,6 +18,7 @@ msim [-vhiqs] {-f spec | -r rom [-m KB]} [-n CPUs] [-l KB] [-j seed] [-H dir]
 | `-j seed` | Stall CPUs at random, one cycle in four from a generator seeded with this, so that a program's independence of their interleaving can be tested; the same seed gives the same run |
 | `-G n,baud` | Watch IOC GPIO line `n` as the output of a software UART, 8 data bits, no parity, one stop bit, at `baud`, and print the bytes it carries; a framing error is reported on standard error |
 | `-D image` | Put an SD card on the IOC's SPI master, holding this file, which is read and written in place; its size, rounded down to whole 512 KB, is the card's |
+| `-T file` | Write a line per instruction CPU 0 executes: its address and word, then the sixteen registers of the active bank and the sixteen of the other, all after it, in hex.  The hardware's testbench reads this (`hw/`) |
 | `-H dir` | Lend a host directory to the program through `BNV #-18`.  Catflap mounts it at `/host` |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
@@ -32,7 +33,10 @@ The exit status is the value passed to the halt call (below), or 0 after
 
 With more than one CPU a cycle is one instruction on every running CPU
 that is not waiting in `WFI`, in bus-ID order, and then one tick of the
-devices; `-c` counts cycles, `-s` counts instructions on every CPU.  The
+devices, in chip-select order, so that a source the IOC raises in its
+tick is seen by the Chairman's in the same cycle, as the hardware sees
+it before the next instruction; `-c` counts cycles, `-s` counts
+instructions on every CPU.  The
 trace names the CPU on each line.  The Chairman is modelled as the
 reference describes it: a pending word and a timer per CPU, the control
 blocks, the doorbell and the locks, with the lock's read and set being

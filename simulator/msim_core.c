@@ -203,9 +203,20 @@ void msim_device_add(struct msim_ctx *ctx, const unsigned int area,
 	ctx->areas[area].size = 0;
 	
 	if (tick != NULL) {
+		/* ticked in chip-select order, so that a device's interrupt,
+		 * raised in its tick, is seen by the Chairman's in the same
+		 * cycle, as the hardware sees it before the next instruction */
+		unsigned int i, j;
+
 		assert(ctx->sticks < 31);
-		ctx->stick[ctx->sticks] = tick;
-		ctx->sticka[ctx->sticks] = area;
+		for (i = 0; i < ctx->sticks && ctx->sticka[i] < area; i++) {
+		}
+		for (j = ctx->sticks; j > i; j--) {
+			ctx->stick[j] = ctx->stick[j - 1];
+			ctx->sticka[j] = ctx->sticka[j - 1];
+		}
+		ctx->stick[i] = tick;
+		ctx->sticka[i] = area;
 		ctx->sticks++;
 	}
 }

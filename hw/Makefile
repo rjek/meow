@@ -9,7 +9,7 @@ YOSYS = yosys
 MAS = ../as/mas
 MSIM = ../simulator/msim
 
-RTL = rtl/meow_pkg.vhdl rtl/meow_core.vhdl rtl/rom.vhdl rtl/ram.vhdl rtl/chairman.vhdl \
+RTL = rtl/meow_pkg.vhdl rtl/meow_core.vhdl rtl/rom.vhdl rtl/ram.vhdl rtl/local_mem.vhdl rtl/chairman.vhdl \
       rtl/uart.vhdl rtl/spi.vhdl rtl/ioc.vhdl rtl/meow_soc.vhdl
 TB = sim/sd_model.vhdl sim/tb_soc.vhdl
 
@@ -67,6 +67,27 @@ check: obj/tb_soc $(addprefix obj/,$(addsuffix .hex,$(TRACE_TESTS)) $(addsuffix 
 	done; \
 	echo "hardware tests: $$pass passed, $$fail failed"; [ $$fail = 0 ]
 
+# Catflap itself: the ROM booted under msim with sim/catflap.in as the
+# console's input, traced, and the same under GHDL, 256 KB of RAM and
+# 4 KB of local memory, as the operating system's tests have.  The
+# trace is large (a few hundred bytes an instruction) and the run takes
+# minutes; it is not part of check.
+CATFLAP_ROM = ../os/catflap.rom
+
+obj/catflap.hex: $(CATFLAP_ROM)
+	@mkdir -p obj
+	python3 -c "import sys; d = open(sys.argv[1], 'rb').read(); d += b'\0' * (-len(d) % 4); \
+	    print('\n'.join('%08x' % int.from_bytes(d[i:i + 4], 'little') for i in range(0, len(d), 4)))" $< > $@
+
+obj/catflap.trace obj/catflap.out: $(CATFLAP_ROM) sim/catflap.in
+	$(MSIM) -q -r $(CATFLAP_ROM) -m 256 -l 4 -c 20000000 -T obj/catflap.trace < sim/catflap.in > obj/catflap.out 2>/dev/null; \
+	echo "exit $$?" >> obj/catflap.out
+
+check-catflap: obj/tb_soc obj/catflap.hex obj/catflap.trace
+	$(GHDL) -r $(GHDLFLAGS) tb_soc -gROM=obj/catflap.hex -gTRACE=obj/catflap.trace -gIN_FILE=sim/catflap.in \
+	    -gOUT_FILE=obj/catflap.hwout -gRAM_WORDS=65536 > obj/catflap.log 2>&1; \
+	grep -v '^$$' obj/catflap.log | tail -3; cmp obj/catflap.hwout obj/catflap.out && echo "catflap: output matches"
+
 # size and speed on the ECP5, through the GHDL plugin
 synth: $(RTL)
 	@mkdir -p obj
@@ -76,4 +97,4 @@ synth: $(RTL)
 clean:
 	rm -rf obj
 
-.PHONY: all check synth clean
+.PHONY: all check check-catflap synth clean

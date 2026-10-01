@@ -158,6 +158,9 @@ Yosys and the GHDL plugin.
   `msim_sd.c` answers, for the testbench.
 - `sim/tb_soc.vhdl`: the testbench.
 
+- `local_mem.vhdl`: local memory, a RAM per CPU at chip selects 29
+  and 30, behind the Chairman, which says whose the access is.
+
 Nine of the simulator's ten tests run and match: 2,319 instructions
 at 3.9 clocks each with memory that answers the cycle after it is
 asked, the UART and SPI tests among them, the card's responses
@@ -165,6 +168,22 @@ arriving bit by bit on the pins at the instruction msim had them.
 The tenth needs two CPUs and cannot match a trace instruction for
 instruction, since the second CPU's progress against the first's is
 what differs between msim and hardware; it wants a test of its own.
+
+And Catflap boots.  `make check-catflap` runs `os/catflap.rom` under
+msim with `hw/sim/catflap.in` on the console (a command or two, then
+`exit`) and then under GHDL, 256 KB of RAM and 4 KB of local memory
+as the operating system's tests have, and the 1,289,421 instructions
+of the boot, the shell, `uname`, `ps` and the halt match one for one,
+with the same console output, in four and a half minutes of
+simulation at 4.6 clocks an instruction.  Three things had to be
+settled for that: the testbench feeds standard input when msim would
+look at it, on a status read and every 4096 ticks once the UART is
+in use, rather than whenever there is room, since the moment the
+console interrupt arrives decides which instruction it lands on;
+msim's devices now tick in chip-select order, so a source the IOC
+raises is seen by the Chairman in the same cycle as the hardware
+sees it; and the testbench's system says it is msim's machine to
+`BNV #0`, since that is what the trace is of.
 
 Synthesised for the ECP5 the whole system is about 8,000 LUT4s and
 1,700 flops: the core 3,600 and 260 (its register file 32
@@ -177,9 +196,8 @@ FIFOs are flops and its counters are 32 bits wide, and both can be
 cut.  The ROM is empty at synthesis, so its blocks do not show.
 Nothing has been timed yet.
 
-Not yet done: local memory at chip selects 29 and 30, a board's top
-level with a clock and reset, a two-CPU test, timing, and booting
-Catflap under GHDL.
+Not yet done: a board's top level with a clock and reset, a two-CPU
+test, and timing.
 
 ## Sources
 
