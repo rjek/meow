@@ -14,7 +14,8 @@ entity meow_soc is
         ROM_WORDS : natural := 32768;       -- 128 KB
         RAM_WORDS : natural := 16384;       -- 64 KB
         CLK_HZ    : natural := 1000000;
-        TICK_FROM_CORE : boolean := false   -- timers count instructions, as msim does, for the trace tests
+        TICK_FROM_CORE : boolean := false;  -- timers count instructions, as msim does, for the trace tests
+        DEBUG     : boolean := false        -- CPU 0's registers brought out
     );
     port (
         clk      : in  std_logic;
@@ -70,7 +71,7 @@ architecture rtl of meow_soc is
     signal d_master : natural range 0 to NCPU - 1;
 begin
     core0 : entity work.meow_core
-        generic map (CPU_ID => 0, MODEL => 1)
+        generic map (CPU_ID => 0, MODEL => 1, DEBUG => DEBUG)
         port map (
             clk => clk, rst_n => rst_n, run => cpu_run(0), start_pc => cpu_start(0),
             bus_o => m_i(0), bus_i => m_o(0), irq => irq(0),

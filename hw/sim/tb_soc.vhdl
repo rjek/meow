@@ -54,7 +54,7 @@ begin
 
     dut : entity work.meow_soc
         generic map (NCPU => 1, ROM_FILE => ROM, ROM_WORDS => ROM_WORDS, RAM_WORDS => RAM_WORDS,
-                     TICK_FROM_CORE => true)
+                     TICK_FROM_CORE => true, DEBUG => true)
         port map (clk => clk, rst_n => rst_n,
                   cop_req => cop_req, cop_op => cop_op, cop_ack => cop_ack, cop_wr => cop_wr, cop_data => cop_data,
                   dbg_retire => retire, dbg_regs => regs, dbg_bank => bank, dbg_pc => pc, dbg_word => word);

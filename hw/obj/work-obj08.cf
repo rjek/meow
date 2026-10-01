@@ -1,22 +1,22 @@
 v 4
-file "/home/rjek/git/meow/hw/" "rtl/meow_pkg.vhdl" "d9c4953d0cbe19f7a7ef94099d4ed1dd03cfb8b4" "20261001120433.781":
-  package meow_pkg at 3( 137) + 0 on 109 body;
-  package body meow_pkg at 62( 2080) + 0 on 110;
-file "/home/rjek/git/meow/hw/" "rtl/meow_core.vhdl" "fac2aa1f21fea7ad7b0cd399c8994803a062dee2" "20261001120433.782":
-  entity meow_core at 19( 1058) + 0 on 111;
-  architecture rtl of meow_core at 56( 2326) + 0 on 112;
-file "/home/rjek/git/meow/hw/" "rtl/rom.vhdl" "bf7b935f6c15503c68a2ad7b41941c8f0c0ae8b7" "20261001120433.782":
-  entity rom at 5( 249) + 0 on 113;
-  architecture rtl of rom at 23( 585) + 0 on 114;
-file "/home/rjek/git/meow/hw/" "rtl/ram.vhdl" "f5b62e0ec6bf63a0fb39f74b62c100b23177bcef" "20261001120433.782":
-  entity ram at 3( 110) + 0 on 115;
-  architecture rtl of ram at 19( 394) + 0 on 116;
-file "/home/rjek/git/meow/hw/" "rtl/chairman.vhdl" "a630e641a327e70a2d6c2e73a3e01ddca9ac4c07" "20261001120433.783":
-  entity chairman at 9( 511) + 0 on 117;
-  architecture rtl of chairman at 39( 1684) + 0 on 118;
-file "/home/rjek/git/meow/hw/" "rtl/meow_soc.vhdl" "13807d0a267b675ab1b564ec7a544887153a1f81" "20261001120433.783":
-  entity meow_soc at 5( 235) + 0 on 119;
-  architecture rtl of meow_soc at 37( 1160) + 0 on 120;
-file "/home/rjek/git/meow/hw/" "sim/tb_soc.vhdl" "08fd61fda8a4596179a6dae133444761c42c3a65" "20261001120433.784":
-  entity tb_soc at 8( 493) + 0 on 121;
-  architecture sim of tb_soc at 26( 969) + 0 on 122;
+file "/home/rjek/git/meow/hw/" "rtl/meow_pkg.vhdl" "d9c4953d0cbe19f7a7ef94099d4ed1dd03cfb8b4" "20261001121543.955":
+  package meow_pkg at 3( 137) + 0 on 165 body;
+  package body meow_pkg at 62( 2080) + 0 on 166;
+file "/home/rjek/git/meow/hw/" "rtl/meow_core.vhdl" "71affdf802f397e549aede7bafd7509ba4b21541" "20261001121543.957":
+  entity meow_core at 26( 1457) + 0 on 167;
+  architecture rtl of meow_core at 63( 2819) + 0 on 168;
+file "/home/rjek/git/meow/hw/" "rtl/rom.vhdl" "bf7b935f6c15503c68a2ad7b41941c8f0c0ae8b7" "20261001121543.957":
+  entity rom at 5( 249) + 0 on 169;
+  architecture rtl of rom at 23( 585) + 0 on 170;
+file "/home/rjek/git/meow/hw/" "rtl/ram.vhdl" "f5b62e0ec6bf63a0fb39f74b62c100b23177bcef" "20261001121543.957":
+  entity ram at 3( 110) + 0 on 171;
+  architecture rtl of ram at 19( 394) + 0 on 172;
+file "/home/rjek/git/meow/hw/" "rtl/chairman.vhdl" "a630e641a327e70a2d6c2e73a3e01ddca9ac4c07" "20261001121543.958":
+  entity chairman at 9( 511) + 0 on 173;
+  architecture rtl of chairman at 39( 1684) + 0 on 174;
+file "/home/rjek/git/meow/hw/" "rtl/meow_soc.vhdl" "a7a28a0af0241e22349101a26722408bde552b95" "20261001121543.958":
+  entity meow_soc at 5( 235) + 0 on 175;
+  architecture rtl of meow_soc at 38( 1237) + 0 on 176;
+file "/home/rjek/git/meow/hw/" "sim/tb_soc.vhdl" "6ae7e3b6471da58f4ba1560ada3b3c13ed2a1ddc" "20261001121543.959":
+  entity tb_soc at 8( 493) + 0 on 177;
+  architecture sim of tb_soc at 26( 969) + 0 on 178;

@@ -33,6 +33,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | `ld/` | `mld` the linker |
 | `rt/` | Runtime for compiled C: start-up code, multiply and divide, msim console output |
 | `simulator/` | `msim` |
+| `hw/` | The core, Chairman and system in VHDL, tested against msim's traces |
 | `libc/` | C library: PDCLib, musl's maths and number scanning, and the platform layers for `msim` and Catflap |
 | `lua/` | Lua 5.4.7, built for MEOW and run under `msim`; optional, `make WITH_LUA=1` |
 | `os/` | Catflap, the operating system: kernel in `os/kernel/`, programs in `os/bin/`; `make -C os run` boots it |

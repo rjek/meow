@@ -1,9 +1,15 @@
-rtl/chairman.vhdl:115:32:note: found ROM "n6787", width: 32 bits, depth: 32
-                    d := CS_DEV(n);
-                               ^
-rtl/chairman.vhdl:117:33:note: found ROM "n6795", width: 32 bits, depth: 32
-                    d := CS_SIZE(n);
-                                ^
+rtl/meow_core.vhdl:56:9:warning: no assignment for port "dbg_regs" [-Wnowrite]
+        dbg_regs : out reg_file_t;          -- with DEBUG: both banks, bank 0 first
+        ^
+rtl/meow_core.vhdl:69:12:note: found RAM "rf", width: 32 bits, depth: 32
+    signal rf    : reg_file_t := (others => (others => '0'));
+           ^
+rtl/meow_core.vhdl:281:18:note: found ROM "n1793", width: 32 bits, depth: 32
+        variable size : natural range 1 to 4;
+                 ^
+rtl/meow_core.vhdl:277:18:note: found ROM "n1801", width: 32 bits, depth: 32
+        variable rs : unsigned(3 downto 0);
+                 ^
 rtl/rom.vhdl:51:12:warning: signal "mem" is never assigned [-Wnowrite]
     signal mem   : mem_t := load(FILE_NAME);
            ^

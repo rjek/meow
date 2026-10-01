@@ -108,6 +108,56 @@ anyone run MEOW.
 The whole of it is in VHDL, in `hw/`, with GHDL simulation part of
 `make check` so that the core cannot drift from msim unnoticed.
 
+## What exists: `hw/`
+
+The approach above, begun.  `hw/rtl/` holds the VHDL, `hw/sim/` the
+testbench, and `hw/Makefile` runs it: `make check` assembles the
+simulator's single-CPU tests from `tests/sim/`, has `msim -T` write a
+line per instruction (its address and word, then both banks'
+registers after it), and runs the same ROM in GHDL, where the
+testbench compares every instruction and plays the host's part on
+the coprocessor port; `make synth` gives the ECP5 figures through
+Yosys and the GHDL plugin.
+
+- `meow_pkg.vhdl`: the types, the bus records of reference section
+  7, and the condition codes.
+- `meow_core.vhdl`: the core, a multi-cycle machine: a fetch, one
+  execute cycle in which a memory instruction also makes its bus
+  transaction, and one more for a memory instruction's writeback.
+  r0 to r13 of both banks are a 32-word RAM read as the instruction
+  arrives on the bus and written as it ends, which the ECP5 makes of
+  32 distributed-RAM cells; pc and sr of each bank are flops.  The
+  interrupt is taken between instructions; `WFI` is a state; negative
+  `BNV`s go out of a coprocessor port, which on the board answers
+  with nothing and in the testbench answers with what msim had.
+- `chairman.vhdl`: reference section 5 and the bus of section 7 for
+  `NCPU` masters: round-robin grant, the chip-select table from
+  generics, the per-CPU masks, pending words, timers and control
+  blocks, the locks and the present mask.  A write lands before the
+  same cycle's tick, as msim orders them.
+- `rom.vhdl` and `ram.vhdl`: block RAM, the ROM from a file of hex
+  words, both answering the cycle after the request.
+- `meow_soc.vhdl`: the system: cores, Chairman, ROM at chip select 0
+  and RAM at 1.  `TICK_FROM_CORE` makes the timers count instructions
+  (and cycles waited in `WFI`), as msim does, so the interrupt test's
+  trace matches to the instruction; a board counts clocks.
+- `tb_soc.vhdl`: the testbench.
+
+Seven of the simulator's tests run and match, 1,669 instructions, at
+3.9 clocks an instruction with memory that answers the cycle after it
+is asked; the three that need two CPUs or the IOC wait for those.
+Synthesised for the ECP5 the core is about 3,600 LUT4s and 260 flops,
+the Chairman 700 and 190 (for one CPU), and the 64 KB RAM 32 block
+RAMs; the first cut, with the register file as flops and a read mux
+for every use, was 25,000, which says where the cost of a design
+like this goes.  The ROM is empty at synthesis, so its blocks do not
+show.  There is more to take out of the core, in the muxing of the
+operand paths, and nothing has been timed yet.
+
+Not yet done: the IOC, local memory at chip selects 29 and 30, a
+board's top level with a clock and reset, and the two-CPU and IOC
+tests.
+
 ## Sources
 
 - nextpnr's supported families: https://github.com/YosysHQ/nextpnr
