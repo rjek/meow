@@ -91,6 +91,17 @@ struct msim_ctx {
 	u_int32_t	realar[16];
 	unsigned int	cyclecount;
 	unsigned int	*profile;	/* executions per halfword of the low 1 MB, or NULL */
+
+	/* More than one CPU: every CPU is a context of its own, sharing the
+	 * devices below by being a copy of CPU 0's made once they were all
+	 * added; cpus lists them all and is the same array in each.  A CPU
+	 * other than 0 is held in reset until the Chairman starts it. */
+	unsigned int	cpu;		/* bus ID */
+	unsigned int	ncpus;
+	struct msim_ctx	**cpus;		/* NULL when there is only this one */
+	bool		running;
+	bool		wfi;		/* stopped by BNV #6 until an interrupt */
+	unsigned int	jitter;		/* CPU 0 only: random stalls, 0 for none */
 	
 	struct {
 		 msim_read_mem	read;
@@ -156,5 +167,13 @@ void msim_del_ram(struct msim_ctx *ctx, int area);
 
 void msim_add_builtin_bnvs(struct msim_ctx *ctx);
 void msim_del_builtin_bnvs(struct msim_ctx *ctx);
+
+/* The CPU numbered n; the machine is addressed through CPU 0 */
+struct msim_ctx *msim_cpu(struct msim_ctx *ctx, unsigned int n);
+void msim_add_cpus(struct msim_ctx *ctx, unsigned int n);
+void msim_reset_cpu(struct msim_ctx *ctx, u_int32_t pc);
+
+/* Local memory of size bytes per CPU, at chip selects 29 and 30 */
+void msim_add_local(struct msim_ctx *ctx, size_t size);
 
 #endif /* __MSIM_H__ */

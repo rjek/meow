@@ -1,17 +1,21 @@
 # msim: the MEOW simulator
 
-`msim` runs a MEOW machine: one CPU (so far), ROM, RAM and the Chairman system
-controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
+`msim` runs a MEOW machine: one or more CPUs, ROM, RAM and the Chairman
+system controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
 build (`liblua5.1-0-dev libedit-dev` on Debian and Ubuntu).
 
 ```
-msim [-vhiqs] {-f spec | -r rom [-m KB]} [-H dir] [-c cycles] [-P file]
+msim [-vhiqs] {-f spec | -r rom [-m KB]} [-n CPUs] [-l KB] [-j seed] [-H dir]
+     [-c cycles] [-P file]
 ```
 
 | Option | Meaning |
 |---|---|
 | `-r rom` | Load a flat image as ROM at chip select 0, with RAM at chip select 1 and the Chairman at 31 |
 | `-m KB` | How much RAM `-r` provides, in KB; 64 unless told otherwise.  A program finds the figure in the Chairman's chip-select table, which is how `crt0` places the stack |
+| `-n CPUs` | How many CPUs, 1 to 32; one unless told otherwise.  CPU 0 runs from reset and the others wait to be started through the Chairman's control blocks (reference section 5.5) |
+| `-l KB` | Give every CPU this much local memory, at chip select 30 as its own and at 29 as all of them 4 MB apart; none unless told otherwise |
+| `-j seed` | Stall CPUs at random, one cycle in four from a generator seeded with this, so that a program's independence of their interleaving can be tested; the same seed gives the same run |
 | `-H dir` | Lend a host directory to the program through `BNV #-18`.  Catflap mounts it at `/host` |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
@@ -23,6 +27,16 @@ msim [-vhiqs] {-f spec | -r rom [-m KB]} [-H dir] [-c cycles] [-P file]
 
 The exit status is the value passed to the halt call (below), or 0 after
 `-c` cycles.
+
+With more than one CPU a cycle is one instruction on every running CPU
+that is not waiting in `WFI`, in bus-ID order, and then one tick of the
+devices; `-c` counts cycles, `-s` counts instructions on every CPU.  The
+trace names the CPU on each line.  The Chairman is modelled as the
+reference describes it: a pending word and a timer per CPU, the control
+blocks, the doorbell and the locks, with the lock's read and set being
+one access because the simulator is one program.  `BNV #6` stops a CPU
+until the Chairman's tick finds something pending that its mask admits.
+The debugger works on CPU 0; stepping it steps the machine.
 
 ## Spec files
 

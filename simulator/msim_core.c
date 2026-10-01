@@ -46,6 +46,8 @@ struct msim_ctx *msim_init(void)
 	ctx->ar = ctx->realar;
 	
 	ctx->ar[MSIM_SR] = 1;	/* set bit indicating interrupt mode */
+	ctx->ncpus = 1;
+	ctx->running = true;
 	
 	/* set all device IDs to 0xffffffff, meaning "none installed" */
 	for (i = 0; i < 32; i++)
@@ -85,7 +87,13 @@ static void msim_builtin_get_model(struct msim_ctx *ctx, signed int op,
 static void msim_builtin_get_bus_id(struct msim_ctx *ctx, signed int op,
 					void *bnvctx)
 {
-	ctx->r[MSIM_IR] = 0;
+	ctx->r[MSIM_IR] = ctx->cpu;
+}
+
+static void msim_builtin_wfi(struct msim_ctx *ctx, signed int op,
+				void *bnvctx)
+{
+	ctx->wfi = true;		/* the Chairman's tick wakes it */
 }
 
 static void msim_builtin_irqrtn(struct msim_ctx *ctx, signed int op,
@@ -155,6 +163,7 @@ void msim_add_builtin_bnvs(struct msim_ctx *ctx)
 	msim_add_bnv(ctx, 0, msim_builtin_get_model, NULL);
 	msim_add_bnv(ctx, 2, msim_builtin_get_bus_id, NULL);
 	msim_add_bnv(ctx, 4, msim_builtin_irqrtn, NULL);
+	msim_add_bnv(ctx, 6, msim_builtin_wfi, NULL);
 	
 	/* negative values are implementation-defined */
 	msim_add_bnv(ctx, -2, msim_builtin_exit, NULL);
@@ -272,6 +281,7 @@ inline void msim_swap_banks(struct msim_ctx *ctx)
 
 void msim_irq(struct msim_ctx *ctx)
 {
+	ctx->wfi = false;
 	if (MSIM_SR_IRQ(ctx->r[MSIM_SR]) == 0) {
 		/* only enter interrupt mode if we're not already there */
 		msim_swap_banks(ctx);
@@ -550,6 +560,93 @@ void msim_execute(struct msim_ctx *ctx, u_int16_t w)
 	}
 }
 
+struct msim_ctx *msim_cpu(struct msim_ctx *ctx, unsigned int n)
+{
+	if (ctx->cpus == NULL) {
+		return n == 0 ? ctx : NULL;
+	}
+	return n < ctx->ncpus ? ctx->cpus[n] : NULL;
+}
+
+/* Registers as reset leaves them, and pc as the Chairman says */
+void msim_reset_cpu(struct msim_ctx *ctx, u_int32_t pc)
+{
+	memset(ctx->realr, 0, sizeof ctx->realr);
+	memset(ctx->realar, 0, sizeof ctx->realar);
+	ctx->r = ctx->realr;
+	ctx->ar = ctx->realar;
+	ctx->ar[MSIM_SR] = 1;
+	ctx->r[MSIM_PC] = pc;
+	ctx->irqmode = false;
+	ctx->nopcincrement = false;
+	ctx->wfi = false;
+}
+
+/* Make CPUs 1 to n - 1 as copies of CPU 0, once every device is added so
+ * that they share them all; they are held in reset until started. */
+void msim_add_cpus(struct msim_ctx *ctx, unsigned int n)
+{
+	unsigned int i;
+
+	assert(ctx->cpu == 0 && ctx->cpus == NULL && n >= 1 && n <= 32);
+	ctx->cpus = calloc(n, sizeof *ctx->cpus);
+	assert(ctx->cpus != NULL);
+	ctx->cpus[0] = ctx;
+	ctx->ncpus = n;
+	for (i = 1; i < n; i++) {
+		struct msim_ctx *c = malloc(sizeof *c);
+
+		assert(c != NULL);
+		memcpy(c, ctx, sizeof *c);
+		c->cpu = i;
+		c->cyclecount = 0;
+		c->running = false;
+		c->jitter = 0;
+		msim_reset_cpu(c, 0);
+		ctx->cpus[i] = c;
+	}
+}
+
+static bool msim_stalled(struct msim_ctx *m)
+{
+	/* a stall one cycle in four, from a generator of our own so that a
+	 * run repeats for a given seed */
+	m->jitter = m->jitter * 1103515245u + 12345u;
+	return ((m->jitter >> 16) & 3) == 0;
+}
+
+static void msim_step(struct msim_ctx *ctx, bool trace)
+{
+	u_int16_t i = msim_fetch(ctx);
+	char dis[256];
+
+	if (trace == true) {
+		int b;
+
+		if (ctx->ncpus > 1) {
+			printf("cpu%u ", ctx->cpu);
+		}
+		printf("0x%08x : ", ctx->r[MSIM_PC]);
+
+		for (b = 15; b >= 0; b--) {
+			printf("%s", (i) & (1<<b) ? "1":"0");
+			if (b % 4 == 0) printf(" ");
+		}
+
+		meow_disasm(i, ctx->r[MSIM_PC], dis, sizeof dis);
+		printf(": %-30s cycle %d\n", dis, ctx->cyclecount);
+	}
+
+	if (ctx->profile != NULL && ctx->r[MSIM_PC] < MSIM_PROFILE_BYTES) {
+		ctx->profile[ctx->r[MSIM_PC] >> 1]++;
+	}
+	msim_execute(ctx, i);
+	ctx->cyclecount++;
+}
+
+/* Run the machine for a number of cycles: every running CPU that is not
+ * waiting executes one instruction a cycle, in bus-ID order, and then the
+ * devices tick once.  ctx is CPU 0, which stands for the machine. */
 void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 {
 	if (ctx->init == false) {
@@ -565,28 +662,20 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 	}
 	
 	for (; instructions > 0; instructions--) {
-		u_int16_t i = msim_fetch(ctx);
-		char dis[256];
+		unsigned int n;
 		int ticks;
 
-		if (trace == true) {
-			int b;
-			
-			printf("0x%08x : ", ctx->r[MSIM_PC]);
-			
-			for (b = 15; b >= 0; b--) {
-				printf("%s", (i) & (1<<b) ? "1":"0");
-				if (b % 4 == 0) printf(" ");
+		for (n = 0; n < ctx->ncpus; n++) {
+			struct msim_ctx *c = msim_cpu(ctx, n);
+
+			if (c->running == false || c->wfi == true) {
+				continue;
 			}
-			
-			meow_disasm(i, ctx->r[MSIM_PC], dis, sizeof dis);
-			printf(": %-30s cycle %d\n", dis, ctx->cyclecount);
+			if (ctx->jitter != 0 && msim_stalled(ctx) == true) {
+				continue;
+			}
+			msim_step(c, trace);
 		}
-				
-		if (ctx->profile != NULL && ctx->r[MSIM_PC] < MSIM_PROFILE_BYTES) {
-			ctx->profile[ctx->r[MSIM_PC] >> 1]++;
-		}
-		msim_execute(ctx, i);
 
 		/* run the tickers in our ticker shortlist */
 		if (ctx->sticks != 0) {
@@ -595,8 +684,6 @@ void msim_run(struct msim_ctx *ctx, unsigned int instructions, bool trace)
 				ctx->stick[ticks](ctx, ctx->areas[a].ctx);
 			}
 		}
-	
-		ctx->cyclecount++;
 	}
 }
 
@@ -782,3 +869,85 @@ int main(int argc, char *argv[])
 }
 
 #endif
+
+/* Local memory: a RAM per CPU, reached at chip select 30 as the accessing
+ * CPU's own and at chip select 29 as all of them, 4 MB apart.  One store
+ * of RAMs, each made when its CPU first touches it, behind a window for
+ * each of the two chip selects. */
+struct msim_local_ctx {
+	size_t		size;
+	unsigned char	*ram[32];
+};
+
+struct msim_local_window {
+	struct msim_local_ctx	*l;
+	bool			all;	/* chip select 29: every CPU's in a row */
+};
+
+static unsigned char *msim_local_ram(struct msim_ctx *ctx, u_int32_t ptr,
+					struct msim_local_window *w,
+					u_int32_t *off)
+{
+	struct msim_local_ctx *l = w->l;
+	unsigned int cpu = w->all == true ? (ptr >> 22) & 31 : ctx->cpu;
+
+	*off = w->all == true ? ptr & 0x3fffffu : ptr;
+	if (*off >= l->size || cpu >= ctx->ncpus) {
+		fprintf(stderr, "msim: access outside local memory, cpu %u"
+			" offset 0x%x\n", cpu, *off);
+		return NULL;
+	}
+	if (l->ram[cpu] == NULL) {
+		l->ram[cpu] = calloc(l->size, 1);
+		assert(l->ram[cpu] != NULL);
+	}
+	return l->ram[cpu];
+}
+
+static u_int32_t msim_local_read(struct msim_ctx *ctx, const u_int32_t ptr,
+				msim_mem_access_type access, void *fctx)
+{
+	struct msim_ram_ctx view;
+	u_int32_t off;
+
+	view.ram = msim_local_ram(ctx, ptr, fctx, &off);
+	if (view.ram == NULL) {
+		return 0;
+	}
+	view.size = ((struct msim_local_window *)fctx)->l->size;
+	return msim_ram_read(ctx, off, access, &view);
+}
+
+static void msim_local_write(struct msim_ctx *ctx, const u_int32_t ptr,
+				const msim_mem_access_type access,
+				const u_int32_t d, void *fctx)
+{
+	struct msim_ram_ctx view;
+	u_int32_t off;
+
+	view.ram = msim_local_ram(ctx, ptr, fctx, &off);
+	if (view.ram == NULL) {
+		return;
+	}
+	view.size = ((struct msim_local_window *)fctx)->l->size;
+	msim_ram_write(ctx, off, access, d, &view);
+}
+
+void msim_add_local(struct msim_ctx *ctx, size_t size)
+{
+	struct msim_local_ctx *l = calloc(1, sizeof *l);
+	struct msim_local_window *own = calloc(1, sizeof *own);
+	struct msim_local_window *all = calloc(1, sizeof *all);
+
+	assert(l != NULL && own != NULL && all != NULL);
+	l->size = size;
+	own->l = l;
+	all->l = l;
+	all->all = true;
+	msim_device_add(ctx, 30, 0x00000004, msim_local_read, msim_local_write,
+			NULL, NULL, own);
+	ctx->areas[30].size = size;
+	msim_device_add(ctx, 29, 0x00000004, msim_local_read, msim_local_write,
+			NULL, NULL, all);
+	ctx->areas[29].size = size;
+}

@@ -156,6 +156,9 @@ static void display_help(const char *argv0)
 	printf("Usage: %s [-vhiqs] {-f spec file | -r rom} [-c cycles]\n", argv0);
 	printf("  -r rom   ROM image at chip select 0, RAM at 1, Chairman at 31\n");
 	printf("  -m KB    size of that RAM, default 64\n");
+	printf("  -n CPUs  how many CPUs, default 1; the others start held in reset\n");
+	printf("  -l KB    local memory per CPU at chip selects 29 and 30, default none\n");
+	printf("  -j seed  stall CPUs at random, from the seed, to vary their interleaving\n");
 	printf("  -H dir   lend a host directory to the program through BNV #-18\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
@@ -167,7 +170,12 @@ static const char *profile_file;
 
 static void report_stats(void)
 {
-	fprintf(stderr, "msim: %u instructions\n", stats_ctx->cyclecount);
+	unsigned int n, total = 0;
+
+	for (n = 0; n < stats_ctx->ncpus; n++) {
+		total += msim_cpu(stats_ctx, n)->cyclecount;
+	}
+	fprintf(stderr, "msim: %u instructions\n", total);
 }
 
 static void write_profile(void)
@@ -189,7 +197,7 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:m:H:";
+	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
@@ -197,6 +205,8 @@ int main(int argc, char *argv[])
 	char *romfile = NULL;
 	char *hostdir = NULL;
 	size_t ramsize = 65536;
+	size_t localsize = 0;
+	unsigned int ncpus = 1, jitter = 0, n;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -242,6 +252,19 @@ int main(int argc, char *argv[])
 		case 'm':
 			ramsize = (size_t)atoi(optarg) * 1024;
 			break;
+		case 'n':
+			ncpus = (unsigned int)atoi(optarg);
+			if (ncpus < 1 || ncpus > 32) {
+				fprintf(stderr, "msim: 1 to 32 CPUs\n");
+				opterr = true;
+			}
+			break;
+		case 'l':
+			localsize = (size_t)atoi(optarg) * 1024;
+			break;
+		case 'j':
+			jitter = (unsigned int)atoi(optarg);
+			break;
 		}
 	}
 	
@@ -274,6 +297,11 @@ int main(int argc, char *argv[])
 	}
 	
 	msim_add_hostfs(ctx, hostdir);
+	if (localsize != 0) {
+		msim_add_local(ctx, localsize);
+	}
+	msim_add_cpus(ctx, ncpus);	/* last: the others copy the devices */
+	ctx->jitter = jitter;
 
 	if (quiet == false) {
 		printf("msim %s - The MEOW Simulator and Debugger\n", MSIM_VERSION);
@@ -287,7 +315,11 @@ int main(int argc, char *argv[])
 			if (verbose) {
 				while (true) {
 					msim_run(ctx, 1, true);
-					msim_print_state(ctx);
+					for (n = 0; n < ctx->ncpus; n++) {
+						if (msim_cpu(ctx, n)->running == true) {
+							msim_print_state(msim_cpu(ctx, n));
+						}
+					}
 				}
 			} else {
 				while (true) {
