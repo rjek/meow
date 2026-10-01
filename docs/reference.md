@@ -19,6 +19,7 @@ Contents:
 3. BNV extension space
 4. Memory map
 5. Chairman system controller
+6. IOC input/output controller
 
 Notation: `Rd`, `Rs`, `Rn`, `Rm`, `Rv` and `Ra` are registers; `{A}Rn` is a
 register that may be in the alternative bank; `#imm` is an immediate.
@@ -101,8 +102,11 @@ lr` is a return, and `LDR pc, [sp], #4` pops a return address.
 ### 1.5 Reset
 
 On reset every register in both banks is zero, the normal bank is active,
-the I bit reads 0, and the Chairman has all interrupts masked.  Execution
-begins at address 0, which is normally ROM.
+the I bit reads 0, and the Chairman has all interrupts masked.  CPU 0
+begins execution at address 0, which is normally ROM.  Any other CPU is
+held in reset until CPU 0 releases it through the Chairman (section 5.5),
+and then begins at the address the Chairman was given, with every
+register zero.
 
 ### 1.6 Interrupts
 
@@ -128,6 +132,13 @@ UNPREDICTABLE.  Instruction fetches are 16 bits wide.
 
 The address space is split into 32 chip selects of 128 MB each, chosen by
 the top five bits of the address (see section 4).
+
+There are no data caches, and every CPU sees memory in one order: a store
+is visible to every CPU before the storing CPU's next instruction begins,
+and a CPU's loads and stores take effect in program order.  So a word in
+memory written by one CPU and read by another needs no barrier, and the
+Chairman's locks (section 5.6) are correct as they stand.  An
+implementation may cache instruction fetches from ROM.
 
 ## 2. Instruction set
 
@@ -738,6 +749,7 @@ treats it as a no-op.  Negative operands are implementation defined.
 | 0 | | `ir` = CPU model: byte 0 implementor (0 = MEOW project), byte 1 model (0 = msim, 1 = MEOW1), byte 2 revision, byte 3 instruction set version (0) |
 | 2 | | `ir` = bus ID of this CPU in bits 4:0 |
 | 4 | IRQRTN | Return from interrupt: swap banks.  No-op when not in interrupt mode |
+| 6 | WFI | Wait for interrupt: stop until an interrupt this CPU's mask admits is pending, then continue, taking it unless already in interrupt mode.  An implementation without it continues at once, so a loop around it is the portable form |
 
 The simulator's negative operands are listed in `simulator.md`.
 
@@ -755,13 +767,25 @@ The simulator's negative operands are listed in `simulator.md`.
 |---|---|---|
 | 0 | 0x00000000 | ROM.  Reset vector at 0, interrupt vector at 32 |
 | 1 | 0x08000000 | RAM |
-| 2 to 30 | | Other devices |
+| 2 to 28 | | Other devices |
+| 29 | 0xe8000000 | Local memory of every CPU: CPU `n`'s at `n * 4 MB`, when present |
+| 30 | 0xf0000000 | Local memory of the CPU making the access, when present |
 | 31 | 0xf8000000 | Chairman system controller |
 
 An access to a chip select with nothing attached reads as zero and writes
 are ignored (the simulator warns).  Device identities can be discovered
 through the Chairman's chip-select table rather than assumed, except for
-the three above, which are fixed.
+those above, which are fixed.
+
+Local memory is a small RAM a CPU does not share with any other, so that
+a CPU reading and writing only it, and ROM, runs with no contention and
+its timing is a matter of counting instructions.  It is reached two
+ways: at chip select 30 it is the local memory of whichever CPU is
+making the access, so the same code and the same addresses serve every
+CPU, and at chip select 29 it is all of them in a row, so one CPU can
+fill another's before starting it.  The chip-select table's entry 30
+gives its size per CPU; a system without it has 0xffffffff in entries 29
+and 30 as for anything absent.
 
 ## 5. Chairman system controller
 
@@ -773,13 +797,23 @@ Offsets below are from 0xf8000000.
 |---|---|---|
 | 0x0000 to 0x1fff | R | Chip-select table: 32 entries of 256 bytes.  The first word of an entry is the device ID, the second the device's size in bytes, or 0 where that means nothing |
 | 0x2000 to 0x207f | RW | Interrupt masks: one word per CPU, 32 CPUs |
-| 0x2400 | RW | Pending interrupts |
+| 0x2200 to 0x227f | RW | Pending interrupts: one word per CPU |
+| 0x2400 | RW | Pending interrupts of the CPU making the access |
 | 0x2404 | R | Timer clock frequency in Hz |
-| 0x2408 | RW | Timer reload value |
-| 0x240c | RW | Timer current value |
+| 0x2408 | RW | Timer reload value, of the CPU making the access |
+| 0x240c | RW | Timer current value, of the CPU making the access |
 | 0x2410 | R | Serial console flags |
 | 0x2414 | R | Serial console input byte |
 | 0x2418 | W | Serial console output byte |
+| 0x2800 to 0x2bff | | CPU control: one block of 32 bytes per CPU, section 5.5 |
+| 0x2c00 | R | CPUs present: bit `n` set when CPU `n` exists |
+| 0x2e00 to 0x2e7f | RW | Locks: 32 words, section 5.6 |
+
+The registers that belong to a CPU, its mask, its pending word, its
+timer and its control block, are addressed by CPU number so that one CPU
+can reach another's, and the pending and timer registers at 0x2400 to
+0x240c are also reached by every CPU as its own, so that a system with
+one CPU, and a program that does not care, need not know its number.
 
 ### 5.1 Chip-select table
 
@@ -794,27 +828,37 @@ The remaining words of an entry are reserved.
 | 1 | RAM |
 | 2 | Chairman, this specification |
 | 3 | IOC, section 6 |
+| 4 | Local memory, section 4 |
 
 ### 5.2 Interrupts
 
-Chairman has 32 interrupt sources; the timer is source 31.  The pending
-register has one bit per source, set when the source raises its interrupt.
-Writing the pending register clears the bits that are set in the written
-word (`pending &= ~written`).
+Chairman has 32 interrupt sources.  Source 31 is the timer and source 30
+the doorbell, each of which every CPU has its own of; the rest are
+shared by the system.  Each CPU has a pending word at `0x2200 + 4 *
+cpu` with one bit per source.  A shared source that raises its interrupt
+sets its bit in every CPU's pending word; a CPU's timer and doorbell set
+their bits in that CPU's word only.  Writing a pending word clears the
+bits that are set in the written word (`pending &= ~written`), in that
+word alone: a source taken by one CPU stays pending for the others until
+they clear it.
 
 Each CPU has a mask word at `0x2000 + 4 * cpu`.  A 1 bit means the CPU
-wants that source.  Whenever `pending & mask` is non-zero the CPU is
+wants that source.  Whenever `pending & mask` is non-zero for a CPU it is
 interrupted, as described in section 1.6; a handler clears the pending
-bit before returning.  All masks are zero at reset.
+bit before returning.  All masks are zero at reset.  A shared source is
+ordinarily masked in by one CPU, the one that drives the device, and a
+system with several CPUs decides which.
 
 ### 5.3 Timer
 
-Writing a non-zero reload value starts the timer: it counts down from the
-reload value once per clock and, on reaching zero, raises interrupt 31 and
-reloads.  A reload value of zero (the reset state) stops it.  Writing the
-current value register sets the count directly.  The frequency register is
-read-only and reports the clock the timer counts at; the simulator ticks
-once per instruction and reports 1 MHz.
+Every CPU has a timer.  Writing a non-zero reload value starts it: it
+counts down from the reload value once per clock and, on reaching zero,
+raises interrupt 31 for its CPU and reloads.  A reload value of zero (the
+reset state) stops it.  Writing the current value register sets the count
+directly.  The frequency register is read-only and reports the clock all
+the timers count at; the simulator ticks once per instruction and reports
+1 MHz.  A CPU's own timer is at 0x2408 and 0x240c; another CPU's is in
+its control block.
 
 ### 5.4 Serial console
 
@@ -822,6 +866,49 @@ The flags register has bit 0 set when a fresh byte is waiting.  Reading the
 input register returns the most recent byte and clears the fresh bit.
 Writing a byte to the output register sends it.  There is no interrupt for
 the console; poll the flags.
+
+### 5.5 CPUs
+
+A system has up to 32 CPUs, numbered by their bus ID, which `BNV #2`
+reports and the register at 0x2c00 lists.  They are alike: the same
+instruction set, the same memory map, the same vector at address 32.  A
+system with several CPUs is not expected to share its threads between
+them; it is expected to give each a job, as section 6 gives the IOC
+one, and `multicore.md` says how the operating system does so.
+
+CPU `n` has a control block of 32 bytes at `0x2800 + 0x20 * n`:
+
+| Offset | Access | Register |
+|---|---|---|
+| +0x00 | R | Status: bit 0 present, bit 1 running |
+| +0x04 | RW | Start address |
+| +0x08 | W | Control: writing 1 starts the CPU at the start address with every register in both banks zero and the normal bank active, as reset leaves them; writing 0 stops it and holds it in reset, which also clears its mask, pending word and timer |
+| +0x0c | W | Doorbell: writing any value raises source 30 for the CPU |
+| +0x10 | RW | Timer reload value |
+| +0x14 | RW | Timer current value |
+
+CPU 0 is running at reset and the others are not.  A CPU started this
+way has nothing but its `pc`, so it begins by learning its number from
+`BNV #2` and taking its stack and its argument from wherever the CPU
+that started it agreed to leave them.  Writing 0 to its control register
+is how a CPU that has stopped answering is recovered.  CPU 0's control
+register is read-only: it is the one that stops the others.
+
+The doorbell is how one CPU interrupts another: to say there is work,
+or that work is done.  Whoever rings it leaves the message somewhere in
+memory, which section 1.7 says the other CPU will see.  A CPU with
+nothing to do waits for its doorbell with `WFI`.
+
+### 5.6 Locks
+
+The 32 words at `0x2e00 + 4 * n` are test-and-set locks.  Reading one
+returns its value and sets it to 1, in one bus cycle that no other
+access can come between; writing one sets it to the value written.  A
+read that returns 0 has taken the lock, and a write of 0 releases it.
+Which lock means what is the operating system's business; the
+simulator's and the hardware's is only that a read and its set are
+one event, which the Chairman can promise because every access to it
+passes through it in turn.  All locks are 0 at reset.
 
 ## 6. IOC input/output controller
 
@@ -943,7 +1030,7 @@ gives clocks and delays a resolution the timer's tick does not.
 
 | Offset | Access | Register |
 |---|---|---|
-| +0x00 | W | Halt: writing 1 stops the CPU clock until an interrupt that is enabled in the Chairman arrives; writing 2 stops it for good, which is what a program that has finished does |
+| +0x00 | W | Halt: writing 1 stops the clock of the CPU that wrote until an interrupt its mask admits arrives, which is `WFI` by another road; writing 2 stops every CPU for good, which is what a program that has finished does |
 | +0x04 | W | Reset: writing 0x4d454f57 resets the system as power-on does |
 | +0x08 | RW | LEDs: a bit per indicator the board has, for whatever the software means by them |
 

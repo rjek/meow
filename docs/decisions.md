@@ -166,7 +166,7 @@ Recorded so that the measurements are not lost; none is decided.
     that list: the instruction set is not to change for the operating
     system's sake until the system has been run and measured as it is.
 
-17. **`BL`, and `PUSH` and `POP` with a register list.**  Measured on
+18. **`BL`, and `PUSH` and `POP` with a register list.**  Measured on
     the 103 KB ROM of September 2026, once calls had become the
     eight-byte inline-word form: 1,525 calls cost 11.3 KB, and 1,890
     push and 1,634 pop halfwords sit in 921 runs.  A two-halfword `BL`
@@ -184,6 +184,22 @@ Recorded so that the measurements are not lost; none is decided.
     of the ROM.  Shelved: recorded so that the encodings and the
     figures are not lost, and not to be done before the system is
     measured on hardware, which is the next thing.
+
+19. **More than one CPU, the XMOS way.**  The Chairman had masks for
+    32 CPUs and nothing else.  Specified now, before the hardware, so
+    that the simulator and the hardware agree: CPUs other than 0 are
+    held in reset and started by CPU 0 through a control block, each
+    with its own timer, doorbell and pending word; test-and-set locks
+    live in the Chairman, where every access already passes in turn,
+    so no locked bus cycle and no new instruction are needed, and an
+    atomic swap stays shelved with `BL`; `WFI` is `BNV #6`, which an
+    implementation may ignore; memory is coherent because there are
+    no data caches, and that is now a rule; and an optional local
+    memory per CPU is seen at chip select 30 as the accessing CPU's
+    own, which makes a program's per-CPU state a fixed address.  The
+    operating system keeps one scheduler per CPU with threads that
+    name their CPU and never move, under one lock held exactly while
+    a CPU is in the kernel.  `multicore.md` has the argument.
 
 ## Toolchain
 

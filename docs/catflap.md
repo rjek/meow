@@ -609,9 +609,10 @@ call entry, but the design does not need one, and whether it is worth
 having is a question to ask once the system runs and can be measured.
 
 Multiprocessor: the Chairman was designed with masks for 32 CPUs so
-that cores could bit-bang peripherals in the XMOS manner, and nothing
-here supports that yet.  What the kernel does to avoid making it hard
-later: the per-CPU state, which is the running thread, the kernel-entry
+that cores could bit-bang peripherals in the XMOS manner; the rest of
+the architecture is now specified (`reference.md` section 5.5) and
+`multicore.md` says what the kernel will do with it, which is stage
+11.  What the kernel already does to avoid making it hard: the per-CPU state, which is the running thread, the kernel-entry
 counter and `__client_sb`, sits in one structure that is indexed by
 `BNV #2` when there is more than one of them, and kernel-wide state is
 touched only by code that could take a lock.  The scheduler's queues

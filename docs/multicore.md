@@ -2,9 +2,14 @@
 
 The Chairman was designed with interrupt masks for 32 CPUs and `BNV #2`
 reports a CPU's bus ID, and that is all the specification says about
-having more than one.  This is a proposal for the rest, written before
-any of it is implemented so that the questions can be argued about
-first.  Nothing here is decided; `decisions.md` will say what was.
+having more than one.  This began as a proposal for the rest, written
+before any of it was implemented so that the questions could be argued
+about first.  The architecture it proposes is now in `reference.md`,
+sections 1.5, 1.7, 3, 4, 5.2, 5.3, 5.5 and 5.6, and `decisions.md` item
+19 says why; the operating system's part is still to do.  Where the
+two differ, the reference is right: the per-CPU timer went into the
+control block, the locks moved to 0x2e00 and the present mask to
+0x2c00.
 
 ## Keep it or drop it
 

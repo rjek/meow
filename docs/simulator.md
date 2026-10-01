@@ -1,6 +1,6 @@
 # msim: the MEOW simulator
 
-`msim` runs a MEOW machine: one CPU, ROM, RAM and the Chairman system
+`msim` runs a MEOW machine: one CPU (so far), ROM, RAM and the Chairman system
 controller, with a command-line debugger.  It needs Lua 5.1 and libedit to
 build (`liblua5.1-0-dev libedit-dev` on Debian and Ubuntu).
 
