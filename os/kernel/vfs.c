@@ -587,8 +587,8 @@ int vfs_seek(int fd, int32_t off, int whence)
     if (f == NULL) {
         return -EBADF;
     }
-    if (f->v->type != V_FILE) {
-        return -ESPIPE;
+    if (f->v->type != V_FILE && f->v->type != V_DEV) {
+        return -ESPIPE;                 /* a device decides what its offsets mean */
     }
     switch (whence) {
     case SEEK_SET: base = 0; break;

@@ -651,6 +651,24 @@ output compared.
     msim prints the line, and the thread reports 26000 cycles for 25
     bytes, which is 10 bits of 104 cycles each, under every
     interleaving tried.
+13. **The IOC's UARTs and SPI, and an SD card.**  Done.  msim models
+    the two UARTs and the SPI master, and an SD card on the SPI master
+    from an image file (`msim -D`).  The console is now the IOC's UART
+    0 when there is one, which is every msim machine; `console.c`
+    finds it through the chip-select table and keeps the Chairman's
+    serial registers for a machine without, and a break on the line is
+    the end of input.  `/bin/sd` is the SD card's driver, a server as
+    `memfs` is: it brings the card up in SPI mode and serves it as
+    `/dev/sd0`, a block device read and written at any byte offset,
+    partial blocks by read, change and write back, with `CF_BLK_SIZE`
+    for its size; `/etc/rc` starts it, and it ends quietly without a
+    card.  `tests/os/sd.c` runs with a 1 MB card whose first block
+    the test runner fills from `tests/os/sd.sd`: what the host wrote
+    is read, 600 bytes are written across a block boundary and read
+    back, and the end of the card is found.  `tests/sim/uart.s` and
+    `spi.s` exercise the models directly.  A file system on the card
+    is the next thing: FAT, so that a host can make and read the
+    images.
 
 ## 13. Decisions taken, and open ones
 

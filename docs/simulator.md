@@ -17,6 +17,7 @@ msim [-vhiqs] {-f spec | -r rom [-m KB]} [-n CPUs] [-l KB] [-j seed] [-H dir]
 | `-l KB` | Give every CPU this much local memory, at chip select 30 as its own and at 29 as all of them 4 MB apart; none unless told otherwise |
 | `-j seed` | Stall CPUs at random, one cycle in four from a generator seeded with this, so that a program's independence of their interleaving can be tested; the same seed gives the same run |
 | `-G n,baud` | Watch IOC GPIO line `n` as the output of a software UART, 8 data bits, no parity, one stop bit, at `baud`, and print the bytes it carries; a framing error is reported on standard error |
+| `-D image` | Put an SD card on the IOC's SPI master, holding this file, which is read and written in place; its size, rounded down to whole 512 KB, is the card's |
 | `-H dir` | Lend a host directory to the program through `BNV #-18`.  Catflap mounts it at `/host` |
 | `-f spec` | Describe the machine in a spec file instead (below) |
 | `-c cycles` | Stop after this many instructions.  Otherwise run until the program halts |
@@ -52,21 +53,43 @@ chip 31 sys
 ```
 
 `rom` takes a file name; `ram` takes a size in bytes (default 128 MB);
-`sys` is the Chairman; `ioc` is the IOC.
+`sys` is the Chairman; `ioc` is the IOC, which takes the console from
+the Chairman and so should follow it.
 
 ## The IOC
 
-The IOC of the reference's section 6, so far as msim models it: the
-identification and clock registers, 32 GPIO lines with their edge
-interrupts (Chairman source 3), the real-time clock, whose seconds
-start from the host's clock, with its alarm (source 4) and the
-counter, which is the cycle count at the timer's 1 MHz, and system
-control, where halt 1 is `WFI` and halt 2 ends the run.  There are no
-UARTs and no SPI master yet, and the identification register says so:
-UART 0 would take over the Chairman's serial console, and the kernel
-drives that.  GPIO inputs read as 0, since nothing drives them, and
-outputs read back.  `-G` is how a CPU bit-banging a serial line out of
-the GPIO is tested.
+The IOC of the reference's section 6: identification and clock; two
+UARTs, with 16-byte FIFOs; the SPI master; 32 GPIO lines with their
+edge interrupts (Chairman source 3); the real-time clock, whose
+seconds start from the host's clock, with its alarm (source 4) and the
+counter, which is the cycle count at the timer's 1 MHz; and system
+control, where halt 1 is `WFI` and halt 2 ends the run.
+
+UART 0 is the console, standard input and output, and the Chairman's
+serial registers are then absent, as the reference says: they read as
+0 and a write is refused with a message.  The end of standard input is
+reported as a break in the status register, once, which the clear
+register clears.  Standard input is looked at when the status register
+is read and, once the UART has been touched at all, every 4096 cycles
+besides, so a reader driven by the UART's interrupt sees it too; a
+program that reads its input through `BNV #-12` instead is left alone.
+UART 1 receives what it sends, a loopback.
+Sending takes no time; the divisor is kept but not acted on.
+
+The SPI master takes 16 clocks times the divisor plus one for a byte,
+and is busy for that long, during which a write to the data register
+is ignored, as the reference says; the completion interrupt (source 2)
+comes if asked for.  With `-D` an SD card is on it, selected by the
+control register's chip-select bit: a high-capacity card in SPI mode,
+answering CMD0, CMD8, CMD55 and ACMD41 (ready at the second asking),
+CMD58, CMD9 and CMD10, CMD16, CMD17 and CMD24, with the usual tokens,
+one byte of delay before a response and two bytes of busy after a
+write; multiple-block commands are illegal.  Without a card the data
+line reads 0xff.  `os/bin/sd.c` is a driver for it.
+
+GPIO inputs read as 0, since nothing drives them, and outputs read
+back.  `-G` is how a CPU bit-banging a serial line out of the GPIO is
+tested.
 
 ## Extension calls
 

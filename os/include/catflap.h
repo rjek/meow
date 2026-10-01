@@ -125,6 +125,7 @@ int thread_spawn_local(int (*fn)(void *), unsigned code_size, void *arg, int pri
 #define CF_IPC_TRYRECV  0x4902          /* vfs_ioctl(fd, ., buf): 1 received, 0 empty */
 #define CF_IPC_TRYWAIT  0x4903          /* vfs_ioctl(fd, ., 0): 1 taken, 0 not */
 #define CF_IPC_VALUE    0x4904          /* vfs_ioctl(fd, ., 0): messages waiting, or the count */
+#define CF_BLK_SIZE     0x4a01          /* vfs_ioctl(fd, ., &unsigned) on a block device: its size in bytes */
 int ipc_create(const char *name, int kind, int a, int b);
 
 /* Serving files.  A port is a descriptor.  srv_dev() makes /dev/NAME and

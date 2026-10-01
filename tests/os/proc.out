@@ -5,9 +5,9 @@ wait: 0 status 3
 no such program: -2
 not a program: -8
 two at once: 2 3
-hello from a process, pid 2, args: again
 hello from a process, pid 3, args: hello one
 second done with 2
+hello from a process, pid 2, args: again
 first done with 1, wait again: -10
 0 bytes fewer free than at the start
 exit 0

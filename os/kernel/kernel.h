@@ -10,7 +10,9 @@
 #define RAM_BASE        0x08000000u
 #define CHAIRMAN        0xF8000000u
 #define CH_REG(off)     (*(volatile uint32_t *)(CHAIRMAN + (off)))
+#define CH_CS_DEVICE(n) CH_REG(256 * (n))
 #define CH_CS_SIZE(n)   CH_REG(256 * (n) + 4)
+#define DEV_IOC         0x00000003u
 #define CH_MASK(cpu)    CH_REG(0x2000 + 4 * (cpu))
 #define CH_PENDING      CH_REG(0x2400)
 #define CH_TIMER_HZ     CH_REG(0x2404)
@@ -154,6 +156,7 @@ struct cpu {
 #define O_TRUNC         0x200
 #define O_APPEND        0x400
 #define VFS_IOC_ADDR    0x5601          /* ioctl: *(const void **)arg is the file's bytes, if mapped */
+#define VFS_IOC_BLKSIZE 0x4a01          /* ioctl on a block device: *(unsigned *)arg is its size in bytes */
 #define SEEK_SET        0
 #define SEEK_CUR        1
 #define SEEK_END        2

@@ -31,5 +31,7 @@
 void msim_add_sys(struct msim_ctx *ctx, int area);
 void msim_del_sys(struct msim_ctx *ctx, int area);
 void msim_sys_raise_irq(struct msim_ctx *ctx, int irq);
+/* An IOC with a UART has the console: the serial registers go */
+void msim_sys_console_moved(struct msim_ctx *ctx);
 
 #endif

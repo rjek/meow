@@ -51,6 +51,7 @@ struct sys {
 	struct {
 		u_int32_t flags;
 		u_int32_t input;
+		int absent;		/* an IOC's UART 0 is the console instead */
 	} serial;
 };
 
@@ -238,6 +239,9 @@ static u_int32_t msim_sys_read_serial(struct msim_ctx *ctx, u_int32_t p,
 	struct timeval tv;
 	fd_set rfds;
 
+	if (s->serial.absent != 0) {
+		return 0;		/* not present: reads as nothing */
+	}
 	/* Look for a byte on the host's standard input, unless one is
 	 * already waiting, which the program has yet to take.  Bit 0 of the
 	 * flags is fresh; bit 1, msim's own, says the input has ended. */
@@ -274,6 +278,11 @@ static u_int32_t msim_sys_read_serial(struct msim_ctx *ctx, u_int32_t p,
 static void msim_sys_write_serial(struct msim_ctx *ctx, u_int32_t p,
 						u_int32_t d, struct sys *s)
 {
+	if (s->serial.absent != 0) {
+		fprintf(stderr, "msim: the console is the IOC's UART 0, not"
+			" the Chairman's\n");
+		return;
+	}
 	switch (p) {
 	case 0x2410:
 	case 0x2414:
@@ -410,6 +419,15 @@ void msim_del_sys(struct msim_ctx *ctx, int area)
 {
 	free(ctx->areas[area].ctx);
 	msim_device_remove(ctx, area);
+}
+
+void msim_sys_console_moved(struct msim_ctx *ctx)
+{
+	struct sys *s = (struct sys *)ctx->areas[31].ctx;
+
+	if (s != NULL) {
+		s->serial.absent = 1;
+	}
 }
 
 /* A shared source: pending for every CPU, each of which clears its own */

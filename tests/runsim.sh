@@ -1,8 +1,9 @@
 #!/bin/sh
 # Simulator regression tests: each sim/NAME.s is assembled and run; its
 # stdout plus exit status must match sim/NAME.out; sim/NAME.in, if there
-# is one, is standard input, and sim/NAME.opts, if there is one, holds
-# options for msim such as the number of CPUs.
+# is one, is standard input, sim/NAME.opts, if there is one, holds
+# options for msim such as the number of CPUs, and sim/NAME.sd, if there
+# is one, is text put at the start of a fresh 1 MB SD card image.
 cd "$(dirname "$0")" || exit 2
 MAS=${MAS:-../as/mas}
 MSIM=${MSIM:-../simulator/msim}
@@ -20,6 +21,11 @@ for src in sim/*.s; do
 	fi
 	if [ -f "$name.in" ]; then stdin="$name.in"; else stdin=/dev/null; fi
 	if [ -f "$name.opts" ]; then opts=$(cat "$name.opts"); else opts=; fi
+	if [ -f "$name.sd" ]; then
+		dd if=/dev/zero of="$tmp.sd" bs=1024 count=1024 2>/dev/null
+		dd if="$name.sd" of="$tmp.sd" conv=notrunc 2>/dev/null
+		opts="$opts -D $tmp.sd"
+	fi
 	$MSIM -q -r "$tmp.bin" -c 200000 $opts < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
 	if [ -f "$name.out" ]; then
@@ -37,6 +43,6 @@ for src in sim/*.s; do
 		pass=$((pass + 1))
 	fi
 done
-rm -f "$tmp.bin" "$tmp.err" "$tmp.out"
+rm -f "$tmp.bin" "$tmp.err" "$tmp.out" "$tmp.sd"
 echo "simulator tests: $pass passed, $fail failed"
 [ $fail = 0 ]

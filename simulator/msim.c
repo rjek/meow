@@ -174,6 +174,7 @@ static void display_help(const char *argv0)
 	printf("  -l KB    local memory per CPU at chip selects 29 and 30, default none\n");
 	printf("  -j seed  stall CPUs at random, from the seed, to vary their interleaving\n");
 	printf("  -G n,baud decode a software UART sent on IOC GPIO line n at baud\n");
+	printf("  -D image an SD card on the IOC's SPI master, holding the image file\n");
 	printf("  -H dir   lend a host directory to the program through BNV #-18\n");
 	printf("  -q       no banner\n");
 	printf("  -s       report the instructions executed on exit\n");
@@ -212,7 +213,7 @@ static void write_profile(void)
 
 int main(int argc, char *argv[])
 {
-	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:G:";
+	static char optstring[] = "vhiqsf:r:c:P:m:H:n:l:j:G:D:";
 	int optch, cycles = 0;
 	bool verbose = false, interactive = false, opterr = false;
 	bool quiet = false, stats = false;
@@ -224,6 +225,7 @@ int main(int argc, char *argv[])
 	unsigned int ncpus = 1, jitter = 0, n;
 	int decode_line = -1;
 	unsigned decode_baud = 0;
+	const char *sd_image = NULL;
 	struct msim_ctx *ctx;
 	
 	while ((optch = getopt(argc, argv, optstring)) != -1) {
@@ -282,6 +284,9 @@ int main(int argc, char *argv[])
 		case 'j':
 			jitter = (unsigned int)atoi(optarg);
 			break;
+		case 'D':
+			sd_image = optarg;
+			break;
 		case 'G':
 			if (sscanf(optarg, "%d,%u", &decode_line, &decode_baud) != 2 ||
 			    decode_line < 0 || decode_line > 31 || decode_baud == 0) {
@@ -314,9 +319,9 @@ int main(int argc, char *argv[])
 	if (romfile != NULL) {
 		msim_add_rom_from_file(ctx, 0, romfile);
 		msim_add_ram(ctx, 1, ramsize);
-		msim_add_ioc(ctx, 2);
-		ioc_area = 2;
 		msim_add_sys(ctx, 31);
+		msim_add_ioc(ctx, 2);	/* after the Chairman: it takes the console */
+		ioc_area = 2;
 	} else if (parse_spec(ctx, specfile) == false) {
 		msim_destroy(ctx);
 		exit(2);
@@ -329,6 +334,15 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 		msim_ioc_decode(ctx, ioc_area, decode_line, decode_baud);
+	}
+	if (sd_image != NULL) {
+		if (ioc_area < 0) {
+			fprintf(stderr, "msim: -D needs an IOC\n");
+			exit(1);
+		}
+		if (msim_ioc_sd(ctx, ioc_area, sd_image) < 0) {
+			exit(1);
+		}
 	}
 	if (localsize != 0) {
 		msim_add_local(ctx, localsize);

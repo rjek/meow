@@ -2,3 +2,5 @@
 # /tmp is a file system server, not the kernel's.
 memfs /tmp &
 mounted /tmp
+# the SD card, if there is one, as /dev/sd0
+sd &

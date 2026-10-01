@@ -963,14 +963,16 @@ they are, so software need not assume.
 
 | Offset | Access | Register |
 |---|---|---|
-| +0x00 | R | Status: bit 0 receive data waiting, bit 1 room to transmit, bit 2 transmitter idle, bit 3 receive overrun since last cleared, bit 4 framing error since last cleared, bits 15:8 bytes waiting in the receive FIFO, bits 23:16 the FIFO depth, bits 31:24 reserved |
+| +0x00 | R | Status: bit 0 receive data waiting, bit 1 room to transmit, bit 2 transmitter idle, bit 3 receive overrun since last cleared, bit 4 framing error since last cleared, bit 5 a break was received since last cleared, bits 15:8 bytes waiting in the receive FIFO, bits 23:16 the FIFO depth, bits 31:24 reserved |
 | +0x04 | RW | Data: a read takes the next received byte in bits 7:0 (undefined if none is waiting); a write queues bits 7:0 to send (dropped if there is no room) |
 | +0x08 | RW | Baud rate divisor: the bit rate is the clock frequency divided by 16 and by the divisor plus one |
 | +0x0c | RW | Interrupt enable: bit 0 raise the UART's source while data is waiting, bit 1 raise it while there is room to transmit |
-| +0x10 | W | Clear: writing a word with bit 3 or bit 4 set clears that error bit in the status register |
+| +0x10 | W | Clear: writing a word with bit 3, 4 or 5 set clears that bit in the status register |
 
 The format is 8 data bits, no parity, one stop bit; the divisor is 0 at
-reset and the interrupt enables are 0.  The UART's interrupt source is
+reset and the interrupt enables are 0.  A break is the line held at 0
+for longer than a character; what software makes of one is its own
+affair, and the simulator uses it to say its input has ended.  The UART's interrupt source is
 raised while either enabled condition holds, so a handler that takes
 all the data or fills the transmitter clears it by that alone, and
 should disable the transmit interrupt when it has nothing more to send.

@@ -1,0 +1,9 @@
+Catflap: 256 KB RAM
+sd: 1024 KB card at /dev/sd0
+card: 1048576 bytes
+block 0: 48 'This text was on the card before Catflap booted.'
+wrote 600 at 1000
+read 600 back, all as written
+block 1 starts with 16 zero bytes
+at the end: read 8, then 0
+exit 0
