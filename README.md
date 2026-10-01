@@ -20,6 +20,7 @@ to be a pleasant target for hand-written assembler and a C compiler.
 | [docs/catflap.md](docs/catflap.md) | Catflap, the operating system: architecture, and how it was built |
 | [docs/rom-size.md](docs/rom-size.md) | Where the bytes of the Catflap ROM are, what was done about them, and what is left |
 | [docs/hardware.md](docs/hardware.md) | Towards hardware: the free FPGA toolchain, affordable boards, and the approach |
+| [docs/multicore.md](docs/multicore.md) | More than one core: how they would start, agree, and talk, and what Catflap would do with them |
 | [docs/decisions.md](docs/decisions.md) | Why the specification says what it says |
 
 ## Layout
