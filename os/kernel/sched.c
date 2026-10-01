@@ -22,6 +22,13 @@ static struct thread *sleepers;         /* by wake time */
 static struct thread *zombies;
 static uint32_t ticks;
 static int ncpus_online = 1;
+static struct thread *(*irq_handlers[32])(void);
+
+void irq_attach(int source, struct thread *(*handler)(void))
+{
+    irq_handlers[source] = handler;
+    CH_MASK(this_cpu()->cpu) |= 1u << source;
+}
 
 static void klock(void)
 {
@@ -704,9 +711,17 @@ static void tick_work(void)
         if (wait_expire(ticks) != 0) {
             woke = 1;
         }
-        if (console_poll() != NULL) {
+    }
+    while (c->devices != 0) {
+        int n;
+
+        for (n = 0; (c->devices & (1u << n)) == 0; n++) {
+        }
+        c->devices &= ~(1u << n);
+        if (irq_handlers[n] != NULL && irq_handlers[n]() != NULL) {
             woke = 1;
         }
+        CH_MASK(c->cpu) |= 1u << n;     /* listened to again */
     }
     c->slice -= c->tick_pending;
     c->tick_pending = 0;
@@ -742,6 +757,14 @@ void irq_dispatch(void)
         c->tick_pending++;
     }
     if ((pending & (1u << IRQ_DOORBELL)) != 0) {
+        c->poked = 1;
+    }
+    pending &= ~((1u << IRQ_TIMER) | (1u << IRQ_DOORBELL));
+    if (pending != 0) {
+        /* a device: handled with the tick's work, and not heard from
+           again until it has been, since its condition persists */
+        CH_MASK(c->cpu) &= ~pending;
+        c->devices |= pending;
         c->poked = 1;
     }
     if (held != 0) {

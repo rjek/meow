@@ -3,7 +3,7 @@
 ; instruction is the reset vector at 0 and the interrupt vector is at 32.
         AREA    |.text|, CODE, READONLY
         EXPORT  start
-        EXPORT  kernel_halt
+        EXPORT  cpu_halt
         EXPORT  cpu_id
         EXPORT  kernel_time
         EXPORT  host_call
@@ -167,12 +167,12 @@ cpu_entry
 cpu_wfi BNV     #6
         RET
 
-; void kernel_halt(int status): stop the machine.  Under msim the process
+; void cpu_halt(int status): stop the machine.  Under msim the process
 ; exits with the status; real hardware would loop here.
-kernel_halt
+cpu_halt
         MOV     ir, r0
         BNV     #-2
-        B       kernel_halt
+        B       cpu_halt
 
 ;  long kernel_time(void): seconds since 1970, which under msim is the
 ; host's clock

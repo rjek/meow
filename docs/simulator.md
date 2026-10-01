@@ -74,7 +74,10 @@ is read and, once the UART has been touched at all, every 4096 cycles
 besides, so a reader driven by the UART's interrupt sees it too; a
 program that reads its input through `BNV #-12` instead is left alone.
 UART 1 receives what it sends, a loopback.
-Sending takes no time; the divisor is kept but not acted on.
+A byte sent goes to the host at once, but the transmit FIFO empties at
+the divisor's rate, ten bit times a byte, so the status register's
+room and idle bits, and the transmit interrupt, behave as they would;
+a byte written with no room is dropped, as the reference says.
 
 The SPI master takes 16 clocks times the divisor plus one for a byte,
 and is busy for that long, during which a write to the data register

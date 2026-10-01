@@ -72,6 +72,7 @@ void kmain(void)
         }
     }
     sched_start();
+    console_start();
     for (i = 1; i < NCPU; i++) {
         if ((present & (1u << i)) != 0 && cpu_start(i) < 0) {
             kpanic("CPU %d does not start", i);

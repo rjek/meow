@@ -229,7 +229,9 @@ void kvprintf(const char *fmt, va_list ap)
     char *saved = sink_buf;             /* a panic while formatting still reaches the console */
 
     sink_buf = NULL;
+    kenter();                           /* one message, in one piece */
     format(fmt, ap);
+    kexit();
     sink_buf = saved;
 }
 
@@ -272,4 +274,10 @@ void kpanic(const char *fmt, ...)
     va_end(ap);
     console_putc('\n');
     kernel_halt(70);
+}
+
+void kernel_halt(int status)
+{
+    console_flush();
+    cpu_halt(status);
 }

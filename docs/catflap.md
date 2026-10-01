@@ -31,9 +31,10 @@ Five facts about MEOW decide most of the design.
   separately linked program finds the kernel, and the answer is that
   it is linked against the kernel's symbols (section 6).
 - **Devices are discovered, not assumed.**  The Chairman's chip-select
-  table names every device and its size.  Interrupts are one pending
-  word and a mask; the timer is source 31; the console has no interrupt
-  and must be polled.
+  table names every device and its size.  Interrupts are a pending
+  word and a mask per CPU; the timer is source 31, the doorbell 30, and
+  the IOC's parts are 0 to 7; the console is the IOC's UART 0, with an
+  interrupt.
 - **Small.**  A useful machine has 64 KB to 1 MB of RAM and a ROM.  The
   kernel must fit in tens of KB, a thread must cost a few hundred bytes
   plus its stack, and nothing may assume memory is plentiful.
@@ -104,8 +105,8 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
 - **Scheduler.**  Fixed priorities, eight levels, round robin within a
   level.  The timer ticks at 100 Hz (10000 instructions under `msim`);
   a tick ends the running thread's slice if another of its priority is
-  ready.  Priority 0 is the idle thread, which polls the console and
-  halts under `msim` when nothing else can run, so that an idle system
+  ready.  Priority 0 is the idle thread, which waits for an interrupt
+  when nothing else can run, so that an idle system
   costs nothing.
 - **Context switch.**  Always from interrupt mode.  A voluntary switch
   (block, yield, exit) sets `switch_wanted` and rings the CPU's own
@@ -115,7 +116,7 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
   load, `IRQRTN`.  One switch path, one place where registers are
   saved, and no thread ever runs with interrupts off.  A tick that finds
   the kernel entered only counts itself; the kernel does the tick's
-  work (waking sleepers, polling the console, ending a slice) when the
+  work (waking sleepers, running the device handlers, ending a slice) when the
   call returns, and if that work queued the returning thread behind
   another it rings the doorbell rather than running on from inside the
   ready queue, which is the bug the first version had.  (The first
@@ -165,9 +166,14 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
   what a driver thread and a client want, and they are what `mq_open`
   and friends map onto in libc.  No condition variables, no
   reader-writer locks; if they are wanted later they sit on top.
-- **Interrupts.**  Handlers run in the interrupt bank, short, on the
-  interrupt stack, and communicate with threads only by signalling a
-  semaphore or posting to a queue.  A driver's real work is in a thread.
+- **Interrupts.**  A device's handler is attached to its Chairman
+  source with `irq_attach` and runs with the kernel's data consistent,
+  as the tick's work does: in the interrupt bank when user code was
+  interrupted, else when the kernel call that was interrupted returns.
+  Meanwhile the source is masked off in the Chairman, since a device's
+  condition persists until it is attended to, and masked back on once
+  the handler has run.  A handler returns a thread it woke, which the
+  scheduler then considers.  A driver's real work is in a thread.
 
 ## 5. Processes
 
@@ -392,16 +398,27 @@ easier to write and to get right.
 
 At boot the kernel walks the chip-select table and binds a driver to
 each device ID it knows: ROM and RAM become memory regions, the Chairman
-gives the timer and console, an IOC when one is specified gives whatever
-it gives.  A driver is a vnode with `read`, `write`, `ioctl` and an
-optional thread, registered under `/dev`.  That is a driver in the
-kernel; one that is a program registers through a port (section 6b).
+gives the timers and the doorbells, the IOC gives the console.  A
+driver is a vnode with `read`, `write`, `ioctl` and an optional thread,
+registered under `/dev`.  That is a driver in the kernel; one that is a
+program registers through a port (section 6b), which is what the SD
+card's driver and the FAT file system are.
 
-- **Console.**  No interrupt, so the tick polls the flags register and
-  posts each byte to a 64-byte queue; `read` on `/dev/console` takes
-  from the queue, blocking.  Output is direct, with a mutex.  Under
-  `msim`, output goes to the Chairman's serial register like everywhere
-  else; the `BNV` calls are for the toolchain's tests, not the OS.
+- **Console.**  The IOC's UART 0, set to 115200 baud or the nearest
+  the clock allows, driven by its interrupt (Chairman source 0).
+  Received bytes go into a 64-byte ring that `read` on `/dev/console`
+  takes from, blocking; a break on the line is the end of input.  The
+  receive interrupt is enabled only while the ring has room, since the
+  UART would otherwise raise it without end.  Output goes into the
+  UART's FIFO while there is room and otherwise into a 128-byte ring
+  the transmit interrupt drains, enabled only while the ring has
+  something in it; a writer waits only when that too is full, and then
+  drains the ring itself, so that output from anywhere, a panic in the
+  handler included, gets out.  A writer holds the kernel while it
+  touches the rings, which keeps one message's bytes together, and
+  `kernel_halt` flushes before stopping.  A machine without an IOC has
+  no console.  The `BNV` calls are for the toolchain's tests, not the
+  OS.
 - **Timer.**  Source 31, the tick.  Sleeping threads sit in a list
   ordered by wakeup time; the tick pops what is due.  `uptime` counts
   ticks; `time` is uptime plus whatever `settime` was told.
@@ -687,6 +704,25 @@ output compared.
     truncating, growing a file to 20 KB, directories, and the right
     errors for a missing file, a name too long, a directory that is not
     empty and one that exists.
+15. **The bus, and the console native.**  Done.  The reference's
+    section 7 specifies the bus between CPUs, Chairman and devices: a
+    synchronous request and acknowledge with byte lanes, the Chairman
+    as round-robin arbiter and decoder, which is what makes the
+    coherence rule and the locks hold by construction; local memory
+    beside the CPU; and level interrupts.  The Chairman's serial
+    registers are now the fallback for a machine without an IOC, and
+    the kernel no longer drives them: the console is the UART, as
+    section 7 above says, interrupt-driven both ways, with `irq_attach`
+    and the device dispatch in the scheduler for any driver that wants
+    an interrupt.  msim models the UART's transmit time, ten bit times
+    a byte at the divisor's rate, so the FIFO fills and the transmit
+    interrupt is exercised.  Two lessons.  A source whose condition
+    persists must be masked while it cannot be attended to, in the
+    Chairman between handler runs and at the UART while the ring is
+    full, or it is raised without end and nothing else runs.  And the
+    console's rings are kernel data like any other: an unlocked writer
+    racing the handler corrupted them, and the cure was for writers to
+    hold the kernel, which also made a message one piece.
 
 ## 13. Decisions taken, and open ones
 

@@ -18,9 +18,6 @@
 #define CH_TIMER_HZ     CH_REG(0x2404)
 #define CH_TIMER_RELOAD CH_REG(0x2408)
 #define CH_TIMER_VALUE  CH_REG(0x240c)
-#define CH_SERIAL_FLAGS CH_REG(0x2410)
-#define CH_SERIAL_IN    CH_REG(0x2414)
-#define CH_SERIAL_OUT   CH_REG(0x2418)
 #define CH_CPU_STATUS(n) CH_REG(0x2800 + 0x20 * (n))
 #define CH_CPU_START(n) CH_REG(0x2804 + 0x20 * (n))
 #define CH_CPU_CONTROL(n) CH_REG(0x2808 + 0x20 * (n))
@@ -28,6 +25,7 @@
 #define CH_CPU_TIMER_RELOAD(n) CH_REG(0x2810 + 0x20 * (n))
 #define CH_PRESENT      CH_REG(0x2c00)
 #define CH_LOCK(n)      CH_REG(0x2e00 + 4 * (n))
+#define IRQ_UART0       0               /* the IOC's sources are 0 to 7 */
 #define IRQ_DOORBELL    30
 #define IRQ_TIMER       31
 #define LOCAL_BASE      0xF0000000u     /* this CPU's local memory */
@@ -111,6 +109,7 @@ struct cpu {
     volatile int switch_wanted;         /* kernel code asked for a switch, and spins on it */
     int tick_pending;                   /* ticks not yet accounted for */
     int poked;                          /* the doorbell rang: something to reconsider */
+    uint32_t devices;                   /* device sources rung, masked off until handled */
     int slice;                          /* ticks left in the current one */
     struct thread *ready_head[NPRIO], *ready_tail[NPRIO];
 };
@@ -354,7 +353,8 @@ int srv_abandon(struct thread *t);
 int srv_holds(struct thread *t);
 
 /* boot.s */
-void kernel_halt(int status);
+void cpu_halt(int status);
+void kernel_halt(int status);           /* lib.c: the console flushed, then cpu_halt */
 int cpu_id(void);
 long kernel_time(void);
 int host_call(int op, int a, int b, int c, int d);
@@ -433,9 +433,11 @@ int mq_receive(struct mq *q, void *msg, int block);
 
 /* console.c */
 void console_init(void);
+void console_start(void);
+void console_flush(void);
 void console_putc(int c);
 void console_puts(const char *s);
-struct thread *console_poll(void);
+void console_out(const char *s, size_t n);     /* in one piece */
 int console_getc(void);
 int console_pending(void);
 int console_readable(void);
@@ -483,6 +485,10 @@ void thread_block(void);
 void idle_work(void);
 void reap_zombies(void);
 void irq_dispatch(void);
+/* A device's interrupt handler: runs with the kernel's data consistent,
+   on the CPU whose mask has the source, and returns a thread it woke,
+   if any, for the scheduler to consider */
+void irq_attach(int source, struct thread *(*handler)(void));
 
 /* whoever provides init_main: init.c, or a test */
 void init_main(void);

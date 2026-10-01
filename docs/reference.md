@@ -20,6 +20,7 @@ Contents:
 4. Memory map
 5. Chairman system controller
 6. IOC input/output controller
+7. The bus
 
 Notation: `Rd`, `Rs`, `Rn`, `Rm`, `Rv` and `Ra` are registers; `{A}Rn` is a
 register that may be in the alternative bank; `#imm` is an immediate.
@@ -862,10 +863,12 @@ its control block.
 
 ### 5.4 Serial console
 
-The flags register has bit 0 set when a fresh byte is waiting.  Reading the
-input register returns the most recent byte and clears the fresh bit.
-Writing a byte to the output register sends it.  There is no interrupt for
-the console; poll the flags.
+For a system without an IOC.  The flags register has bit 0 set when a
+fresh byte is waiting.  Reading the input register returns the most
+recent byte and clears the fresh bit.  Writing a byte to the output
+register sends it.  There is no interrupt for the console; poll the
+flags.  A system with an IOC has its console on the IOC's UART 0
+instead (section 6.2), and these three registers are then absent.
 
 ### 5.5 CPUs
 
@@ -1039,3 +1042,95 @@ gives clocks and delays a resolution the timer's tick does not.
 `BNV #-2`, which halts the simulator, has no effect on hardware; the
 operating system halts through this register when it finds an IOC and
 loops otherwise.
+
+## 7. The bus
+
+What joins the CPUs, the Chairman and the devices.  The programmer's
+model above does not depend on it, and an implementation may build
+something else behind the same model; but one bus is specified so that
+a core, a Chairman and a device written separately fit together, and
+so that the timing promises of sections 1.7 and 5.6 are kept by
+construction.
+
+### 7.1 Signals
+
+Everything is synchronous to one clock and reset by one active-low
+reset.  A *master* (a CPU) presents a transaction; a *slave* (the
+Chairman, on behalf of itself and every device) completes it.
+
+| From the master | Width | Meaning |
+|---|---|---|
+| `req` | 1 | A transaction is presented, and held until `ack` |
+| `wr` | 1 | 1 to write, 0 to read |
+| `addr` | 32 | The byte address |
+| `be` | 4 | Byte enables: which of the four byte lanes the transaction touches, lane 0 being bits 7:0 |
+| `wdata` | 32 | Data to write, in the enabled lanes |
+
+| From the slave | Width | Meaning |
+|---|---|---|
+| `ack` | 1 | The transaction has completed, this cycle |
+| `rdata` | 32 | Data read, valid with `ack`, in the enabled lanes |
+
+A master raises `req` with the rest of its signals valid and holds all
+of them unchanged until the cycle in which it sees `ack`; the slave
+may `ack` in that same cycle or any later one.  A master presents one
+transaction at a time: it does not raise `req` again until the cycle
+after `ack`.  A transaction is a word (`be` = 1111), a halfword (1100
+or 0011) or a byte (one lane), as the load or store that caused it;
+unaligned loads and stores are UNPREDICTABLE in section 1.7 and so a
+master need not present them.  An instruction fetch is a halfword
+read like any other; a master may fetch a whole word and keep the
+other half.
+
+### 7.2 The Chairman as arbiter and decoder
+
+Every master's bus goes to the Chairman and nowhere else.  The
+Chairman grants one master at a time, in round robin among those with
+`req` raised, and lets a granted transaction run to its `ack` before
+granting another; so transactions on the system are totally ordered,
+and a master's own are in its program order, which is the whole of the
+coherence rule in section 1.7 when there are no caches.  It is also
+why a lock's read-and-set (section 5.6) needs no special cycle: the
+Chairman answers the read itself, and no other transaction can come
+between the read and the set.
+
+The Chairman decodes the chip select from `addr[31:27]` and forwards
+the transaction, with `addr[26:0]`, to the device on it, waiting for
+that device's `ack`.  It answers its own chip select, 31, itself.  A
+chip select with nothing on it is answered by the Chairman in one
+cycle, with zero (section 4).  The Chairman knows which master it has
+granted, which is how chip select 30 reaches that master's local
+memory, how the registers at 0x2400 to 0x240c are the granting CPU's
+own, and how `BNV #2` can be answered without a wire of its own: a
+CPU learns its number as a constant at reset, from the Chairman or
+from how it is wired.
+
+### 7.3 Local memory
+
+Chip select 30 need not cross the bus at all.  An implementation that
+wants a CPU's accesses to its own local memory to take the same time
+whatever the other CPUs do decodes chip select 30 in the master, before
+`req`, and serves it from a RAM beside the CPU; the Chairman then sees
+only that CPU's other accesses, and reaches the same RAM through a
+second port when another CPU addresses it at chip select 29.  An
+implementation that does not care routes it through the Chairman like
+everything else.  Both satisfy section 4.
+
+### 7.4 Interrupts
+
+The Chairman drives one `irq` line per CPU, high while that CPU's
+`pending & mask` is non-zero; the CPU samples it between instructions
+and takes the interrupt as section 1.6 says, when not already in
+interrupt mode.  A device raises a source by a line into the Chairman
+that it holds high while its condition holds; the Chairman sets the
+pending bit on each cycle the line is high, so a condition that
+persists until it is attended to is raised again after being cleared,
+and a condition that has passed is not.  The IOC's lines are its
+sources 0 to 7 (section 6).
+
+### 7.5 What is not specified
+
+Clock frequency, reset timing, how a device is attached to the
+Chairman beyond presenting `ack` and `rdata` for its range, and how
+RAM and ROM are made.  The Chairman's chip-select table says what is
+there and how big; the bus says how it is spoken to.

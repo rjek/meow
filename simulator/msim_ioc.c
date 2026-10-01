@@ -42,6 +42,8 @@
 struct uart {
 	uint8_t		rx[FIFO];
 	unsigned	head, count;
+	unsigned	tx_count;	/* bytes still to go out, at the baud rate */
+	u_int32_t	tx_next;	/* the cycle the next one has gone */
 	u_int32_t	divisor, ien;
 	u_int32_t	errors;		/* the sticky status bits */
 	bool		console;	/* the host's standard streams */
@@ -131,7 +133,8 @@ static u_int32_t uart_read(struct uart *u, u_int32_t off)
 		if (u->console == true) {
 			uart_poll_stdin(u);
 		}
-		return (u->count != 0 ? ST_RX : 0) | ST_ROOM | ST_IDLE | u->errors |
+		return (u->count != 0 ? ST_RX : 0) | (u->tx_count < FIFO ? ST_ROOM : 0) |
+		       (u->tx_count == 0 ? ST_IDLE : 0) | u->errors |
 		       (u->count << 8) | (FIFO << 16);
 	case 0x04:
 		if (u->count == 0) {
@@ -147,10 +150,17 @@ static u_int32_t uart_read(struct uart *u, u_int32_t off)
 	return 0;
 }
 
-static void uart_write(struct uart *u, u_int32_t off, u_int32_t d)
+static void uart_write(struct uart *u, u_int32_t off, u_int32_t d, u_int32_t cycles)
 {
 	switch (off) {
 	case 0x04:
+		if (u->tx_count == FIFO) {
+			break;			/* no room: dropped, as the reference says */
+		}
+		if (u->tx_count == 0) {
+			u->tx_next = cycles + 160 * (u->divisor + 1);
+		}
+		u->tx_count++;
 		if (u->console == true) {
 			putc((int)(d & 0xff), stdout);
 			fflush(stdout);
@@ -166,7 +176,19 @@ static void uart_write(struct uart *u, u_int32_t off, u_int32_t d)
 
 static bool uart_interrupting(struct uart *u)
 {
-	return ((u->ien & 1) != 0 && u->count != 0) || (u->ien & 2) != 0;
+	return ((u->ien & 1) != 0 && u->count != 0) ||
+	       ((u->ien & 2) != 0 && u->tx_count < FIFO);
+}
+
+/* A byte takes ten bit times to go: 16 clocks a bit, times the divisor
+ * plus one.  The bytes themselves went to the host as they were
+ * written; this is the FIFO emptying behind them. */
+static void uart_tick(struct uart *u, u_int32_t cycles)
+{
+	if (u->tx_count != 0 && cycles == u->tx_next) {
+		u->tx_count--;
+		u->tx_next = cycles + 160 * (u->divisor + 1);
+	}
 }
 
 /* ---- SPI ---- */
@@ -277,7 +299,7 @@ static void msim_ioc_write(struct msim_ctx *ctx, const u_int32_t ptr,
 	}
 	if (ptr >= 0x0100 && ptr < 0x0300) {
 		i->uart[(ptr >> 8) - 1].used = true;
-		uart_write(&i->uart[(ptr >> 8) - 1], ptr & 0xff, d);
+		uart_write(&i->uart[(ptr >> 8) - 1], ptr & 0xff, d, i->cycles);
 		return;
 	}
 	if (ptr >= 0x0300 && ptr < 0x0380) {
@@ -334,6 +356,7 @@ static void msim_ioc_tick(struct msim_ctx *ctx, void *fctx)
 		uart_poll_stdin(&i->uart[0]);
 	}
 	for (n = 0; n < IOC_UARTS; n++) {
+		uart_tick(&i->uart[n], i->cycles);
 		if (uart_interrupting(&i->uart[n]) == true) {
 			msim_sys_raise_irq(ctx, IRQ_UART0 + n);
 		}

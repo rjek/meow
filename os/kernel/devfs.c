@@ -141,14 +141,9 @@ static int console_read(struct vnode *v, void *buf, size_t len, uint32_t off)
 
 static int console_write(struct vnode *v, const void *buf, size_t len, uint32_t off)
 {
-    const char *p = buf;
-    size_t i;
-
     (void)v;
     (void)off;
-    for (i = 0; i < len; i++) {
-        console_putc(p[i]);
-    }
+    console_out(buf, len);
     return (int)len;
 }
 
