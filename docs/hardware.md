@@ -115,8 +115,10 @@ testbench, and `hw/Makefile` runs it: `make check` assembles the
 simulator's single-CPU tests from `tests/sim/`, has `msim -T` write a
 line per instruction (its address and word, then both banks'
 registers after it), and runs the same ROM in GHDL, where the
-testbench compares every instruction and plays the host's part on
-the coprocessor port; `make synth` gives the ECP5 figures through
+testbench compares every instruction, plays the host's part (the
+coprocessor port, standard input into UART 0, an SD card on the SPI
+pins) and writes what the program wrote, which must match msim's
+expected output too; `make synth` gives the ECP5 figures through
 Yosys and the GHDL plugin.
 
 - `meow_pkg.vhdl`: the types, the bus records of reference section
@@ -137,26 +139,47 @@ Yosys and the GHDL plugin.
   same cycle's tick, as msim orders them.
 - `rom.vhdl` and `ram.vhdl`: block RAM, the ROM from a file of hex
   words, both answering the cycle after the request.
-- `meow_soc.vhdl`: the system: cores, Chairman, ROM at chip select 0
-  and RAM at 1.  `TICK_FROM_CORE` makes the timers count instructions
-  (and cycles waited in `WFI`), as msim does, so the interrupt test's
-  trace matches to the instruction; a board counts clocks.
-- `tb_soc.vhdl`: the testbench.
+- `uart.vhdl`, `spi.vhdl`, `ioc.vhdl`: the IOC of reference section
+  6, every part: two UARTs with 16-byte FIFOs each way, break
+  detection and the testbench's backdoor into UART 0's receive side;
+  the SPI master with its chip-select bit and all four modes; the
+  GPIO with its edge interrupts; the clock and counter; system
+  control.  Time in the IOC is counted in ticks, the same signal the
+  Chairman's timers count, and a write lands before the same edge's
+  tick: a byte takes 160 (divisor + 1) ticks to go, an SPI transfer
+  is busy for 16 (divisor + 1), the counter counts ticks, all exactly
+  as msim counts them, so that a program's view of the status bits is
+  instruction-exact against the trace.
+- `meow_soc.vhdl`: the system: cores, Chairman, ROM at chip select 0,
+  RAM at 1, the IOC at 2.  `TICK_FROM_CORE` makes time count
+  instructions (and cycles waited in `WFI`), as msim does; a board
+  counts clocks.
+- `sim/sd_model.vhdl`: an SD card in SPI mode at the bit level, what
+  `msim_sd.c` answers, for the testbench.
+- `sim/tb_soc.vhdl`: the testbench.
 
-Seven of the simulator's tests run and match, 1,669 instructions, at
-3.9 clocks an instruction with memory that answers the cycle after it
-is asked; the three that need two CPUs or the IOC wait for those.
-Synthesised for the ECP5 the core is about 3,600 LUT4s and 260 flops,
-the Chairman 700 and 190 (for one CPU), and the 64 KB RAM 32 block
-RAMs; the first cut, with the register file as flops and a read mux
-for every use, was 25,000, which says where the cost of a design
-like this goes.  The ROM is empty at synthesis, so its blocks do not
-show.  There is more to take out of the core, in the muxing of the
-operand paths, and nothing has been timed yet.
+Nine of the simulator's ten tests run and match: 2,319 instructions
+at 3.9 clocks each with memory that answers the cycle after it is
+asked, the UART and SPI tests among them, the card's responses
+arriving bit by bit on the pins at the instruction msim had them.
+The tenth needs two CPUs and cannot match a trace instruction for
+instruction, since the second CPU's progress against the first's is
+what differs between msim and hardware; it wants a test of its own.
 
-Not yet done: the IOC, local memory at chip selects 29 and 30, a
-board's top level with a clock and reset, and the two-CPU and IOC
-tests.
+Synthesised for the ECP5 the whole system is about 8,000 LUT4s and
+1,700 flops: the core 3,600 and 260 (its register file 32
+distributed-RAM cells), the Chairman 700 and 190 for one CPU, the
+IOC about 3,300 and 1,200, and the 64 KB RAM 32 block RAMs.  The
+first cut of the core, with the register file as flops and a read
+mux for every use, was 25,000 LUT4s on its own, which says where the
+cost of a design like this goes.  The IOC is fat for what it is: its
+FIFOs are flops and its counters are 32 bits wide, and both can be
+cut.  The ROM is empty at synthesis, so its blocks do not show.
+Nothing has been timed yet.
+
+Not yet done: local memory at chip selects 29 and 30, a board's top
+level with a clock and reset, a two-CPU test, timing, and booting
+Catflap under GHDL.
 
 ## Sources
 

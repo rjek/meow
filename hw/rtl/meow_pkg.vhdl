@@ -45,6 +45,7 @@ package meow_pkg is
     constant BUS_S2M_IDLE : bus_s2m_t := ('0', (others => '0'));
 
     type bus_m2s_array_t is array (natural range <>) of bus_m2s_t;
+    type byte_array_t is array (natural range <>) of std_logic_vector(7 downto 0);
     type bus_s2m_array_t is array (natural range <>) of bus_s2m_t;
 
     -- device numbers in the chip-select table, vendor 0
@@ -57,6 +58,7 @@ package meow_pkg is
 
     function cond_true(sr : word_t; cond : std_logic_vector(3 downto 0)) return boolean;
     function sext(v : std_logic_vector; width : natural) return word_t;
+    function bool_to_sl(b : boolean) return std_logic;
 end package;
 
 package body meow_pkg is
@@ -95,5 +97,10 @@ package body meow_pkg is
         r := (others => t(width - 1));
         r(width - 1 downto 0) := t(width - 1 downto 0);
         return r;
+    end function;
+
+    function bool_to_sl(b : boolean) return std_logic is
+    begin
+        if b then return '1'; else return '0'; end if;
     end function;
 end package body;

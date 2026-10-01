@@ -9,11 +9,12 @@ YOSYS = yosys
 MAS = ../as/mas
 MSIM = ../simulator/msim
 
-RTL = rtl/meow_pkg.vhdl rtl/meow_core.vhdl rtl/rom.vhdl rtl/ram.vhdl rtl/chairman.vhdl rtl/meow_soc.vhdl
-TB = sim/tb_soc.vhdl
+RTL = rtl/meow_pkg.vhdl rtl/meow_core.vhdl rtl/rom.vhdl rtl/ram.vhdl rtl/chairman.vhdl \
+      rtl/uart.vhdl rtl/spi.vhdl rtl/ioc.vhdl rtl/meow_soc.vhdl
+TB = sim/sd_model.vhdl sim/tb_soc.vhdl
 
-# the simulator's tests a one-CPU system without an IOC can run
-TRACE_TESTS = alu banks branch flags input irq mem
+# the simulator's tests a one-CPU system can run: all but the two-CPU one
+TRACE_TESTS = alu banks branch flags input irq mem uart spi
 
 all: obj/tb_soc
 
@@ -33,18 +34,35 @@ obj/%.bin: ../tests/sim/%.s ../tests/sim/msim.inc.s
 	@mkdir -p obj
 	cd ../tests/sim && ../../as/mas -o ../../hw/$@ $*.s
 
-# msim's trace of the same ROM, with the test's input if it has one
+# msim's trace of the same ROM, with the test's input and SD card if it
+# has them (an SD card image is 1 MB of zeros with the test's text first)
 obj/%.trace: obj/%.bin
 	if [ -f ../tests/sim/$*.in ]; then in=../tests/sim/$*.in; else in=/dev/null; fi; \
-	$(MSIM) -q -r $< -c 200000 -T $@ < $$in > /dev/null 2>&1; true
+	if [ -f ../tests/sim/$*.sd ]; then \
+	    dd if=/dev/zero of=obj/$*.sdimg bs=1024 count=1024 2>/dev/null; \
+	    dd if=../tests/sim/$*.sd of=obj/$*.sdimg conv=notrunc 2>/dev/null; sd="-D obj/$*.sdimg"; \
+	else sd=; fi; \
+	$(MSIM) -q -r $< -c 200000 $$sd -T $@ < $$in > /dev/null 2>&1; true
 
-check: obj/tb_soc $(addprefix obj/,$(addsuffix .hex,$(TRACE_TESTS)) $(addsuffix .trace,$(TRACE_TESTS)))
+# the card's image as hex words, for the testbench's model
+obj/%.sdhex: obj/%.trace
+	if [ -f obj/$*.sdimg ]; then python3 -c "import sys; d = open(sys.argv[1], 'rb').read(); \
+	    print('\n'.join('%08x' % int.from_bytes(d[i:i + 4], 'little') for i in range(0, len(d), 4)))" obj/$*.sdimg > $@; \
+	else : > $@; fi
+
+# each test: the trace must match to the instruction, and what the
+# program wrote must match msim's expected output
+check: obj/tb_soc $(addprefix obj/,$(addsuffix .hex,$(TRACE_TESTS)) $(addsuffix .trace,$(TRACE_TESTS)) $(addsuffix .sdhex,$(TRACE_TESTS)))
 	@pass=0; fail=0; \
 	for t in $(TRACE_TESTS); do \
-	    if $(GHDL) -r $(GHDLFLAGS) tb_soc -gROM=obj/$$t.hex -gTRACE=obj/$$t.trace > obj/$$t.log 2>&1; then \
+	    in=; if [ -f ../tests/sim/$$t.in ]; then in="-gIN_FILE=../tests/sim/$$t.in"; fi; \
+	    sd=; if [ -f ../tests/sim/$$t.sd ]; then sd="-gHAVE_SD=true -gSD_IMAGE=obj/$$t.sdhex"; fi; \
+	    if $(GHDL) -r $(GHDLFLAGS) tb_soc -gROM=obj/$$t.hex -gTRACE=obj/$$t.trace -gOUT_FILE=obj/$$t.hwout $$in $$sd > obj/$$t.log 2>&1 \
+	       && cmp -s obj/$$t.hwout ../tests/sim/$$t.out; then \
 	        pass=$$((pass + 1)); echo "ok   $$t: $$(grep -o '[0-9]* instructions matched in [0-9]* cycles' obj/$$t.log)"; \
 	    else \
 	        fail=$$((fail + 1)); echo "FAIL $$t"; grep -v '^$$' obj/$$t.log | tail -5; \
+	        cmp obj/$$t.hwout ../tests/sim/$$t.out 2>&1 | head -2; \
 	    fi; \
 	done; \
 	echo "hardware tests: $$pass passed, $$fail failed"; [ $$fail = 0 ]
