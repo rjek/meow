@@ -46,6 +46,7 @@ entity meow_core is
 
         cop_req  : out std_logic;
         cop_op   : out std_logic_vector(8 downto 0);   -- the BNV operand's field: halfwords, signed
+        cop_ir   : out word_t;              -- ir, for the coprocessor to read
         cop_ack  : in  std_logic;
         cop_wr   : in  std_logic;           -- with ack: cop_data goes to ir
         cop_data : in  word_t;
@@ -102,7 +103,11 @@ architecture rtl of meow_core is
                 sb := b xor w(4);
             end if;
         end if;
-        d := sel(db, w(11 downto 8));
+        if w(15 downto 13) = "000" then
+            d := sel(b, std_logic_vector(to_unsigned(R_IR, 4)));   -- a BNV: ir for the coprocessor
+        else
+            d := sel(db, w(11 downto 8));
+        end if;
         if w(15 downto 12) = "1011" and w(7 downto 6) = "01" then
             s := sel(b, std_logic_vector(to_unsigned(R_SP, 4)));   -- [sp, #n]
         else
@@ -232,6 +237,7 @@ begin
     bus_o.wdata <= mem_data;
     cop_req     <= is_cop;
     cop_op      <= ir(8 downto 0);
+    cop_ir      <= opd_v;
 
     -- complete when its last write is: a memory instruction with a
     -- writeback has one more cycle

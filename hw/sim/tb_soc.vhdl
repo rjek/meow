@@ -20,8 +20,9 @@ use work.meow_pkg.all;
 
 entity tb_soc is
     generic (
+        NCPU      : natural := 1;
         ROM       : string := "rom.hex";
-        TRACE     : string := "trace.txt";
+        TRACE     : string := "trace.txt";  -- "none": no trace, just run to the halt and check the output
         IN_FILE   : string := "";           -- standard input, or none
         OUT_FILE  : string := "out.txt";
         SD_IMAGE  : string := "";
@@ -37,9 +38,9 @@ end entity;
 architecture sim of tb_soc is
     signal clk : std_logic := '0';
     signal rst_n : std_logic := '0';
-    signal cop_req, cop_ack, cop_wr : std_logic;
-    signal cop_op : std_logic_vector(8 downto 0);
-    signal cop_data : word_t;
+    signal cop_req, cop_ack, cop_wr : std_logic_vector(NCPU - 1 downto 0);
+    signal cop_op : std_logic_vector(9 * NCPU - 1 downto 0);
+    signal cop_ir, cop_data : word_array_t(0 to NCPU - 1);
     signal retire, tick, bank : std_logic;
     signal regs : reg_file_t;
     signal pc : word_t;
@@ -91,13 +92,14 @@ begin
     rst_n <= '1' after 25 ns;
 
     dut : entity work.meow_soc
-        generic map (NCPU => 1, MODEL => 0, ROM_FILE => ROM, ROM_WORDS => ROM_WORDS, RAM_WORDS => RAM_WORDS,
+        generic map (NCPU => NCPU, MODEL => 0, ROM_FILE => ROM, ROM_WORDS => ROM_WORDS, RAM_WORDS => RAM_WORDS,
                      LOCAL_WORDS => LOCAL_WORDS, TICK_FROM_CORE => true, UART1_LOOPBACK => true, DEBUG => true)
         port map (clk => clk, rst_n => rst_n,
                   uart0_rxd => '1', uart0_txd => uart0_txd, uart1_rxd => '1', uart1_txd => uart1_txd,
                   spi_sclk => spi_sclk, spi_mosi => spi_mosi, spi_miso => spi_miso, spi_cs_n => spi_cs_n,
                   gpio_in => (others => '0'), gpio_out => gpio_out, gpio_oe => gpio_oe, leds => open, halted => open,
-                  cop_req => cop_req, cop_op => cop_op, cop_ack => cop_ack, cop_wr => cop_wr, cop_data => cop_data,
+                  cop_req => cop_req, cop_op => cop_op, cop_ir => cop_ir, cop_ack => cop_ack, cop_wr => cop_wr,
+                  cop_data => cop_data,
                   tb_rx_n => tb_rx_n, tb_rx_bytes => tb_rx_bytes, tb_break => tb_break, tb_poll => tb_poll,
                   tb_room => tb_room, tb_used => tb_used, tb_tx_valid => tb_tx_valid, tb_tx_data => tb_tx_data,
                   dbg_retire => retire, dbg_tick => tick, dbg_regs => regs, dbg_bank => bank, dbg_pc => pc,
@@ -112,11 +114,17 @@ begin
         spi_miso <= '1';
     end generate;
 
-    -- the host's part: the operand is signed halfwords, so -2 is "111111111"
+    -- the host's part: the operand is signed halfwords, so -2 is "111111111".
+    -- Only CPU 0, which the trace is of, gets values; the others' prints are
+    -- taken and the rest are no-ops.
     cop_ack  <= cop_req;
-    cop_wr   <= '1' when cop_req = '1' and (cop_op = 9x"1fa" or cop_op = 9x"1f9" or cop_op = 9x"1f8" or cop_op = 9x"1f7")
-                else '0';                      -- getc, time, cycles, hostfs: a value in ir
-    cop_data <= exp_ir;
+    cops : for k in 0 to NCPU - 1 generate
+        cop_wr(k) <= '1' when k = 0 and cop_req(0) = '1' and
+                              (cop_op(8 downto 0) = 9x"1fa" or cop_op(8 downto 0) = 9x"1f9" or
+                               cop_op(8 downto 0) = 9x"1f8" or cop_op(8 downto 0) = 9x"1f7")
+                     else '0';                 -- getc, time, cycles, hostfs: a value in ir
+        cop_data(k) <= exp_ir;
+    end generate;
 
     -- standard input into UART 0, when msim would look at it: on a read
     -- of the status register with room in the FIFO, in that same cycle,
@@ -196,23 +204,25 @@ begin
             if tb_tx_valid = '1' then
                 write(out_f, character'val(to_integer(unsigned(tb_tx_data))));
             end if;
-            if cop_req = '1' then
-                if bank = '0' then v := regs(R_IR); else v := regs(16 + R_IR); end if;
-                case cop_op is
-                when 9x"1fd" =>             -- BNV #-6: a character
-                    write(out_f, character'val(to_integer(unsigned(v(7 downto 0)))));
-                when 9x"1fc" =>             -- BNV #-8: signed decimal
-                    put(integer'image(to_integer(signed(v))));
-                when 9x"1fb" =>             -- BNV #-10: hex
-                    put(hex_of(v));
-                when 9x"1ff" =>             -- BNV #-2: the end, with the status
-                    if not halted then
-                        put("exit " & integer'image(to_integer(unsigned(v(7 downto 0)))) & LF);
-                        file_close(out_f);
-                    end if;
-                when others => null;
-                end case;
-            end if;
+            for k in 0 to NCPU - 1 loop
+                if cop_req(k) = '1' then
+                    v := cop_ir(k);
+                    case cop_op(9 * k + 8 downto 9 * k) is
+                    when 9x"1fd" =>             -- BNV #-6: a character
+                        write(out_f, character'val(to_integer(unsigned(v(7 downto 0)))));
+                    when 9x"1fc" =>             -- BNV #-8: signed decimal
+                        put(integer'image(to_integer(signed(v))));
+                    when 9x"1fb" =>             -- BNV #-10: hex
+                        put(hex_of(v));
+                    when 9x"1ff" =>             -- BNV #-2: the end, with the status
+                        if not halted then
+                            put("exit " & integer'image(to_integer(unsigned(v(7 downto 0)))) & LF);
+                            file_close(out_f);
+                        end if;
+                    when others => null;
+                    end case;
+                end if;
+            end loop;
         end if;
     end process;
 
@@ -228,8 +238,22 @@ begin
         variable act : natural;
         variable failed : boolean := false;
     begin
-        file_open(f, TRACE, read_mode);
         wait until rst_n = '1';
+        if TRACE = "none" then
+            -- no trace: run to the halt
+            loop
+                wait until rising_edge(clk);
+                cycles := cycles + 1;
+                exit when halted;
+                if cycles > MAX_CYCLES then
+                    report "no halt after " & integer'image(cycles) & " cycles" severity failure;
+                end if;
+            end loop;
+            report "ran to the halt in " & integer'image(cycles) & " cycles";
+            finished <= true;
+            wait;
+        end if;
+        file_open(f, TRACE, read_mode);
         while not endfile(f) loop
             readline(f, l);
             hread(l, exp_pc, good);
@@ -299,7 +323,7 @@ begin
     process (clk)
     begin
         if rising_edge(clk) then
-            if cop_req = '1' and cop_op = 9x"1ff" then
+            if cop_req(0) = '1' and cop_op(8 downto 0) = 9x"1ff" then
                 halted <= true;
             end if;
         end if;

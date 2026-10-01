@@ -15,6 +15,9 @@ TB = sim/sd_model.vhdl sim/tb_soc.vhdl
 
 # the simulator's tests a one-CPU system can run: all but the two-CPU one
 TRACE_TESTS = alu banks branch flags input irq mem uart spi
+# the two-CPU test: no trace to match, since the CPUs' pace against each
+# other is the machine's own, but the output must be msim's
+OUTPUT_TESTS = cpus
 
 all: obj/tb_soc
 
@@ -52,8 +55,18 @@ obj/%.sdhex: obj/%.trace
 
 # each test: the trace must match to the instruction, and what the
 # program wrote must match msim's expected output
-check: obj/tb_soc $(addprefix obj/,$(addsuffix .hex,$(TRACE_TESTS)) $(addsuffix .trace,$(TRACE_TESTS)) $(addsuffix .sdhex,$(TRACE_TESTS)))
+check: obj/tb_soc $(addprefix obj/,$(addsuffix .hex,$(TRACE_TESTS)) $(addsuffix .trace,$(TRACE_TESTS)) $(addsuffix .sdhex,$(TRACE_TESTS))) \
+       $(addprefix obj/,$(addsuffix .hex,$(OUTPUT_TESTS)))
 	@pass=0; fail=0; \
+	for t in $(OUTPUT_TESTS); do \
+	    if $(GHDL) -r $(GHDLFLAGS) tb_soc -gNCPU=2 -gROM=obj/$$t.hex -gTRACE=none -gOUT_FILE=obj/$$t.hwout > obj/$$t.log 2>&1 \
+	       && cmp -s obj/$$t.hwout ../tests/sim/$$t.out; then \
+	        pass=$$((pass + 1)); echo "ok   $$t: $$(grep -o 'ran to the halt in [0-9]* cycles' obj/$$t.log), output as msim's"; \
+	    else \
+	        fail=$$((fail + 1)); echo "FAIL $$t"; grep -v '^$$' obj/$$t.log | tail -5; \
+	        cmp obj/$$t.hwout ../tests/sim/$$t.out 2>&1 | head -2; \
+	    fi; \
+	done; \
 	for t in $(TRACE_TESTS); do \
 	    in=; if [ -f ../tests/sim/$$t.in ]; then in="-gIN_FILE=../tests/sim/$$t.in"; fi; \
 	    sd=; if [ -f ../tests/sim/$$t.sd ]; then sd="-gHAVE_SD=true -gSD_IMAGE=obj/$$t.sdhex"; fi; \
@@ -88,6 +101,15 @@ check-catflap: obj/tb_soc obj/catflap.hex obj/catflap.trace
 	    -gOUT_FILE=obj/catflap.hwout -gRAM_WORDS=65536 > obj/catflap.log 2>&1; \
 	grep -v '^$$' obj/catflap.log | tail -3; cmp obj/catflap.hwout obj/catflap.out && echo "catflap: output matches"
 
+# and with two CPUs, on the output alone, as the two-CPU test is
+obj/catflap2.out: $(CATFLAP_ROM) sim/catflap2.in
+	$(MSIM) -q -r $(CATFLAP_ROM) -m 256 -l 4 -n 2 -c 20000000 < sim/catflap2.in > $@ 2>/dev/null; echo "exit $$?" >> $@
+
+check-catflap2: obj/tb_soc obj/catflap.hex obj/catflap2.out
+	$(GHDL) -r $(GHDLFLAGS) tb_soc -gNCPU=2 -gROM=obj/catflap.hex -gTRACE=none -gIN_FILE=sim/catflap2.in \
+	    -gOUT_FILE=obj/catflap2.hwout -gRAM_WORDS=65536 > obj/catflap2.log 2>&1; \
+	grep -v '^$$' obj/catflap2.log | tail -2; cmp obj/catflap2.hwout obj/catflap2.out && echo "catflap on two CPUs: output matches"
+
 # size and speed on the ECP5, through the GHDL plugin
 synth: $(RTL)
 	@mkdir -p obj
@@ -97,4 +119,4 @@ synth: $(RTL)
 clean:
 	rm -rf obj
 
-.PHONY: all check check-catflap synth clean
+.PHONY: all check check-catflap check-catflap2 synth clean

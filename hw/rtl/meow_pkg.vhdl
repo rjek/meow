@@ -46,6 +46,7 @@ package meow_pkg is
 
     type bus_m2s_array_t is array (natural range <>) of bus_m2s_t;
     type byte_array_t is array (natural range <>) of std_logic_vector(7 downto 0);
+    type word_array_t is array (natural range <>) of word_t;
     type bus_s2m_array_t is array (natural range <>) of bus_s2m_t;
 
     -- device numbers in the chip-select table, vendor 0

@@ -36,10 +36,10 @@ begin
             ack <= '0';
             data <= (others => '0');
             if bus_i.req = '1' and ack = '0' then
-                if bus_i.addr(27) = '0' then
-                    cpu := to_integer(unsigned(bus_i.addr(26 downto 22)));   -- chip select 29: whose
+                if bus_i.addr(27) = '1' then
+                    cpu := to_integer(unsigned(bus_i.addr(26 downto 22)));   -- chip select 29, 11101: whose
                 else
-                    cpu := master;                                           -- 30: the asker's
+                    cpu := master;                                           -- 30, 11110: the asker's
                 end if;
                 a := to_integer(unsigned(bus_i.addr(21 downto 2))) mod WORDS;
                 if cpu < NCPU then

@@ -38,11 +38,13 @@ entity meow_soc is
         leds      : out word_t;
         halted    : out std_logic;
 
-        cop_req  : out std_logic;
-        cop_op   : out std_logic_vector(8 downto 0);
-        cop_ack  : in  std_logic;
-        cop_wr   : in  std_logic;
-        cop_data : in  word_t;
+        -- every CPU's coprocessor port, for the testbench
+        cop_req  : out std_logic_vector(NCPU - 1 downto 0);
+        cop_op   : out std_logic_vector(9 * NCPU - 1 downto 0);
+        cop_ir   : out word_array_t(0 to NCPU - 1);
+        cop_ack  : in  std_logic_vector(NCPU - 1 downto 0);
+        cop_wr   : in  std_logic_vector(NCPU - 1 downto 0);
+        cop_data : in  word_array_t(0 to NCPU - 1);
 
         tb_rx_n     : in  natural range 0 to 16;
         tb_rx_bytes : in  byte_array_t(0 to 15);
@@ -101,8 +103,6 @@ architecture rtl of meow_soc is
     signal cpu_start : reg_file_t;
     signal retire, waiting : std_logic_vector(NCPU - 1 downto 0);
     signal tick : std_logic;
-    signal cop_req_v : std_logic_vector(NCPU - 1 downto 0);
-    signal cop_op_v : std_logic_vector(9 * NCPU - 1 downto 0);
     signal d_master : natural range 0 to NCPU - 1;
     signal src : std_logic_vector(29 downto 0) := (others => '0');
     signal ioc_src : std_logic_vector(7 downto 0);
@@ -116,8 +116,8 @@ begin
         port map (
             clk => clk, rst_n => rst_all, run => cpu_run(0), start_pc => cpu_start(0),
             bus_o => m_i(0), bus_i => m_o(0), irq => irq(0),
-            cop_req => cop_req_v(0), cop_op => cop_op_v(8 downto 0),
-            cop_ack => cop_ack, cop_wr => cop_wr, cop_data => cop_data,
+            cop_req => cop_req(0), cop_op => cop_op(8 downto 0), cop_ir => cop_ir(0),
+            cop_ack => cop_ack(0), cop_wr => cop_wr(0), cop_data => cop_data(0),
             retire => retire(0), waiting => waiting(0),
             dbg_regs => dbg_regs, dbg_bank => dbg_bank, dbg_pc => dbg_pc, dbg_word => dbg_word);
 
@@ -127,14 +127,12 @@ begin
             port map (
                 clk => clk, rst_n => rst_all, run => cpu_run(k), start_pc => cpu_start(k),
                 bus_o => m_i(k), bus_i => m_o(k), irq => irq(k),
-                cop_req => cop_req_v(k), cop_op => cop_op_v(9 * k + 8 downto 9 * k),
-                cop_ack => '1', cop_wr => '0', cop_data => (others => '0'),
+                cop_req => cop_req(k), cop_op => cop_op(9 * k + 8 downto 9 * k), cop_ir => cop_ir(k),
+                cop_ack => cop_ack(k), cop_wr => cop_wr(k), cop_data => cop_data(k),
                 retire => retire(k), waiting => waiting(k),
                 dbg_regs => open, dbg_bank => open, dbg_pc => open, dbg_word => open);
     end generate;
 
-    cop_req <= cop_req_v(0);
-    cop_op  <= cop_op_v(8 downto 0);
     dbg_retire <= retire(0);
     dbg_tick <= tick;
 

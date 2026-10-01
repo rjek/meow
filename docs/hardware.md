@@ -161,13 +161,16 @@ Yosys and the GHDL plugin.
 - `local_mem.vhdl`: local memory, a RAM per CPU at chip selects 29
   and 30, behind the Chairman, which says whose the access is.
 
-Nine of the simulator's ten tests run and match: 2,319 instructions
-at 3.9 clocks each with memory that answers the cycle after it is
-asked, the UART and SPI tests among them, the card's responses
-arriving bit by bit on the pins at the instruction msim had them.
-The tenth needs two CPUs and cannot match a trace instruction for
-instruction, since the second CPU's progress against the first's is
-what differs between msim and hardware; it wants a test of its own.
+All ten of the simulator's tests pass.  Nine match msim's trace,
+2,319 instructions at 3.9 clocks each with memory that answers the
+cycle after it is asked, the UART and SPI tests among them, the
+card's responses arriving bit by bit on the pins at the instruction
+msim had them.  The tenth, with two CPUs, cannot match a trace
+instruction for instruction, since the second CPU's progress against
+the first's is what differs between msim and hardware; it runs to the
+halt on a two-CPU system and its output, from both CPUs' prints, must
+be msim's, which it is.  For that the coprocessor port carries ir out
+as well, which a real coprocessor would want too.
 
 And Catflap boots.  `make check-catflap` runs `os/catflap.rom` under
 msim with `hw/sim/catflap.in` on the console (a command or two, then
@@ -196,8 +199,10 @@ FIFOs are flops and its counters are 32 bits wide, and both can be
 cut.  The ROM is empty at synthesis, so its blocks do not show.
 Nothing has been timed yet.
 
-Not yet done: a board's top level with a clock and reset, a two-CPU
-test, and timing.
+`make check-catflap2` boots Catflap on two CPUs the same way, on the
+output alone.
+
+Not yet done: a board's top level with a clock and reset, and timing.
 
 ## Sources
 

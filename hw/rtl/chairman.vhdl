@@ -37,7 +37,6 @@ entity chairman is
 end entity;
 
 architecture rtl of chairman is
-    type word_array_t is array (natural range <>) of word_t;
     signal mask, pending, reload, value, start_pc : word_array_t(0 to NCPU - 1) := (others => (others => '0'));
     signal running : std_logic_vector(NCPU - 1 downto 0) := (others => '0');
     signal lock : std_logic_vector(31 downto 0) := (others => '0');
