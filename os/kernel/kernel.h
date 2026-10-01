@@ -19,7 +19,19 @@
 #define CH_SERIAL_FLAGS CH_REG(0x2410)
 #define CH_SERIAL_IN    CH_REG(0x2414)
 #define CH_SERIAL_OUT   CH_REG(0x2418)
+#define CH_CPU_STATUS(n) CH_REG(0x2800 + 0x20 * (n))
+#define CH_CPU_START(n) CH_REG(0x2804 + 0x20 * (n))
+#define CH_CPU_CONTROL(n) CH_REG(0x2808 + 0x20 * (n))
+#define CH_DOORBELL(n)  CH_REG(0x280c + 0x20 * (n))
+#define CH_CPU_TIMER_RELOAD(n) CH_REG(0x2810 + 0x20 * (n))
+#define CH_PRESENT      CH_REG(0x2c00)
+#define CH_LOCK(n)      CH_REG(0x2e00 + 4 * (n))
+#define IRQ_DOORBELL    30
 #define IRQ_TIMER       31
+#define LOCAL_BASE      0xF0000000u     /* this CPU's local memory */
+#define LOCAL_ALL       0xE8000000u     /* every CPU's, 4 MB apart */
+#define LOCAL_STRIDE    0x00400000u
+#define NCPU            32
 #define BOOT_STACK      4096            /* top of RAM: the boot thread's, then idle's */
 #define IRQ_STACK       4096            /* below it: the interrupt bank's; boot.s agrees */
 #define HZ              100
@@ -52,6 +64,7 @@ struct thread {
     struct waitq *waiting;              /* what it is blocked on */
     enum thread_state state;
     int prio;
+    int cpu;                            /* the CPU it runs on, always */
     int in_kernel;                      /* the CPU's counter while switched out */
     uint32_t wake;                      /* tick to wake at, when sleeping */
     void *stack;
@@ -63,8 +76,10 @@ struct thread {
     int timed;                          /* it is one of them */
     int timedout;                       /* and the limit is what woke it */
     struct request *req;                /* what it is asking a server, if anything */
-    int doomed;                         /* to end once the server has answered */
+    int doomed;                         /* to end at its next kernel exit, and its process too if that is still to do */
 };
+
+#define CPU_EXCLUSIVE   0x100           /* a cpu argument's flag: the thread has the CPU to itself */
 
 #define R_SP 11
 #define R_LR 12
@@ -73,18 +88,30 @@ struct thread {
 
 #define CATFLAP_VERSION "0.7"
 
-/* Per-CPU state.  One CPU today; the layout is what a second would
-   index by cpu_id(). */
+/* Per-CPU state, at the start of each CPU's local memory, so that a CPU
+   finds its own at one address (LOCAL_BASE) and another's through
+   LOCAL_ALL.  The first five words are boot.s's: keep them first. */
 struct cpu {
+    struct thread *switch_from;         /* the switch boot.s is to make */
+    struct thread *switch_to;
+    uint32_t client_sb;                 /* __client_sb: the running process's displacement */
+    uint32_t boot_sp;                   /* a CPU starting: its idle stack */
+    uint32_t irq_sp;                    /* and the interrupt bank's */
+    int cpu;
+    volatile int online;                /* set by the CPU itself, awaited by CPU 0 */
     struct thread *current;
+    struct thread *idle;
+    struct thread *exclusive;           /* the thread that has the CPU to itself, if any */
     int in_kernel;                      /* > 0: inside a kernel call, do not switch */
-    int switch_wanted;                  /* kernel code asked for a switch */
+    volatile int switch_wanted;         /* kernel code asked for a switch, and spins on it */
     int tick_pending;                   /* ticks not yet accounted for */
+    int poked;                          /* the doorbell rang: something to reconsider */
     int slice;                          /* ticks left in the current one */
+    struct thread *ready_head[NPRIO], *ready_tail[NPRIO];
 };
 
-extern struct cpu cpu0;
-#define this_cpu() (&cpu0)
+#define this_cpu() ((struct cpu *)LOCAL_BASE)
+#define cpu_of(n) ((struct cpu *)(LOCAL_ALL + LOCAL_STRIDE * (unsigned)(n)))
 
 /* Errors: negative errno values, as the system calls return them */
 #define EPERM           1
@@ -94,6 +121,7 @@ extern struct cpu cpu0;
 #define EIO             5
 #define EBADF           9
 #define ENOMEM          12
+#define EBUSY           16
 #define EEXIST          17
 #define ENOTDIR         20
 #define EISDIR          21
@@ -221,11 +249,11 @@ struct process {
 };
 
 extern struct process kproc;
-extern uint32_t __client_sb;
 struct process *current_process(void);
 struct process *process_find(int pid);
 void process_init(const uint32_t *relocs, uint32_t n);
 int process_spawn(const char *path, int argc, char *const argv[]);
+int process_spawn_on(const char *path, int argc, char *const argv[], int cpu);
 void process_exit(int status);
 int process_wait(int pid, int *status);
 void process_thread_gone(struct process *p);
@@ -325,7 +353,8 @@ int cpu_id(void);
 long kernel_time(void);
 int host_call(int op, int a, int b, int c, int d);
 int cpu_model(void);                    /* BNV #0's model byte: 0 msim, 1 MEOW1 */
-extern struct thread *switch_from, *switch_to;
+void cpu_wfi(void);                     /* BNV #6: wait for an interrupt */
+void cpu_entry(void);                   /* where a CPU other than 0 starts */
 
 /* lib.c: the kernel's own, under the usual names here but not clashing
    with the C library's in the same image */
@@ -417,12 +446,18 @@ void sched_init(void);
 void sched_start(void);
 struct thread *thread_create(const char *name, int (*fn)(void *), void *arg,
                              int prio, size_t stack_size);
+struct thread *thread_create_on(const char *name, int (*fn)(void *), void *arg,
+                                int prio, size_t stack_size, int cpu);
 struct thread *thread_create_in(struct process *p, const char *name,
                                 int (*fn)(void *), void *arg, int prio,
-                                size_t stack_size);
+                                size_t stack_size, int cpu);
 void thread_kill_others(struct process *p);
 void thread_kill_process(struct process *p);
 int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);
+int thread_spawn_on(int (*fn)(void *), void *arg, unsigned stack, int prio, int cpu);
+int cpu_count(void);
+int cpu_start(int n);
+void cpu_main(void);
 int thread_id(void);
 struct thread *thread_list(void);
 void thread_exit(int status);

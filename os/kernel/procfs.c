@@ -6,10 +6,10 @@
 
 #define TEXT_MAX 1024
 
-enum { P_ROOT, P_PID, P_MEMINFO, P_UPTIME, P_MOUNTS, P_VERSION,
+enum { P_ROOT, P_PID, P_MEMINFO, P_UPTIME, P_MOUNTS, P_VERSION, P_CPUS,
        P_STATUS, P_CMDLINE, P_THREADS };
 
-static const char *const root_files[] = { "meminfo", "uptime", "mounts", "version" };
+static const char *const root_files[] = { "meminfo", "uptime", "mounts", "version", "cpus" };
 static const char *const pid_files[] = { "status", "cmdline", "threads" };
 
 static const struct vnode_ops procdir_ops, proctext_ops;
@@ -77,6 +77,16 @@ static int generate(int kind, int pid, char *buf, size_t size)
     case P_VERSION:
         ADD("Catflap %s MEOW %s\n", CATFLAP_VERSION, cpu_model() == 0 ? "msim" : "MEOW1");
         break;
+    case P_CPUS:
+        for (i = 0; i < cpu_count(); i++) {
+            struct cpu *c = cpu_of(i);
+
+            if (c->online != 0) {
+                ADD("%d %s%s\n", i, c->current->name,
+                    c->exclusive != NULL ? " exclusive" : "");
+            }
+        }
+        break;
     case P_STATUS:
         {
             size_t heap = 0;
@@ -104,8 +114,8 @@ static int generate(int kind, int pid, char *buf, size_t size)
 
             for (t = thread_list(); t != NULL; t = t->all) {
                 if (t->proc == p) {
-                    ADD("%d %s %d %u\n", t->tid, state_name(t->state), t->prio,
-                        (unsigned)t->stack_size);
+                    ADD("%d %s %d %u cpu%d\n", t->tid, state_name(t->state), t->prio,
+                        (unsigned)t->stack_size, t->cpu);
                 }
             }
         }

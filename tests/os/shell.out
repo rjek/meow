@@ -54,6 +54,7 @@ $        0 meminfo
        0 uptime
        0 mounts
        0 version
+       0 cpus
          self/
          36/
          21/
@@ -70,7 +71,7 @@ cwd /
 code 1576 rom
 data 9256
 heap 32768
-$ 40 running 4 4096
+$ 40 running 4 4096 cpu0
 $ $ [41]
 $ $ kept by a program
 $ /mnt:

@@ -108,17 +108,45 @@ about 96 bytes.  Stacks come from the heap, 1 KB by default.
   halts under `msim` when nothing else can run, so that an idle system
   costs nothing.
 - **Context switch.**  Always from interrupt mode.  A voluntary switch
-  (block, yield, exit) sets `switch_wanted` and writes 1 to the
-  Chairman's timer current-value register, so the tick fires after the
-  next instruction; the handler then does the whole switch in the
-  interrupt bank: save `ar0` to `apc` into the current block, pick the
-  next, load, `IRQRTN`.  One switch path, one place where registers are
+  (block, yield, exit) sets `switch_wanted` and rings the CPU's own
+  doorbell in the Chairman, so an interrupt arrives after the next
+  instruction; the handler then does the whole switch in the interrupt
+  bank: save `ar0` to `apc` into the current block, pick the next,
+  load, `IRQRTN`.  One switch path, one place where registers are
   saved, and no thread ever runs with interrupts off.  A tick that finds
   the kernel entered only counts itself; the kernel does the tick's
   work (waking sleepers, polling the console, ending a slice) when the
   call returns, and if that work queued the returning thread behind
-  another it makes the timer fire again at once rather than running on
-  from inside the ready queue, which is the bug the first version had.
+  another it rings the doorbell rather than running on from inside the
+  ready queue, which is the bug the first version had.  (The first
+  versions forced the interrupt by writing 1 to the timer, which
+  restarted the timer's period at every switch, so the clock lost time
+  whenever threads switched often; the doorbell leaves the timer
+  alone.)
+- **CPUs.**  Each CPU runs a scheduler of its own, with its queues,
+  its idle thread and its current thread in its local memory at chip
+  select 30, where the shared C library also finds `__client_sb`, so
+  Catflap needs local memory, if only a few hundred bytes.  A thread
+  belongs to one CPU for life, the one it was made for, which is its
+  maker's unless `thread_spawn_on`, `thread_create_on` or
+  `process_spawn_on` says.  One lock, Chairman lock 0, is held by a
+  CPU exactly while its `in_kernel` is above zero, so the kernel's data
+  is touched by one CPU at a time, as it was by one thread at a time
+  before: `kenter` takes the lock on the step from 0 to 1, `kexit`
+  drops it on the step back, and the interrupt handler, which switches
+  between threads with different counts, leaves it as the new count
+  says.  A thread made ready on another CPU's queue rings that CPU's
+  doorbell, so that its handler looks at what it has; the clock, the
+  sleepers and the console are CPU 0's tick's business, and every CPU
+  keeps its own slices with its own timer.  A thread made with
+  `CPU_EXCLUSIVE` has its CPU to itself: nothing else is put there, and
+  the CPU's timer is stopped, so only its own kernel calls and the
+  doorbell interrupt it.  A thread that must end while it is running on
+  another CPU is marked and its CPU rung; it ends at its next kernel
+  exit, or, if it was in user code, when its CPU next switches it out
+  and its registers can be rewritten to a call that exits.  CPU 0
+  starts the others at boot through the Chairman's control blocks,
+  each on an idle stack of its own, and they wait in `WFI` for work.
 - **Blocking.**  A thread blocks on a semaphore, a message queue, a
   sleep, or a vnode (a read from the console with nothing there).  Each
   has a wait queue; a wakeup moves the thread to the run queue and
@@ -563,20 +591,8 @@ output compared.
    writable data, `int *const p = &x;`, sits in ROM with the linked
    address in it and so points at the wrong place; nothing in the
    library or the programs does this.
-9. **A smaller ROM.**  Lua is an option, `make WITH_LUA=1`; the test
-   programs are built for the tests but not put in the ROM; and
-   `<math.h>` is `os/obj/libm.a`, linked into the programs that call it,
-   since nothing in the shell or the tools does.  A binary built later
-   links the same archive.  The ROM is 104 KB: 94 KB of kernel and C
-   library, 10 KB of programs.  (The opposite, a `const` pointer
-10. **Servers at boot.**  `init` runs `/etc/rc` before the shell: one
-    command a line, `&` to leave one running, and `mounted PATH` to
-    wait for a server to have mounted somewhere.  The default `rc`
-    starts `memfs /tmp`, and the kernel's `ramfs` is gone.  The tests
-    that use `/tmp` start the server the same way.
    in ROM to something also in ROM, as Lua's tables of names are, is
    fine, and the compiler knows not to displace its address.)
-
 9. **Services, poll and kill.**  Done: section 6b.  `srv.c` is the
    ports; `vfs_poll` and a `poll` operation on every kind of file;
    waits with a time limit; `process_kill` and `/bin/kill`; `/bin/memfs`.
@@ -592,6 +608,38 @@ output compared.
    was making holds references that only returning through the call
    lets go of; so the call fails and the thread ends on its way out of
    the kernel.
+10. **A smaller ROM.**  Lua is an option, `make WITH_LUA=1`; the test
+    programs are built for the tests but not put in the ROM; and
+    `<math.h>` is `os/obj/libm.a`, linked into the programs that call
+    it, since nothing in the shell or the tools does.  A binary built
+    later links the same archive.  The ROM is 104 KB: 94 KB of kernel
+    and C library, 10 KB of programs.
+11. **Servers at boot.**  `init` runs `/etc/rc` before the shell: one
+    command a line, `&` to leave one running, and `mounted PATH` to
+    wait for a server to have mounted somewhere.  The default `rc`
+    starts `memfs /tmp`, and the kernel's `ramfs` is gone.  The tests
+    that use `/tmp` start the server the same way.
+12. **More than one CPU.**  Done: section 4's last point.  The per-CPU
+    structure moved into local memory, with `__client_sb` an absolute
+    symbol in it defined by `boot.s`; `kenter` and `kexit` take and
+    drop the lock; the queues became per-CPU; `cpu_start` brings a CPU
+    up and `cpu_main` is its idle loop; `thread_spawn_on`,
+    `process_spawn_on`, `cpu_count` and `cpu_id` are the calls, and
+    `/proc/cpus` and a `cpuN` column in `/proc/PID/threads` show the
+    state.  `tests/os/cpus.c` runs with `msim -n 2 -j 5`: a thread on
+    CPU 1 trading a semaphore and a mutex with init on CPU 0, a sleeper
+    there, `/bin/hello` run there through the shared library, a
+    program whose thread reports which CPU it ran on, a spinning
+    program killed while it runs on CPU 1, and an exclusive thread,
+    which refuses company and lets go when told.  The output is the
+    same for every interleaving tried and with three and four CPUs.
+    One change to the clock came with it: a forced switch rings the
+    doorbell instead of restarting the timer, so ticks no longer slip
+    under heavy switching, and two tests' expectations moved by a
+    tick.  Workers' stacks are still in shared RAM; putting an
+    exclusive thread's stack in its CPU's local memory, for timing that
+    is a matter of counting instructions, is the next thing to do
+    there.
 
 ## 13. Decisions taken, and open ones
 
@@ -610,10 +658,6 @@ having is a question to ask once the system runs and can be measured.
 
 Multiprocessor: the Chairman was designed with masks for 32 CPUs so
 that cores could bit-bang peripherals in the XMOS manner; the rest of
-the architecture is now specified (`reference.md` section 5.5) and
-`multicore.md` says what the kernel will do with it, which is stage
-11.  What the kernel already does to avoid making it hard: the per-CPU state, which is the running thread, the kernel-entry
-counter and `__client_sb`, sits in one structure that is indexed by
-`BNV #2` when there is more than one of them, and kernel-wide state is
-touched only by code that could take a lock.  The scheduler's queues
-are shared, which is the right first shape for a few cores.
+the architecture is in `reference.md` section 5.5 and the kernel now
+uses it, section 4 above and stage 12 below.  `multicore.md` has the
+argument that led there.

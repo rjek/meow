@@ -8,10 +8,12 @@
         EXPORT  kernel_time
         EXPORT  host_call
         EXPORT  cpu_model
+        EXPORT  cpu_wfi
+        EXPORT  cpu_entry
+        EXPORT  __client_sb
         IMPORT  kmain
+        IMPORT  cpu_main
         IMPORT  irq_dispatch
-        IMPORT  switch_from
-        IMPORT  switch_to
         IMPORT  __data_load
         IMPORT  __data_start
         IMPORT  __data_end
@@ -22,6 +24,17 @@
 RAM_BASE        EQU     0x08000000
 CS_RAM_SIZE     EQU     0xF8000104      ; Chairman: size word of chip 1
 IRQ_STACK       EQU     4096            ; below the boot stack at the top of RAM
+
+; The CPU's own state is at the start of its local memory, laid out as
+; kernel.h's struct cpu: the switch the handler is to make, the running
+; process's displacement, which the shared library reads as __client_sb,
+; and the stacks a CPU other than 0 starts with.
+LOCAL           EQU     0xF0000000
+SWITCH_FROM     EQU     0xF0000000
+SWITCH_TO       EQU     0xF0000004
+__client_sb     EQU     0xF0000008
+BOOT_SP         EQU     0xF000000C
+IRQ_SP          EQU     0xF0000010
 
 start   B       reset
         SPACE   30                      ; the interrupt vector is at 32
@@ -64,11 +77,11 @@ reset   LDR     r0, =CS_RAM_SIZE
 irq     LDR     r0, =irq_dispatch
         ADD     lr, pc, #4
         MOV     pc, r0
-        LDR     r1, =switch_to
+        LDR     r1, =SWITCH_TO
         LDR     r1, [r1]
         CMP     r1, #0
         BEQ     .done
-        LDR     r0, =switch_from
+        LDR     r0, =SWITCH_FROM
         LDR     r0, [r0]
         CMP     r0, #0
         BEQ     .load
@@ -137,6 +150,22 @@ irq     LDR     r0, =irq_dispatch
         LDR     r2, [r1], #4
         MOV     apc, r2
 .done   BNV     #4                      ; IRQRTN
+
+; A CPU other than 0 starts here, with nothing in its registers, when CPU
+; 0 has filled in its local memory and pressed its control register.
+cpu_entry
+        LDR     r0, =BOOT_SP
+        LDR     r1, [r0]
+        MOV     sp, r1
+        LDR     r0, =IRQ_SP
+        LDR     r1, [r0]
+        MOV     asp, r1
+        LDR     r0, =cpu_main
+        MOV     pc, r0                  ; never returns
+
+; void cpu_wfi(void): stop until an interrupt
+cpu_wfi BNV     #6
+        RET
 
 ; void kernel_halt(int status): stop the machine.  Under msim the process
 ; exits with the status; real hardware would loop here.

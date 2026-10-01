@@ -129,10 +129,11 @@ struct thread *waitq_wake_one(struct waitq *q)
     return t;
 }
 
-/* Give the CPU up now if t outranks the caller. */
+/* Give the CPU up now if t outranks the caller and is this CPU's;
+   another CPU's was rung when it was queued. */
 void preempt_if(struct thread *t)
 {
-    if (t != NULL && t->prio > this_cpu()->current->prio) {
+    if (t != NULL && t->cpu == this_cpu()->cpu && t->prio > this_cpu()->current->prio) {
         schedule();
     }
 }

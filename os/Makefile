@@ -16,6 +16,7 @@ PLINK = -f cfx -d __user_data_base -S obj/catflap.elf
 LIBM = obj/libm.a
 RT = ../rt/mul.o ../rt/div.o ../rt/ll.o ../rt/softfp.o
 RAM = 1024
+CPUS = 1
 
 KSRCS := $(wildcard kernel/*.c)
 KOBJS := obj/kernel/boot.o $(filter-out obj/kernel/init.o,$(patsubst %.c,obj/%.o,$(KSRCS)))
@@ -40,7 +41,7 @@ LINK = $(KOBJS) obj/kernel/init.o $(RT) obj/kernel/libc_start.o $(LIBOBJS) obj/k
 # linker takes what it needs.
 WITH_LUA ?= 0
 # The test programs are built, for tests/runos.sh, but stay out of the ROM.
-TEST_PROGS := hello libctest ipctest srvtest
+TEST_PROGS := hello libctest ipctest srvtest spin cputest
 PROGS := $(filter-out $(addprefix obj/root/bin/,$(TEST_PROGS)),$(patsubst bin/%.c,obj/root/bin/%,$(wildcard bin/*.c))) \
          $(if $(filter 1,$(WITH_LUA)),obj/root/bin/lua)
 LUA_SRCS := $(wildcard ../lua/*.c)
@@ -128,7 +129,7 @@ obj/mkromfs: tools/mkromfs.c
 	$(HOSTCC) -O -Wall -o $@ $<
 
 run: catflap.rom
-	$(MSIM) -q -r catflap.rom -m $(RAM) -H .
+	$(MSIM) -q -r catflap.rom -m $(RAM) -l 4 -n $(CPUS) -H .
 
 check: obj/kernel.bin obj/link.list obj/lib/crt0.o $(LIBM) $(patsubst bin/%.c,obj/bin/%.o,$(wildcard bin/*.c)) \
        $(if $(filter 1,$(WITH_LUA)),obj/bin/lua.a)

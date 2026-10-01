@@ -7,7 +7,10 @@
 # is one, is standard input; os/NAME.ram, if there is one, holds the RAM
 # size in KB instead; os/NAME.host, if there is one, is lent as /host,
 # and otherwise the tree the romfs was made from is, so that the same
-# programs can be run from ROM, in place, and from /host, copied.
+# programs can be run from ROM, in place, and from /host, copied;
+# os/NAME.opts, if there is one, holds more options for msim, such as
+# the number of CPUs.  Every run has 4 KB of local memory per CPU,
+# which the kernel needs.
 cd "$(dirname "$0")" || exit 2
 NMCC=${NMCC:-../../norcroft-ng/bin/nmcc}
 MLD=${MLD:-../ld/mld}
@@ -26,7 +29,7 @@ if [ ! -f "$OS/obj/link.list" ]; then
 	exit 0
 fi
 LINK=$(sed "s|obj/|$OS/obj/|g; s|\.\./rt/|../rt/|g" "$OS/obj/link.list")
-for src in os/*.c; do
+for src in ${TESTS:-os/*.c}; do
 	name=${src%.c}
 	if [ "$name" = os/lua ] && [ ! -f "$OS/obj/bin/lua.a" ]; then
 		continue                    # Lua is an option, and it is off
@@ -65,13 +68,18 @@ for src in os/*.c; do
 	if [ -f "$name.ram" ]; then ram=$(cat "$name.ram"); else ram=256; fi
 	# the programs, unprelinked, are on /host unless the test brings its own
 	if [ -d "$name.host" ]; then host="-H $name.host"; else host="-H $tmp.root"; fi
-	$MSIM -q -r "$tmp.rom" -m $ram $host -c 200000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
+	if [ -f "$name.opts" ]; then opts=$(cat "$name.opts"); else opts=; fi
+	$MSIM -q -r "$tmp.rom" -m $ram -l 4 $opts $host -c 200000000 < "$stdin" > "$tmp.out" 2>"$tmp.err"
 	echo "exit $?" >> "$tmp.out"
-	if cmp -s "$tmp.out" "$name.out"; then
+	if [ ! -f "$name.out" ]; then
+		echo "NEW  $src: writing $name.out"
+		cp "$tmp.out" "$name.out"
+		pass=$((pass + 1))
+	elif cmp -s "$tmp.out" "$name.out"; then
 		pass=$((pass + 1))
 	else
 		echo "FAIL $src: output differs"
-		if [ -f "$name.out" ]; then diff "$name.out" "$tmp.out" | head -20; else cat "$tmp.out"; fi
+		diff "$name.out" "$tmp.out" | head -20
 		cat "$tmp.err"
 		fail=$((fail + 1))
 	fi

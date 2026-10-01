@@ -6,7 +6,6 @@
 /* The shared library's data range and where the ROM keeps the list of
    words in it that point into it (see libc_start.s and mld -R). */
 extern char __libc_data_start[], __libc_data_end[];
-uint32_t __client_sb;                   /* the running process's displacement */
 static const uint32_t *lib_relocs;
 static uint32_t lib_nrelocs;
 
@@ -266,6 +265,12 @@ static int process_main(void *arg);
 /* Start a program.  Returns its pid, or an error. */
 int process_spawn(const char *path, int argc, char *const argv[])
 {
+    return process_spawn_on(path, argc, argv, this_cpu()->cpu);
+}
+
+/* The same, with its first thread on CPU cpu. */
+int process_spawn_on(const char *path, int argc, char *const argv[], int cpu)
+{
     struct process *parent = current_process();
     struct process *p;
     uint32_t entry;
@@ -309,7 +314,7 @@ int process_spawn(const char *path, int argc, char *const argv[])
 
     p->next = procs;
     procs = p;
-    p->main = thread_create_in(p, p->name, process_main, p, PRIO_DEFAULT, p->stack_size);
+    p->main = thread_create_in(p, p->name, process_main, p, PRIO_DEFAULT, p->stack_size, cpu);
     if (p->main == NULL) {
         procs = p->next;
         kfree(p->image);

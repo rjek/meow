@@ -84,6 +84,18 @@ int process_pid(void);
 int thread_spawn(int (*fn)(void *), void *arg, unsigned stack, int prio);
 int thread_id(void);
 
+/* CPUs: a thread runs on the CPU it was made for, which is its maker's
+   unless it says.  With CF_CPU_EXCLUSIVE the thread has the CPU to
+   itself: no other thread is put there while it lives and its tick is
+   stopped, so nothing interrupts it; CPU 0 cannot be had this way.
+   Kernel calls from such a thread still work, but each may wait for
+   the kernel to be free. */
+#define CF_CPU_EXCLUSIVE 0x100
+int cpu_count(void);
+int cpu_id(void);
+int thread_spawn_on(int (*fn)(void *), void *arg, unsigned stack, int prio, int cpu);
+int process_spawn_on(const char *path, int argc, char *const argv[], int cpu);
+
 /* named IPC in /ipc: open the name after creating it.  A queue's write
    sends exactly one message of its size and its read takes one; a
    semaphore's read waits and its write posts.  Both block. */

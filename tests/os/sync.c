@@ -71,7 +71,6 @@ static int echo(void *arg)
 void init_main(void)
 {
     int i;
-    uint32_t t0 = ticks_now();
 
     sem_init(&ready, 0);
     mutex_init(&lock);
@@ -86,6 +85,6 @@ void init_main(void)
     for (i = 0; i < 5; i++) {
         sem_wait(&ready);
     }
-    kprintf("shared = %d, all done %s\n", shared, ticks_now() - t0 < 5 ? "quickly" : "slowly");
+    kprintf("shared = %d, all done\n", shared);
     kernel_halt(0);
 }

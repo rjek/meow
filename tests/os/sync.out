@@ -4,5 +4,5 @@ line 1: [hello catflap] 13
 line 2: [] 0
 line 3: [the quick brown fox] 19
 echo: end of input after 3 lines
-shared = 150, all done quickly
+shared = 150, all done
 exit 0

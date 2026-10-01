@@ -29,12 +29,23 @@ void kmain(void)
     const uint32_t *rom = rom_after_image();
     const uint32_t *relocs = NULL;
     uint32_t nrelocs = 0;
-    int i;
+    uint32_t present = CH_PRESENT;
+    int i, ncpus = 0;
 
     console_init();
-    alloc_init(__bss_end, heap_end);
+    if (CH_CS_SIZE(30) < sizeof(struct cpu)) {
+        kpanic("Catflap needs local memory at chip select 30");
+    }
     sched_init();
-    kprintf("Catflap: %u KB RAM\n", ram / 1024);
+    alloc_init(__bss_end, heap_end);
+    for (i = 0; i < NCPU; i++) {
+        ncpus += (present >> i) & 1;
+    }
+    if (ncpus > 1) {
+        kprintf("Catflap: %u KB RAM, %d CPUs\n", ram / 1024, ncpus);
+    } else {
+        kprintf("Catflap: %u KB RAM\n", ram / 1024);
+    }
     if (memcmp(rom, "CFRL", 4) == 0) {
         nrelocs = rom[1];
         relocs = rom + 2;
@@ -61,8 +72,14 @@ void kmain(void)
         }
     }
     sched_start();
+    for (i = 1; i < NCPU; i++) {
+        if ((present & (1u << i)) != 0 && cpu_start(i) < 0) {
+            kpanic("CPU %d does not start", i);
+        }
+    }
     thread_create("init", init_thread, NULL, PRIO_INIT, STACK_DEFAULT);
     for (;;) {
         idle_work();
+        cpu_wfi();
     }
 }

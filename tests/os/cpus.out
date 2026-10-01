@@ -1,0 +1,31 @@
+Catflap: 256 KB RAM, 2 CPUs
+init on cpu0 of 2
+worker on cpu1
+worker: shared 11
+init: shared 11
+worker: shared 22
+init: shared 22
+worker: shared 33
+init: shared 33
+worker: shared 44
+init: shared 44
+worker: shared 55
+init: shared 55
+napper on cpu1 slept 3 ticks
+hello from a process, pid 1, args: hello there
+hello on cpu1 exited 2
+main on cpu0 of 2
+thread ran on cpu1
+cputest exited 0
+0 init
+1 spin
+kill: 0
+spin exited 137
+0 init
+1 excl exclusive
+another on cpu1 while exclusive: refused
+exclusive on cpu1 let go
+0 init
+1 idle
+plenty free
+exit 0

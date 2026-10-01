@@ -128,7 +128,8 @@ the cycle.
 
 ## What Catflap does with it
 
-Stage 11, after the hardware exists.  From a process:
+As first proposed, before the section after this one simplified it.
+From a process:
 
     int  core_start(int core, void (*fn)(void *), void *arg,
                     void *stack, size_t size);
@@ -172,7 +173,10 @@ owner process, entry address.
 
 Could a core run threads and processes as core 0 does, with a thread
 naming its core when it is made and never moving?  Yes, and it
-complicates exactly one thing, which is worth seeing clearly.
+complicates exactly one thing, which is worth seeing clearly.  This is
+what was built: `catflap.md` section 4 says how, and the calls are
+`thread_spawn_on`, `process_spawn_on` and `CF_CPU_EXCLUSIVE` in
+`catflap.h`.
 
 Today the kernel's data is consistent because only one flow of
 control is ever inside the kernel: there is one core, and a tick that
@@ -238,22 +242,22 @@ this one lets it on and is simpler for it; the lock is what buys that.
 
 ## In msim
 
-`-c N` simulates N cores, interleaving one instruction each in turn,
-with an option to interleave in random runs so that races show.  The
-Chairman model gets the registers above.  The first test is a worker
-driving a software UART on a GPIO line that msim decodes and prints;
-the second is the same worker in local memory with a cycle count
-that must not vary.
+Done: `-n N` simulates N CPUs, one instruction each a cycle in bus-ID
+order, and `-j seed` stalls them at random so that an interleaving
+cannot be relied on; `-l KB` is the local memory.  `tests/sim/cpus.s`
+exercises the Chairman's registers and `tests/os/cpus.c` the kernel.
+Still to do: a worker driving a software UART on a GPIO line that msim
+decodes, and the same worker in local memory with a cycle count that
+must not vary.
 
 ## Questions
 
-1. Per-core timers.  XMOS gives every core one, and the section on
-   threads says why the core control block should too: then every
-   core's scheduler is today's.
-2. How many locks, and does the kernel use one big lock or several.
-   With workers never entering the kernel, one is enough to start.
-3. Should a thread on a worker core be able to make threads on
-   another core.  With the lock, nothing stops it; whether `spawn`
-   from an exclusive core is sensible is another matter.
-4. Chip selects 29 and 30 for local memory, or leave them for devices
-   and put local memory inside the RAM chip select's map.
+1. Per-core timers: settled, every CPU has one, in its control block.
+2. One lock, Chairman lock 0, for the kernel; the other 31 are free.
+3. A thread on any CPU may make threads on any other; nothing stops
+   `spawn` from an exclusive CPU, and nothing recommends it.
+4. Chip selects 29 and 30 are local memory: settled, in the reference.
+5. An exclusive thread's stack and the code it runs are in shared RAM;
+   local memory holds only the CPU's state.  Giving such a thread a
+   stack in local memory, and copying its code there, is what would
+   make its timing a matter of counting instructions.
